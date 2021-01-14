@@ -28,6 +28,6 @@ jobs:
       - name: Include What You Use
         uses: EmilGedda/include-what-you-use-action@v1.0
         with:
-          compilation-database-path: '.'
+          compilation-database-path: 'cmake'
           output-format: 'iwyu' # Or 'clang'
           no-error: 'false'
