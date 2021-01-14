@@ -24,6 +24,7 @@ jobs:
               sudo apt-get install -qq irods-externals-*
       - name: Get and Build Include What You Use
         run:  |
+              sudo apt-get install -qq libncurses5-dev
               export PATH=/opt/irods-externals/cmake3.11.4-0/bin:$PATH
               cd ..
               git clone -b clang_6.0 https://github.com/include-what-you-use/include-what-you-use.git
@@ -36,7 +37,7 @@ jobs:
               export PATH=/opt/irods-externals/cmake3.11.4-0/bin:$PATH
               mkdir build
               cd build
-              cmake -DIRODS_DISABLE_COMPILER_OPTIMIZATIONS=ON -DCMAKE_CXX_INCLUDE_WHAT_YOU_USE="../../include-what-you-use/iwyu" ../
+              cmake -DIRODS_DISABLE_COMPILER_OPTIMIZATIONS=ON -DCMAKE_CXX_INCLUDE_WHAT_YOU_USE="../../include-what-you-use/include-what-you-use" ../
       - name: Build and Package
         run:  |
               cd build
