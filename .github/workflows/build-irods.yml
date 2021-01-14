@@ -22,12 +22,22 @@ jobs:
               echo "deb [arch=amd64] https://unstable.irods.org/apt/ $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/renci-irods-unstable.list
               sudo apt-get update -qq
               sudo apt-get install -qq irods-externals-*
-      - name: Configure CMake
+      - name: Get and Build Include What You Use
+        run:  |
+              sudo apt-get install -qq libncurses5-dev
+              export PATH=/opt/irods-externals/cmake3.11.4-0/bin:$PATH
+              cd ..
+              git clone -b clang_6.0 https://github.com/include-what-you-use/include-what-you-use.git
+              mkdir buildiwyu
+              cd buildiwyu
+              cmake -DIWYU_LLVM_ROOT_PATH=/opt/irods-externals/clang6.0-0 ../include-what-you-use
+              make
+      - name: Run CMake
         run:  |
               export PATH=/opt/irods-externals/cmake3.11.4-0/bin:$PATH
               mkdir build
               cd build
-              cmake -DIRODS_DISABLE_COMPILER_OPTIMIZATIONS=ON ../
+              cmake -DIRODS_DISABLE_COMPILER_OPTIMIZATIONS=ON -DCMAKE_CXX_INCLUDE_WHAT_YOU_USE="../../buildiwyu/include-what-you-use" ../
       - name: Build and Package
         run:  |
               cd build
