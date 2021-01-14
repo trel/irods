@@ -28,12 +28,6 @@ jobs:
               mkdir build
               cd build
               cmake -DIRODS_DISABLE_COMPILER_OPTIMIZATIONS=ON ../
-      - name: Run Include What You Use
-        uses: EmilGedda/include-what-you-use-action@v1
-        with:
-          compilation-database-path: '.'
-          output-format: 'iwyu' # Or 'clang'
-          no-error: 'false'
       - name: Build and Package
         run:  |
               cd build
