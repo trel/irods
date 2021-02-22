@@ -65,7 +65,7 @@ class Test_Dynamic_PEPs(session.make_sessions_mixin([('otherrods', 'rods')], [])
             lib.delayAssert(lambda: lib.log_message_occurrences_greater_than_count(msg=msg, count=0, start_index=log_offset))
 
     @unittest.skipIf(plugin_name == 'irods_rule_engine_plugin-python' or test.settings.RUN_IN_TOPOLOGY, "Skip for Topology Testing")
-    def test_openedDataObjInp_t_serializer__issue_5408(self):
+    def test_openedDataObjInp_t_and_bytesBuf_t_serializers__issue_5408(self):
         config = IrodsConfig()
 
         with lib.file_backed_up(config.server_config_path):
@@ -76,8 +76,10 @@ class Test_Dynamic_PEPs(session.make_sessions_mixin([('otherrods', 'rods')], [])
 
                 with open(core_re_path, 'a') as core_re:
                     core_re.write('pep_api_data_obj_close_post(*a, *b, *DATAOBJCLOSEINP) {*l1descInx = *DATAOBJCLOSEINP.l1descInx; writeLine("serverLog", "pep_api_data_obj_close_post: got l1descInx=*l1descInx");}')
+                    core_re.write('pep_api_replica_close_post(*a, *b, *BUF){writeLine("serverLog", "pep_api_replica_close_post: buf=*BUF");}')
 
                 filename = os.path.join(self.admin.local_session_dir, 'i5408_file.txt')
                 lib.make_file(filename, 1, 'arbitrary')
                 self.admin.assert_icommand(['iput', testfile])
-                lib.delayAssert(lambda: lib.log_message_occurrences_equals_count(msg="pep_api_data_obj_close_post: got l1descInx"))
+                lib.delayAssert(lambda: lib.log_message_occurrences_equals_count(msg="pep_api_data_obj_close_post: got l1descInx=3"))
+                lib.delayAssert(lambda: lib.log_message_occurrences_equals_count(msg="pep_api_replica_close_post: buf=arbitrary"))
