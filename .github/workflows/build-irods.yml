@@ -10,6 +10,9 @@ jobs:
       - name: Get Public IP
         run:  |
               dig +short myip.opendns.com @resolver1.opendns.com
+      - name: Ping unstable.irods.org
+        run:  |
+              ping -c 1 unstable.irods.org
       - name: Install Dependencies
         run:  |
               sudo apt-get update -qq
