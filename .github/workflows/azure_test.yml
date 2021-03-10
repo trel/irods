@@ -21,10 +21,9 @@ jobs:
       - name: Install iRODS Externals
         uses: nick-invision/retry@v2
         with:
-          timeout_minutes: 1
+          timeout_minutes: 3
           max_attempts: 3
           command: |
               curl https://unstable.irods.org/irods-unstable-signing-key.asc | sudo apt-key add -
               echo "deb [arch=amd64] https://unstable.irods.org/apt/ bionic main" | sudo tee /etc/apt/sources.list.d/renci-irods-unstable.list
               sudo apt-get update -qq
-              sudo apt-get install -qq irods-externals-*
