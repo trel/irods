@@ -1,0 +1,13 @@
+name: azure-test
+on: [push, pull_request]
+jobs:
+  build:
+    runs-on: [ubuntu-16.04, ubuntu-18.04, ubuntu-20.04]
+    steps:
+      - name: Get Public IP
+        run:  |
+              dig +short myip.opendns.com @resolver1.opendns.com
+      - name: Get File
+        run:  |
+              curl https://unstable.irods.org/apt/dists/bionic/InRelease
+              ls -l
