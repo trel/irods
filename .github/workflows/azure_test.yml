@@ -18,12 +18,12 @@ jobs:
       - name: Get File
         run:  |
               curl https://unstable.irods.org/apt/dists/bionic/InRelease
-      - name: Install iRODS Externals
-        uses: nick-invision/retry@v2
-        with:
-          timeout_minutes: 3
-          max_attempts: 3
-          command: |
+      - name: Get Signing Key
+        run:  |
               curl https://unstable.irods.org/irods-unstable-signing-key.asc | sudo apt-key add -
+      - name: Add Source
+        run:  |
               echo "deb [arch=amd64] https://unstable.irods.org/apt/ bionic main" | sudo tee /etc/apt/sources.list.d/renci-irods-unstable.list
+      - name: Update APT database
+        run:  |
               sudo apt-get update -qq
