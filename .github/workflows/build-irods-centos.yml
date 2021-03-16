@@ -11,7 +11,7 @@ jobs:
     steps:
       - name: Install Prerequisites
         run:  |
-              yum install -y sudo bind-utils
+              yum install -y sudo bind-utils wget
       - name: Get Public IP
         run:  |
               dig +short myip.opendns.com @resolver1.opendns.com
