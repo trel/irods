@@ -11,7 +11,7 @@ jobs:
     steps:
       - name: Install dig
         run:  |
-              yum install -y dig
+              yum install -y bind-utils
       - name: Get Public IP
         run:  |
               dig +short myip.opendns.com @resolver1.opendns.com
