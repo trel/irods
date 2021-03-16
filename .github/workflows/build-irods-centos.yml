@@ -9,9 +9,12 @@ jobs:
       matrix:
         container: ['centos:7','centos:8']
     steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: recursive
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+#        with:
+#          submodules: recursive
+      - name: Checkout submodules
+        run:  git submodule update --init --recursive
       - name: Get Public IP
         run:  |
               dig +short myip.opendns.com @resolver1.opendns.com
