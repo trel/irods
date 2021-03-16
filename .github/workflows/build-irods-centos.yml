@@ -9,9 +9,9 @@ jobs:
       matrix:
         container: ['centos:7','centos:8']
     steps:
-      - name: Install dig
+      - name: Install Prerequisites
         run:  |
-              yum install -y bind-utils
+              yum install -y sudo bind-utils
       - name: Get Public IP
         run:  |
               dig +short myip.opendns.com @resolver1.opendns.com
