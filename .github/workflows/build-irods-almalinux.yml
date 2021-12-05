@@ -9,9 +9,9 @@ jobs:
       matrix:
         container: ['almalinux:8']
     steps:
-       - name: Install git > v2.18 for Checkout
-         run:  |
-               dnf install -y git
+      - name: Install git > v2.18 for Checkout
+        run:  |
+              dnf install -y git
       - name: Checkout Repository
         uses: actions/checkout@v2
         with:
