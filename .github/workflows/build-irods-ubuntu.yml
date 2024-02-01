@@ -51,3 +51,15 @@ jobs:
         run:  |
               cd build
               make package
+      - name: List built packages
+        run:  |
+              ls -l build
+      - name: SCP to RENCI
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }}
+          port: ${{ secrets.PORT }}
+          source: "build/*.deb"
+          target: /home/tgr/
