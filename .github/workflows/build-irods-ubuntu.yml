@@ -10,7 +10,7 @@ jobs:
         container: ['ubuntu:18.04','ubuntu:20.04','ubuntu:22.04']
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Install Prerequisites
         run:  |
               apt-get update -qq
@@ -50,10 +50,14 @@ jobs:
       - name: Build and Package
         run:  |
               cd build
-              make package
-      - name: List built packages
+              make -j package
+      - name: Copy built packages
         run:  |
-              ls -l build
+              mkdir ${{ matrix.container }}
+              cp build/*.deb ${{ matrix.container }}
+      - name: Get datetime
+        run:  |
+              echo "MY_DATE=$(date +%Y%m%dT%H%M%S)" >> $GITHUB_ENV
       - name: SCP built packages
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -61,5 +65,5 @@ jobs:
           username: ${{ secrets.USERNAME }}
           port: ${{ secrets.PORT }}
           key: ${{ secrets.KEY }}
-          source: "build/*.deb"
-          target: /projects/irods/github-build-artifacts
+          source: "${{ matrix.container }}/*.deb"
+          target: /projects/irods/github-build-artifacts/${{ github.run_number }}-${{ github.sha }}
