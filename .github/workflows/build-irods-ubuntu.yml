@@ -47,23 +47,23 @@ jobs:
               mkdir build
               cd build
               cmake -DIRODS_DISABLE_COMPILER_OPTIMIZATIONS=ON ../
-      - name: Build and Package
+              cat version.json.dist
+      - name: Inspect version file
         run:  |
-              cd build
-              make -j package
-      - name: Copy built packages
-        run:  |
-              mkdir ${{ matrix.container }}
-              cp build/*.deb ${{ matrix.container }}
-      - name: Get datetime
-        run:  |
-              echo "MY_DATE=$(date +%Y%m%dT%H%M%S)" >> $GITHUB_ENV
-      - name: SCP built packages
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
-          port: ${{ secrets.PORT }}
-          key: ${{ secrets.KEY }}
-          source: "${{ matrix.container }}/*.deb"
-          target: /projects/irods/github-build-artifacts/${{ github.run_number }}-${{ github.sha }}
+              grep -rI GITDIR-NOTFOUND .
+#      - name: Copy built packages
+#        run:  |
+#              mkdir ${{ matrix.container }}
+#              cp build/*.deb ${{ matrix.container }}
+#      - name: Get datetime
+#        run:  |
+#              echo "MY_DATE=$(date +%Y%m%dT%H%M%S)" >> $GITHUB_ENV
+#      - name: SCP built packages
+#        uses: appleboy/scp-action@v0.1.7
+#        with:
+#          host: ${{ secrets.HOST }}
+#          username: ${{ secrets.USERNAME }}
+#          port: ${{ secrets.PORT }}
+#          key: ${{ secrets.KEY }}
+#          source: "${{ matrix.container }}/*.deb"
+#          target: /projects/irods/github-build-artifacts/${{ github.run_number }}-${{ github.sha }}
