@@ -50,6 +50,7 @@ jobs:
               cat version.json.dist
       - name: Update version file with SHA
         run:  |
+              cd build
               jq '.commit_id = "${{ github.sha }}"' version.json.dist > version.json.sha
               mv version.json.sha version.json.dist
               cat version.json.dist
