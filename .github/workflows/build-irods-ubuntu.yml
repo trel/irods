@@ -54,6 +54,10 @@ jobs:
               jq '.commit_id = "${{ github.sha }}"' version.json.dist > version.json.sha
               mv version.json.sha version.json.dist
               cat version.json.dist
+      - name: Build and Package
+        run:  |
+              cd build
+              make -j package
       - name: Copy built packages
         run:  |
               mkdir ${{ matrix.container }}
