@@ -15,7 +15,7 @@ jobs:
         run:  |
               apt-get update -qq
               apt-get install -qq dnsutils apt-transport-https ca-certificates
-              apt-get install -qq wget curl g++ make python3-dev unixodbc libcurl4-gnutls-dev libbz2-dev zlib1g-dev libpam0g-dev libssl-dev libxml2-dev unixodbc-dev python3-psutil super odbc-postgresql libkrb5-dev python3-distro
+              apt-get install -qq jq wget curl g++ make python3-dev unixodbc libcurl4-gnutls-dev libbz2-dev zlib1g-dev libpam0g-dev libssl-dev libxml2-dev unixodbc-dev python3-psutil super odbc-postgresql libkrb5-dev python3-distro
       - name: Install libstdc++6
         run:  |
               apt-get install -qq software-properties-common
@@ -48,9 +48,11 @@ jobs:
               cd build
               cmake -DIRODS_DISABLE_COMPILER_OPTIMIZATIONS=ON ../
               cat version.json.dist
-      - name: Inspect version file
+      - name: Update version file with SHA
         run:  |
-              grep -rI GITDIR-NOTFOUND .
+              jq '.commit_id = "${{ github.sha }}"' version.json.dist > version.json.sha
+              mv version.json.sha version.json.dist
+              cat version.json.dist
 #      - name: Copy built packages
 #        run:  |
 #              mkdir ${{ matrix.container }}
