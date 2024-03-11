@@ -57,7 +57,7 @@ jobs:
       - name: Build and Package
         run:  |
               cd build
-              make -j package
+              make package
       - name: Copy built packages
         run:  |
               mkdir ${{ matrix.container }}
