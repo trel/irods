@@ -57,7 +57,7 @@ jobs:
       - name: Build and Package
         run:  |
               cd build
-              make package
+              make package  # without -j to avoid GitHub Action OOM Killer (error 137)
       - name: Copy built packages
         run:  |
               mkdir ${{ matrix.container }}

@@ -10,11 +10,11 @@ jobs:
         container: ['debian:11','debian:12']
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Install Prerequisites
         run:  |
               apt-get update -qq
-              apt-get install -qq apt-transport-https ca-certificates gnupg wget curl g++ make python3-dev unixodbc libcurl4-gnutls-dev libbz2-dev zlib1g-dev libpam0g-dev libssl-dev libxml2-dev unixodbc-dev python3-psutil super odbc-postgresql libkrb5-dev python3-distro
+              apt-get install -qq apt-transport-https ca-certificates gnupg jq wget curl g++ make python3-dev unixodbc libcurl4-gnutls-dev libbz2-dev zlib1g-dev libpam0g-dev libssl-dev libxml2-dev unixodbc-dev python3-psutil super odbc-postgresql libkrb5-dev python3-distro
       - name: Install iRODS Externals
         run:  |
               wget -qO - https://unstable.irods.org/irods-unstable-signing-key.asc | apt-key add -
@@ -40,7 +40,30 @@ jobs:
               mkdir build
               cd build
               cmake -DIRODS_DISABLE_COMPILER_OPTIMIZATIONS=ON ../
+              cat version.json.dist
+      - name: Update version file with SHA
+        run:  |
+              cd build
+              jq '.commit_id = "${{ github.sha }}"' version.json.dist > version.json.sha
+              mv version.json.sha version.json.dist
+              cat version.json.dist
       - name: Build and Package
         run:  |
               cd build
-              make package
+              make package  # without -j to avoid GitHub Action OOM Killer (error 137)
+      - name: Copy built packages
+        run:  |
+              mkdir ${{ matrix.container }}
+              cp build/*.deb ${{ matrix.container }}
+      - name: Get datetime
+        run:  |
+              echo "MY_DATE=$(date +%Y%m%dT%H%M%S)" >> $GITHUB_ENV
+      - name: SCP built packages
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          port: ${{ secrets.PORT }}
+          key: ${{ secrets.KEY }}
+          source: "${{ matrix.container }}/*.deb"
+          target: /projects/irods/github-build-artifacts/${{ github.run_number }}-${{ github.sha }}
