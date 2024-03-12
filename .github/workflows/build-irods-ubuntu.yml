@@ -12,14 +12,14 @@ jobs:
       - name: get git good
         run:  |
               apt-get update -qq
-              apt-get install -y git
+              apt-get install -qq git
               git config --global --add safe.directory $GITHUB_WORKSPACE
       - name: Checkout Repository
         uses: actions/checkout@v4
       - name: Install Prerequisites
         run:  |
               apt-get update -qq
-              apt-get install -qq dnsutils apt-transport-https ca-certificates
+              DEBIAN_FRONTEND=noninteractive apt-get install -qq dnsutils apt-transport-https ca-certificates
               apt-get install -qq wget curl g++ make python3-dev unixodbc libcurl4-gnutls-dev libbz2-dev zlib1g-dev libpam0g-dev libssl-dev libxml2-dev unixodbc-dev python3-psutil super odbc-postgresql libkrb5-dev python3-distro
       - name: Install libstdc++6
         run:  |
