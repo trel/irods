@@ -9,13 +9,19 @@ jobs:
       matrix:
         container: ['almalinux:8','rockylinux:8']
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-      - name: Install Prerequisites
+      - name: Get git
         run:  |
               dnf -y update ca-certificates
+              dnf -y install git
+              git config --global --add safe.directory $GITHUB_WORKSPACE
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - name: Shorten the SHA
+        run:  echo "SHORT_SHA=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_ENV
+      - name: Install Prerequisites
+        run:  |
               dnf -y install bind-utils wget git epel-release
-              dnf -y install jq gcc gcc-c++ make rpm-build bzip2-devel curl-devel fakeroot openssl-devel pam-devel python36-devel unixODBC unixODBC-devel zlib-devel python3-distro
+              dnf -y install gcc gcc-c++ make rpm-build bzip2-devel curl-devel fakeroot openssl-devel pam-devel python36-devel unixODBC unixODBC-devel zlib-devel python3-distro
       - name: Install iRODS Externals
         run:  |
               rpm --import https://unstable.irods.org/irods-unstable-signing-key.asc
@@ -43,12 +49,6 @@ jobs:
               cd build
               cmake -DIRODS_DISABLE_COMPILER_OPTIMIZATIONS=ON ../
               cat version.json.dist
-      - name: Update version file with SHA
-        run:  |
-              cd build
-              jq '.commit_id = "${{ github.sha }}"' version.json.dist > version.json.sha
-              mv version.json.sha version.json.dist
-              cat version.json.dist
       - name: Build and Package
         run:  |
               cd build
@@ -57,9 +57,6 @@ jobs:
         run:  |
               mkdir ${{ matrix.container }}
               cp build/*.rpm ${{ matrix.container }}
-      - name: Get datetime
-        run:  |
-              echo "MY_DATE=$(date +%Y%m%dT%H%M%S)" >> $GITHUB_ENV
       - name: SCP built packages
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -68,4 +65,4 @@ jobs:
           port: ${{ secrets.PORT }}
           key: ${{ secrets.KEY }}
           source: "${{ matrix.container }}/*.rpm"
-          target: /projects/irods/github-build-artifacts/${{ github.run_number }}-${{ github.sha }}
+          target: /projects/irods/github-build-artifacts/${{ env.SHORT_SHA }}
