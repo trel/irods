@@ -15,7 +15,7 @@ jobs:
               yum -y install git
               git config --global --add safe.directory $GITHUB_WORKSPACE
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v2 # cannot use newer checkout b/c node linking wrong libc https://github.com/actions/setup-node/issues/922
       - name: Shorten the SHA
         run:  echo "SHORT_SHA=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_ENV
       - name: Install Prerequisites
