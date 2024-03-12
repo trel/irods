@@ -9,13 +9,18 @@ jobs:
       matrix:
         container: ['ubuntu:20.04','ubuntu:22.04']
     steps:
+      - name: get git good
+        run:  |
+              apt-get update -qq
+              apt-get install -qq git
+              git config --global --add safe.directory $GITHUB_WORKSPACE
       - name: Checkout Repository
         uses: actions/checkout@v4
       - name: Install Prerequisites
         run:  |
               apt-get update -qq
               apt-get install -qq dnsutils apt-transport-https ca-certificates
-              apt-get install -qq jq wget curl g++ make python3-dev unixodbc libcurl4-gnutls-dev libbz2-dev zlib1g-dev libpam0g-dev libssl-dev libxml2-dev unixodbc-dev python3-psutil super odbc-postgresql libkrb5-dev python3-distro
+              apt-get install -qq wget curl g++ make python3-dev unixodbc libcurl4-gnutls-dev libbz2-dev zlib1g-dev libpam0g-dev libssl-dev libxml2-dev unixodbc-dev python3-psutil super odbc-postgresql libkrb5-dev python3-distro
       - name: Install libstdc++6
         run:  |
               apt-get install -qq software-properties-common
@@ -47,13 +52,6 @@ jobs:
               mkdir build
               cd build
               cmake -DIRODS_DISABLE_COMPILER_OPTIMIZATIONS=ON ../
-              cat version.json.dist
-      - name: Update version file with SHA
-        run:  |
-              cd build
-              jq '.commit_id = "${{ github.sha }}"' version.json.dist > version.json.sha
-              mv version.json.sha version.json.dist
-              cat version.json.dist
       - name: Build and Package
         run:  |
               cd build
@@ -62,9 +60,8 @@ jobs:
         run:  |
               mkdir ${{ matrix.container }}
               cp build/*.deb ${{ matrix.container }}
-      - name: Get datetime
-        run:  |
-              echo "MY_DATE=$(date +%Y%m%dT%H%M%S)" >> $GITHUB_ENV
+      - name: Shorten the SHA
+        run:  echo "SHORT_SHA=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_ENV
       - name: SCP built packages
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -73,4 +70,4 @@ jobs:
           port: ${{ secrets.PORT }}
           key: ${{ secrets.KEY }}
           source: "${{ matrix.container }}/*.deb"
-          target: /projects/irods/github-build-artifacts/${{ github.run_number }}-${{ github.sha }}
+          target: /projects/irods/github-build-artifacts/${{ env.SHORT_SHA }}
