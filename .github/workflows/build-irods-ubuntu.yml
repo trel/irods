@@ -70,4 +70,4 @@ jobs:
           port: ${{ secrets.PORT }}
           key: ${{ secrets.KEY }}
           source: "${{ matrix.container }}/*.deb"
-          target: /projects/irods/github-build-artifacts/${{ env.SHORT_SHA }}
+          target: /projects/irods/k8s-testing/github-build-artifacts/${{ env.SHORT_SHA }}
