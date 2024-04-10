@@ -17,7 +17,8 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v2 # cannot use newer checkout b/c node linking wrong libc https://github.com/actions/setup-node/issues/922
       - name: Shorten the SHA
-        run:  echo "SHORT_SHA=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_ENV
+#        run:  echo "SHORT_SHA=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_ENV # git too old on cen7, pwd retrieved via REST API
+        run:  echo "SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_ENV
       - name: Install Prerequisites
         run:  |
               yum -y install bind-utils wget epel-release
