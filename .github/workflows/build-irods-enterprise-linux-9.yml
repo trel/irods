@@ -69,3 +69,11 @@ jobs:
           key: ${{ secrets.KEY }}
           source: "${{ matrix.container }}/*.rpm"
           target: /projects/irods/k8s-testing/github-build-artifacts/${{ env.SHORT_SHA }}
+      - name: CHMOD new packages directory
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          port: ${{ secrets.PORT }}
+          key: ${{ secrets.KEY }}
+          script: chmod -R 775 /projects/irods/k8s-testing/github-build-artifacts/${{ env.SHORT_SHA }}
