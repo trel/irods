@@ -106,26 +106,30 @@ namespace {
         f << '\n';
 
         f << "selectInp.len: " << genQueryInp->selectInp.len << '\n';
-        for (int i=0; i<genQueryInp->selectInp.len; ++i) {
-            f << "    column: " << genQueryInp->selectInp.inx[i] << " " << get_column_name(genQueryInp->selectInp.inx[i]) << '\n';
-            f << "    options: " << genQueryInp->selectInp.value[i];
-            for (size_t j=0; j<sizeof(selectInpOptionsMap)/sizeof(selectInpOptionsMap[0]); ++j) {
-                if (genQueryInp->selectInp.value[i] & selectInpOptionsMap[j].key) {
-                    f << " " << selectInpOptionsMap[j].cpp_macro;
+        if (genQueryInp->selectInp.inx && genQueryInp->selectInp.value) {
+            for (int i=0; i<genQueryInp->selectInp.len; ++i) {
+                f << "    column: " << genQueryInp->selectInp.inx[i] << " " << get_column_name(genQueryInp->selectInp.inx[i]) << '\n';
+                f << "    options: " << genQueryInp->selectInp.value[i];
+                for (size_t j=0; j<sizeof(selectInpOptionsMap)/sizeof(selectInpOptionsMap[0]); ++j) {
+                    if (genQueryInp->selectInp.value[i] & selectInpOptionsMap[j].key) {
+                        f << " " << selectInpOptionsMap[j].cpp_macro;
+                    }
                 }
-            }
-            for (size_t j=0; j<sizeof(selectInpFunctionMap)/sizeof(selectInpFunctionMap[0]); ++j) {
-                if ((genQueryInp->selectInp.value[i] & 0x7) == selectInpFunctionMap[j].key) {
-                    f << " " << selectInpFunctionMap[j].cpp_macro;
+                for (size_t j=0; j<sizeof(selectInpFunctionMap)/sizeof(selectInpFunctionMap[0]); ++j) {
+                    if ((genQueryInp->selectInp.value[i] & 0x7) == selectInpFunctionMap[j].key) {
+                        f << " " << selectInpFunctionMap[j].cpp_macro;
+                    }
                 }
+                f << '\n';
             }
-            f << '\n';
         }
 
         f << "sqlCondInp.len: " << genQueryInp->sqlCondInp.len << '\n';
-        for (int i=0; i<genQueryInp->sqlCondInp.len; ++i) {
-            f << "    column: " << genQueryInp->sqlCondInp.inx[i] << " " << get_column_name(genQueryInp->sqlCondInp.inx[i]) << '\n';
-            f << "    condition: " << genQueryInp->sqlCondInp.value[i] << '\n';
+        if (genQueryInp->sqlCondInp.inx && genQueryInp->sqlCondInp.value) {
+            for (int i=0; i<genQueryInp->sqlCondInp.len; ++i) {
+                f << "    column: " << genQueryInp->sqlCondInp.inx[i] << " " << get_column_name(genQueryInp->sqlCondInp.inx[i]) << '\n';
+                f << "    condition: " << genQueryInp->sqlCondInp.value[i] << '\n';
+            }
         }
         f << '\n';
     }
@@ -257,8 +261,8 @@ genquery_inp_to_iquest_string(const genQueryInp_t *q) {
     ss << "select ";
     {
         const int n = q->selectInp.len;
-        if (n<=0) {
-            ss << "ERROR: 0 columns selected, printing query contents instead of iquest string\n";
+        if (n<=0 || !q->selectInp.inx || !q->selectInp.value) {
+            ss << "ERROR: 0 columns selected or nullptr, printing query contents instead of iquest string\n";
             insert_genquery_inp_into_stream(q, ss);
             return ss.str();
         }
@@ -272,7 +276,7 @@ genquery_inp_to_iquest_string(const genQueryInp_t *q) {
 
     {
         const int n = q->sqlCondInp.len;
-        if (n>0) {
+        if (n>0 && q->sqlCondInp.inx && q->sqlCondInp.value) {
             ss << " where ";
             ss << get_column_name(q->sqlCondInp.inx[0]) << " " << q->sqlCondInp.value[0];
             for (int i=1; i<n; ++i) {
@@ -321,19 +325,21 @@ irods::error strip_new_query_terms(
 
     // =-=-=-=-=-=-=-
     // iterate over the tmp and only copy community values
-    for ( int i = 0; i < tmp.len; ++i ) {
-        if ( tmp.inx[ i ] == COL_R_RESC_CHILDREN ||
-                tmp.inx[ i ] == COL_R_RESC_CONTEXT  ||
-                tmp.inx[ i ] == COL_R_RESC_PARENT   ||
-                tmp.inx[ i ] == COL_R_RESC_PARENT_CONTEXT   ||
-                tmp.inx[ i ] == COL_D_RESC_HIER ) {
-            continue;
-        }
-        else {
-            addInxIval( &_inp->selectInp, tmp.inx[ i ], tmp.value[ i ] );
-        }
+    if (tmp.inx && tmp.value) {
+        for ( int i = 0; i < tmp.len; ++i ) {
+            if ( tmp.inx[ i ] == COL_R_RESC_CHILDREN ||
+                    tmp.inx[ i ] == COL_R_RESC_CONTEXT  ||
+                    tmp.inx[ i ] == COL_R_RESC_PARENT   ||
+                    tmp.inx[ i ] == COL_R_RESC_PARENT_CONTEXT   ||
+                    tmp.inx[ i ] == COL_D_RESC_HIER ) {
+                continue;
+            }
+            else {
+                addInxIval( &_inp->selectInp, tmp.inx[ i ], tmp.value[ i ] );
+            }
 
-    } // for i
+        } // for i
+    }
 
     return SUCCESS();
 
@@ -364,15 +370,17 @@ irods::error strip_resc_grp_name_from_query_inp( genQueryInp_t* _inp, int& _pos 
 
     // =-=-=-=-=-=-=-
     // iterate over tmp and replace resource group with resource name
-    for ( int i = 0; i < tmp.len; ++i ) {
-        if ( tmp.inx[i] == COL_D_RESC_GROUP_NAME ) {
-            addInxIval( &_inp->selectInp, COL_D_RESC_NAME, tmp.value[i] );
-            _pos = i;
-        }
-        else {
-            addInxIval( &_inp->selectInp, tmp.inx[i], tmp.value[i] );
-        }
-    } // for i
+    if (tmp.inx && tmp.value) {
+        for ( int i = 0; i < tmp.len; ++i ) {
+            if ( tmp.inx[i] == COL_D_RESC_GROUP_NAME ) {
+                addInxIval( &_inp->selectInp, COL_D_RESC_NAME, tmp.value[i] );
+                _pos = i;
+            }
+            else {
+                addInxIval( &_inp->selectInp, tmp.inx[i], tmp.value[i] );
+            }
+        } // for i
+    }
 
     // cleanup
     if ( tmp.inx ) { free( tmp.inx ); }
@@ -432,15 +440,17 @@ irods::error strip_resc_hier_name_from_query_inp( genQueryInp_t* _inp, int& _pos
 
     // =-=-=-=-=-=-=-
     // iterate over tmp and replace resource group with resource name
-    for ( int i = 0; i < tmpI.len; ++i ) {
-        if ( tmpI.inx[i] == COL_D_RESC_HIER ) {
-            addInxIval( &_inp->selectInp, COL_D_RESC_ID, tmpI.value[i] );
-            _pos = i;
-        }
-        else {
-            addInxIval( &_inp->selectInp, tmpI.inx[i], tmpI.value[i] );
-        }
-    } // for i
+    if (tmpI.inx && tmpI.value) {
+        for ( int i = 0; i < tmpI.len; ++i ) {
+            if ( tmpI.inx[i] == COL_D_RESC_HIER ) {
+                addInxIval( &_inp->selectInp, COL_D_RESC_ID, tmpI.value[i] );
+                _pos = i;
+            }
+            else {
+                addInxIval( &_inp->selectInp, tmpI.inx[i], tmpI.value[i] );
+            }
+        } // for i
+    }
 
     // cleanup
     if ( tmpI.inx ) { free( tmpI.inx ); }
@@ -455,30 +465,32 @@ irods::error strip_resc_hier_name_from_query_inp( genQueryInp_t* _inp, int& _pos
     tmpV.inx   = _inp->sqlCondInp.inx;
     tmpV.value = _inp->sqlCondInp.value;
 
-    const auto inxs = std::span{tmpV.inx, static_cast<std::size_t>(tmpV.len)};
-    const auto vals = std::span{tmpV.value, static_cast<std::size_t>(tmpV.len)};
-
     // =-=-=-=-=-=-=-
     // zero out the selectInp to copy
     // fresh indices and values
     std::memset(&_inp->sqlCondInp, 0, sizeof(_inp->selectInp));
 
-    try {
-        // iterate over tmp and replace resource group with resource name
-        for (int i = 0; i < tmpV.len; ++i) {
-            const int inx = inxs[i];
-            const char* val = vals[i];
-            if (inx == COL_D_RESC_HIER) {
-                const auto new_cond = translate_data_resc_hier_where_clause_to_resc_id(val);
-                addInxVal(&_inp->sqlCondInp, COL_D_RESC_ID, new_cond.empty() ? "='0'" : new_cond.c_str());
-            }
-            else {
-                addInxVal(&_inp->sqlCondInp, inx, val);
+    if (tmpV.inx && tmpV.value) {
+        const auto inxs = std::span{tmpV.inx, static_cast<std::size_t>(tmpV.len)};
+        const auto vals = std::span{tmpV.value, static_cast<std::size_t>(tmpV.len)};
+
+        try {
+            // iterate over tmp and replace resource group with resource name
+            for (int i = 0; i < tmpV.len; ++i) {
+                const int inx = inxs[i];
+                const char* val = vals[i];
+                if (inx == COL_D_RESC_HIER) {
+                    const auto new_cond = translate_data_resc_hier_where_clause_to_resc_id(val);
+                    addInxVal(&_inp->sqlCondInp, COL_D_RESC_ID, new_cond.empty() ? "='0'" : new_cond.c_str());
+                }
+                else {
+                    addInxVal(&_inp->sqlCondInp, inx, val);
+                }
             }
         }
-    }
-    catch (const irods::exception& e) {
-        return ERROR(e.code(), e.client_display_what());
+        catch (const irods::exception& e) {
+            return ERROR(e.code(), e.client_display_what());
+        }
     }
 
     return SUCCESS();
