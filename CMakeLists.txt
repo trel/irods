@@ -56,7 +56,6 @@ set(CMAKE_MODULE_LINKER_FLAGS_INIT "-Wl,--enable-new-dtags -Wl,--as-needed")
 set(CMAKE_SHARED_LINKER_FLAGS_INIT "-Wl,--enable-new-dtags -Wl,--as-needed")
 
 if(IRODS_ENABLE_COVERAGE)
-#  add_compile_options(-fprofile-instr-generate -fcoverage-mapping -mllvm -enable-name-compression=false)
   add_compile_options(-fprofile-instr-generate -fcoverage-mapping)
   add_link_options(-fprofile-instr-generate -fcoverage-mapping)
 endif()
