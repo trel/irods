@@ -91,6 +91,10 @@ extern "C" const char* __ubsan_default_options()
 } // __ubsan_default_options
 #endif
 
+// Declare the external function provided by the Clang/LLVM profiling runtime
+//extern "C" void __llvm_gcov_flush(void);
+//extern "C" void __llvm_profile_dump(void);
+
 namespace
 {
     namespace fs = std::filesystem;
@@ -374,6 +378,10 @@ auto main(int _argc, char* _argv[]) -> int
         }
 
         log_server::info("{}: Server shutdown complete.", __func__);
+
+        // Call the profiling flush function
+        //__llvm_gcov_flush();
+//        __llvm_profile_dump();
 
         return 0;
     }
