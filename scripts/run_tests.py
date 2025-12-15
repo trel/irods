@@ -222,6 +222,10 @@ if __name__ == '__main__':
     os.environ['PATH'] = ':'.join([irods.paths.server_bin_directory(), os.environ['PATH']])
 
     IrodsController().start(test_mode=True)
+
+    if 'LLVM_PROFILE_FILE' in os.environ:
+        del os.environ['LLVM_PROFILE_FILE']
+
     results = run_tests_from_names(test_identifiers, args.buffer_test_output, args.xml_output, args.skip_until)
     print(results)
 
