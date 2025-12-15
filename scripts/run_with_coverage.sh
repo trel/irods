@@ -24,29 +24,52 @@ until su irods -c 'LLVM_PROFILE_FILE=${PROFILE_RAW_PATTERN} ils > /dev/null 2>&1
   sleep .2
 done
 
-# run test suite
-echo "----- RUNNING TEST SUITE -----"
-su irods -c "LLVM_PROFILE_FILE=${PROFILE_RAW_PATTERN} ils"
+# run unit tests
+echo "----- RUNNING UNIT TESTS -----"
+for X in /var/lib/irods/unit_tests/irods_*; do
+    echo "Running... ${X}"
+    su irods -c "LLVM_PROFILE_FILE=${PROFILE_RAW_PATTERN} ${X}"
+done
 
 # stopping server
 echo "----- STOPPING iRODS SERVER -----"
 kill $(cat /var/run/irods/irods-server.pid)
+sleep 1
+
+# running via run_tests.py
+echo "----- RUNNING TEST SUITE -----"
+su - irods -c "LLVM_PROFILE_FILE=${PROFILE_RAW_PATTERN} \
+    python3 ~/scripts/run_tests.py"
+#    python3 ~/scripts/run_tests.py --run_s test_ils"
+
+# stopping server
+echo "----- STOPPING iRODS SERVER -----"
+kill $(cat /var/run/irods/irods-server.pid)
+sleep 1
 
 # merge raw profile data
 echo "----- GENERATING COVERAGE REPORT -----"
 PROFILE_DATAFILE="${COVERAGE_TMPDIR}/irods.profdata"
-~/externals/clang16.0.6-0_src/build/bin/llvm-profdata merge -sparse ${COVERAGE_TMPDIR}/raw/*.profraw -o ${PROFILE_DATAFILE}
+CLANG_BIN_DIR=/opt/irods-externals/clang16.0.6-0/bin
+${CLANG_BIN_DIR}/llvm-profdata merge \
+    -sparse ${COVERAGE_TMPDIR}/raw/*.profraw \
+    -o ${PROFILE_DATAFILE}
 
 # generate coverage report
 COVERAGE_OUTPUT_DIR="${COVERAGE_TMPDIR}/report"
-SERVER_BINARY_DIR=${SCRIPTDIR}/../server
-~/externals/clang16.0.6-0_src/build/bin/llvm-cov show \
+${CLANG_BIN_DIR}/llvm-cov show \
     -instr-profile=${PROFILE_DATAFILE} \
     --ignore-filename-regex='.*/irods-externals/.*' \
     -format=html -output-dir=${COVERAGE_OUTPUT_DIR} \
-    -object=${SERVER_BINARY_DIR}/main_server/irodsAgent \
-    -object=${SERVER_BINARY_DIR}/delay_server/irodsDelayServer \
-    ${SERVER_BINARY_DIR}/main_server/irodsServer
+    -object=/usr/sbin/irodsAgent \
+    -object=/usr/sbin/irodsDelayServer \
+    /usr/sbin/irodsServer
 chmod -R 755 ${COVERAGE_OUTPUT_DIR}
 
+# build stable link
+COVERAGE_LINK=/tmp/irods-latest-report
+rm -f ${COVERAGE_LINK}
+ln -s ${COVERAGE_OUTPUT_DIR} ${COVERAGE_LINK}
+
 echo "${COVERAGE_OUTPUT_DIR}/"
+echo "rm -rf /var/www/coverage && docker cp ubcov:${COVERAGE_LINK}/ /var/www/coverage/"
