@@ -1,0 +1,105 @@
+name: build-irods-ubuntu
+on: [workflow_dispatch]
+jobs:
+  build:
+    name: ${{ matrix.container }}
+    runs-on: ubuntu-latest
+    container: ${{ matrix.container }}
+    strategy:
+      matrix:
+        container: ['ubuntu:24.04']
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+      - name: Install Prerequisites
+        run:  |
+              apt-get update -qq
+              apt-get install -qq \
+                dnsutils \
+                apt-transport-https \
+                ca-certificates
+              apt-get install -qq \
+                build-essential \
+                wget \
+                curl \
+                g++ \
+                make \
+                cmake \
+                python3-dev \
+                unixodbc \
+                catch2 \
+                libcurl4-gnutls-dev \
+                libbz2-dev \
+                libfmt-dev \
+                zlib1g-dev \
+                libpam0g-dev \
+                libspdlog-dev \
+                libssl-dev \
+                libxml2-dev \
+                nlohmann-json3-dev \
+                unixodbc-dev \
+                python3-psutil \
+                odbc-postgresql \
+                python3-distro \
+                flex \
+                bison \
+                libsystemd-dev \
+                libarchive-dev
+      - name: Install iRODS Externals
+        run:  |
+              mkdir -p /etc/apt/keyrings
+              wget -qO - https://unstable.irods.org/irods-unstable-signing-key.asc | \
+                gpg \
+                  --no-options \
+                  --no-default-keyring \
+                  --no-auto-check-trustdb \
+                  --homedir /dev/null \
+                  --no-keyring \
+                  --import-options import-export \
+                  --output /etc/apt/keyrings/renci-irods-unstable-archive-keyring.pgp \
+                  --import
+              echo "deb [signed-by=/etc/apt/keyrings/renci-irods-unstable-archive-keyring.pgp arch=amd64] https://unstable.irods.org/apt/ $(lsb_release -sc) main" | \
+                tee /etc/apt/sources.list.d/renci-irods-unstable.list
+              apt-get update -qq
+              apt-get install -qq \
+                irods-externals-boost1.81.0-2 \
+                irods-externals-clang16.0.6-0 \
+                irods-externals-jsoncons0.178.0-0 \
+                irods-externals-nanodbc2.13.0-3
+      - name: Configure CMake
+        run:  |
+              mkdir build
+              cd build
+              cmake -DIRODS_DISABLE_COMPILER_OPTIMIZATIONS=ON -DIRODS_ENABLE_ALL_TESTS=YES -DIRODS_ENABLE_COVERAGE=ON ../
+      - name: Build and Package
+        run:  |
+              cd build
+              make package
+      - name: Install Packages
+        run:  |
+              cd build
+              apt install -y -qq ./irods-server* ./irods-runtime* ./irods-database-plugin-postgres* ./irods-dev*
+      - name: Build and Install iCommands
+        run:  |
+              git clone https://github.com/irods/irods_client_icommands
+              cd irods_client_icommands
+              mkdir build
+              cmake -DIRODS_ENABLE_COVERAGE=ON ../
+              make package
+              apt install -y -qq ./irods-icommands*
+      - name: Install and Start Database
+        run:  |
+              apt install -y -qq postgresql
+              /etc/init.d/postgres start
+      - name: Configure Database
+        run:  |
+              su - postgres -c "psql -c 'CREATE USER irods WITH PASSWORD \'testpassword\';'"
+              su - postgres -c "psql -c 'CREATE DATABASE \"ICAT\";'"
+              su - postgres -c "psql -c 'GRANT ALL PRIVILEGES ON DATABASE \"ICAT\" TO irods;'"
+              su - postgres -c "psql -c 'ALTER DATABASE \"ICAT\" OWNER TO irods;'"
+      - name: Setup iRODS
+        run:  |
+              python3 /var/lib/irods/scripts/setup_irods.py < /var/lib/irods/packaging/localhost_setup_postgres.input
+      - name: Run Coverage Script
+        run:  |
+              /var/lib/irods/scripts/run_with_coverage.sh
