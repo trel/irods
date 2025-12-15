@@ -39,7 +39,7 @@ sleep 1
 # running via run_tests.py
 echo "----- RUNNING TEST SUITE -----"
 su - irods -c "LLVM_PROFILE_FILE=${PROFILE_RAW_PATTERN} \
-    python3 ~/scripts/run_tests.py"
+    python3 ~/scripts/run_tests.py --run_python_suite"
 #    python3 ~/scripts/run_tests.py --run_s test_ils"
 
 # stopping server
