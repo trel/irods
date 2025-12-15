@@ -1,4 +1,4 @@
-name: build-irods-ubuntu
+name: generate-coverage
 on:
 #  push:
 #  pull_request:
