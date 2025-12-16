@@ -22,8 +22,13 @@ jobs:
               /etc/init.d/postgresql start
       - name: Configure Database
         run:  |
-              su - postgres -c "psql -c 'CREATE USER irods WITH PASSWORD \'testpassword\';'"
-              su - postgres -c "psql -c 'CREATE DATABASE \"ICAT\";'"
+#              su - postgres -c "psql -c \"CREATE USER irods WITH PASSWORD 'testpassword';\""
+#              su - postgres -c "psql -c \"CREATE DATABASE \"ICAT\";'"
+#              su - postgres -c "psql -c \"GRANT ALL PRIVILEGES ON DATABASE \"ICAT\" TO irods;'"
+#              su - postgres -c "psql -c 'ALTER DATABASE \"ICAT\" OWNER TO irods;'"
+#              su - postgres -c "psql -c \"\l\""
+              su - postgres -c 'psql -c "CREATE DATABASE \"ICAT\";"' 
+              su - postgres -c "psql -c \"CREATE USER irods WITH PASSWORD 'testpassword';\""
               su - postgres -c "psql -c 'GRANT ALL PRIVILEGES ON DATABASE \"ICAT\" TO irods;'"
               su - postgres -c "psql -c 'ALTER DATABASE \"ICAT\" OWNER TO irods;'"
               su - postgres -c "psql -c '\l'"
