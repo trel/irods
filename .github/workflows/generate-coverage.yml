@@ -89,6 +89,7 @@ jobs:
               git clone https://github.com/irods/irods_client_icommands
               cd irods_client_icommands
               mkdir build
+              cd build
               cmake -DIRODS_ENABLE_COVERAGE=ON ../
               make package
               apt install -y -qq ./irods-icommands*
