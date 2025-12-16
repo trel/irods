@@ -1,0 +1,28 @@
+name: justpg
+on:
+#  push:
+#  pull_request:
+  workflow_dispatch:
+#  schedule:
+jobs:
+  build_and_test_with_coverage:
+    name: ${{ matrix.container }}
+    runs-on: ubuntu-latest
+    container: ${{ matrix.container }}
+    strategy:
+      matrix:
+        container: ['ubuntu:24.04']
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+      - name: Install and Start Database
+        run:  |
+              apt install -y -qq postgresql
+              /etc/init.d/postgresql start
+      - name: Configure Database
+        run:  |
+              su - postgres -c "psql -c 'CREATE USER irods WITH PASSWORD \'testpassword\';'"
+              su - postgres -c "psql -c 'CREATE DATABASE \"ICAT\";'"
+              su - postgres -c "psql -c 'GRANT ALL PRIVILEGES ON DATABASE \"ICAT\" TO irods;'"
+              su - postgres -c "psql -c 'ALTER DATABASE \"ICAT\" OWNER TO irods;'"
+              su - postgres -c "psql -c '\l'"

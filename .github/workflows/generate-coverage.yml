@@ -96,7 +96,7 @@ jobs:
       - name: Install and Start Database
         run:  |
               apt install -y -qq postgresql
-              /etc/init.d/postgres start
+              /etc/init.d/postgresql start
       - name: Configure Database
         run:  |
               su - postgres -c "psql -c 'CREATE USER irods WITH PASSWORD \'testpassword\';'"
