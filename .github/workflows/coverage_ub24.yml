@@ -46,6 +46,7 @@ jobs:
               cd compose
               git checkout 1.29.2
               sed -i 's/, < 6/, < 7/g' setup.py
+              sed -i 's/kwargs = kwargs_from_env(environment=environment, ssl_version=tls_version)/kwargs = kwargs_from_env(environment=environment)/g' compose/cli/docker_client.py
               cd ..
               python3 -mvenv venv
               . venv/bin/activate
