@@ -38,7 +38,7 @@ jobs:
           path: debs
 
       - name: Show DEBs
-        run:  ls -lR /debs
+        run:  pwd && ls -lR && ls -lR debs
 
       - name: Launch iRODS server via testing environment
         run: |
