@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
 #  schedule:
 jobs:
-  build_and_test_with_coverage:
+  build_and_upload_packages:
     name: ${{ matrix.container }}
     runs-on: ubuntu-latest
     container: ${{ matrix.container }}
@@ -14,7 +14,7 @@ jobs:
         container: ['ubuntu:24.04']
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
       - name: Install Prerequisites
         run:  |
               apt-get update -qq
@@ -79,11 +79,14 @@ jobs:
         run:  |
               cd build
               make package
-      - name: Install Packages
+              cd ..
+              mkdir debs
+              cp build/*.deb debs/
+      - name: Install Dev Package
         run:  |
               cd build
-              apt install -y -qq ./irods-server* ./irods-runtime* ./irods-database-plugin-postgres* ./irods-dev*
-      - name: Build and Install iCommands
+              apt install -y -qq ./irods-dev*
+      - name: Build iCommands
         run:  |
               apt install -y -qq git
               git clone https://github.com/irods/irods_client_icommands
@@ -92,21 +95,68 @@ jobs:
               cd build
               cmake -DIRODS_ENABLE_COVERAGE=ON ../
               make package
-              apt install -y -qq ./irods-icommands*
-      - name: Install and Start Database
+              cd ..
+              cp build/*.deb ../debs/
+      - name: Upload Built iRODS Packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: thepackages
+          path: debs
+
+  test_with_coverage:
+    needs: build_and_upload_packages
+    name: ${{ matrix.container }}
+    runs-on: ubuntu-latest
+    container: ${{ matrix.container }}
+    strategy:
+      matrix:
+        container: ['ubuntu:24.04']
+    steps:
+      - name: Set up Docker Compose
+        uses: docker/setup-compose-action@v1
+
+      - name: Download DEBs
+        uses: actions/download-artifact@v5
+        with:
+          name: thepackages
+          path: debs
+
+      - name: Install Dependencies
         run:  |
-              apt install -y -qq postgresql
-              /etc/init.d/postgresql start
-      - name: Configure Database
+              apt update
+              apt install -y -qq git python3 python3-venv
+              # get compose as python module
+              git clone https://github.com/docker/compose
+              cd compose
+              git checkout 1.29.2
+              sed -i 's/, < 6/, < 7/g' setup.py
+              sed -i 's/kwargs = kwargs_from_env(environment=environment, ssl_version=tls_version)/kwargs = kwargs_from_env(environment=environment)/g' compose/cli/docker_client.py
+              cd ..
+              python3 -mvenv venv
+              . venv/bin/activate
+              pip install ./compose
+
+      - name: Launch iRODS server via testing environment
         run:  |
-              su - postgres -c 'psql -c "CREATE DATABASE \"ICAT\";"' 
-              su - postgres -c "psql -c \"CREATE USER irods WITH PASSWORD 'testpassword';\""
-              su - postgres -c "psql -c 'GRANT ALL PRIVILEGES ON DATABASE \"ICAT\" TO irods;'"
-              su - postgres -c "psql -c 'ALTER DATABASE \"ICAT\" OWNER TO irods;'"
-              su - postgres -c "psql -c '\l'"
-      - name: Setup iRODS
-        run:  |
-              python3 /var/lib/irods/scripts/setup_irods.py < /var/lib/irods/packaging/localhost_setup_postgres.input
-      - name: Run Coverage Script
-        run:  |
-              /var/lib/irods/scripts/run_with_coverage.sh
+              mkdir -p theoutput/core_tests
+              mkdir -p theoutput/unit_tests
+              . venv/bin/activate
+              git clone https://github.com/irods/irods_testing_environment
+              cd irods_testing_environment
+              python3 run_core_tests.py \
+                --verbose \
+                --project-directory ./projects/ubuntu-24.04/ubuntu-24.04-postgres-17 \
+                --irods-package-directory ../debs \
+                --output-directory $(pwd)/../theoutput/core_tests \
+                --tests test_imkdir
+              python3 run_unit_tests.py \
+                --verbose \
+                --project-directory ./projects/ubuntu-24.04/ubuntu-24.04-postgres-17 \
+                --irods-package-directory ../debs \
+                --output-directory $(pwd)/../theoutput/unit_tests
+
+      - name: Upload Output Directory
+        uses: actions/upload-artifact@v4
+        with:
+          name: theoutput
+          path: theoutput
