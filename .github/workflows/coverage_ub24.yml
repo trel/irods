@@ -41,13 +41,18 @@ jobs:
         run:  |
               apt update
               apt install -y -qq git python3 python3-venv
+              # get compose as python module
+              git clone https://github.com/docker/compose
+              cd compose
+              git checkout 1.29.2
+              cd ..
               python3 -mvenv venv
-              . venv/bin/activate # cannot use bash-specific 'source'
-              pip install compose
+              . venv/bin/activate
+              pip install ./compose
 
       - name: Launch iRODS server via testing environment
         run:  |
-              . venv/bin/activate # cannot use bash-specific 'source'
+              . venv/bin/activate
               git clone https://github.com/irods/irods_testing_environment
               cd irods_testing_environment
               python3 run_unit_tests.py \
