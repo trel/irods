@@ -42,9 +42,10 @@ jobs:
 
       - name: Launch iRODS server via testing environment
         run: |
+          apt update
           apt install -y -qq git
           git clone https://github.com/irods/irods_testing_environment
           cd irods_testing_environment
           python run_unit_tests.py \
             --project-directory ./projects/ubuntu-24.04/ubuntu-24.04-postgres-17 \
-            --irods-package-directory /debs
+            --irods-package-directory ../debs
