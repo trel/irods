@@ -1,0 +1,50 @@
+name: coverage-ub24
+on:
+  workflow_dispatch:
+jobs:
+  upload_existing_debs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download DEBs
+        run:  |
+              mkdir debs
+              cd debs
+              curl -O https://packages.irods.org/apt/pool/noble/main/i/irods-server/irods-server_5.0.2-0~noble_amd64.deb
+              curl -O https://packages.irods.org/apt/pool/noble/main/i/irods-runtime/irods-runtime_5.0.2-0~noble_amd64.deb
+              curl -O https://packages.irods.org/apt/pool/noble/main/i/irods-database-plugin-postgres/irods-database-plugin-postgres_5.0.2-0~noble_amd64.deb
+              curl -O https://packages.irods.org/apt/pool/noble/main/i/irods-icommands/irods-icommands_5.0.2-0~noble_amd64.deb
+      - name: Upload DEBs
+        uses: actions/upload-artifact@v4
+        with:
+          name: thepackages
+          path: debs
+
+  test_with_coverage:
+    needs: upload_existing_debs
+    name: ${{ matrix.container }}
+    runs-on: ubuntu-latest
+    container: ${{ matrix.container }}
+    strategy:
+      matrix:
+        container: ['ubuntu:24.04']
+    steps:
+      - name: Set up Docker Compose
+        uses: docker/setup-compose-action@v1
+
+      - name: Download DEBs
+        uses: actions/download-artifact@v5
+        with:
+          name: thepackages
+          path: debs
+
+      - name: Show DEBs
+        run:  ls -lR /debs
+
+      - name: Launch iRODS server via testing environment
+        run: |
+          apt install -y -qq git
+          git clone https://github.com/irods/irods_testing_environment
+          cd irods_testing_environment
+          python run_unit_tests.py \
+            --project-directory ./projects/ubuntu-24.04/ubuntu-24.04-postgres-17 \
+            --irods-package-directory /debs
