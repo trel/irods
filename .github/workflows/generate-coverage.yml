@@ -85,7 +85,7 @@ jobs:
       - name: Install Dev Package
         run:  |
               cd build
-              apt install -y -qq ./irods-dev*
+              apt install -y -qq ./irods-dev* ./irods-runtime*
       - name: Build iCommands
         run:  |
               apt install -y -qq git
