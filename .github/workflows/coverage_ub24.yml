@@ -37,15 +37,19 @@ jobs:
           name: thepackages
           path: debs
 
-      - name: Show DEBs
-        run:  pwd && ls -lR && ls -lR debs
+      - name: Install Dependencies
+        run:  |
+              apt update
+              apt install -y -qq git python3 python3-venv
+              python3 -mvenv venv
+              source venv/bin/activate
+              pip install compose
 
       - name: Launch iRODS server via testing environment
-        run: |
-          apt update
-          apt install -y -qq git python3
-          git clone https://github.com/irods/irods_testing_environment
-          cd irods_testing_environment
-          python3 run_unit_tests.py \
-            --project-directory ./projects/ubuntu-24.04/ubuntu-24.04-postgres-17 \
-            --irods-package-directory ../debs
+        run:  |
+              source venv/bin/activate
+              git clone https://github.com/irods/irods_testing_environment
+              cd irods_testing_environment
+              python3 run_unit_tests.py \
+                --project-directory ./projects/ubuntu-24.04/ubuntu-24.04-postgres-17 \
+                --irods-package-directory ../debs
