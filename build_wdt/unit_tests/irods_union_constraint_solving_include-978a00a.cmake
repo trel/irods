@@ -1,0 +1,5 @@
+if(EXISTS "/src/irods/build_wdt/unit_tests/irods_union_constraint_solving_tests-978a00a.cmake")
+  include("/src/irods/build_wdt/unit_tests/irods_union_constraint_solving_tests-978a00a.cmake")
+else()
+  add_test(irods_union_constraint_solving_NOT_BUILT-978a00a irods_union_constraint_solving_NOT_BUILT-978a00a)
+endif()

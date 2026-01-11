@@ -1,0 +1,7 @@
+add_test( test_ErrorStack /src/irods/build_wdt/unit_tests/irods_rerror_stack test_ErrorStack [==[--reporter junit]==] [==[--out /src/irods/build_wdt/unit_tests/reports/test_ErrorStack.xml]==])
+set_tests_properties( test_ErrorStack PROPERTIES WORKING_DIRECTORY /src/irods/build_wdt/unit_tests)
+add_test( [==[invalid inputs]==] /src/irods/build_wdt/unit_tests/irods_rerror_stack [==[invalid inputs]==] [==[--reporter junit]==] [==[--out /src/irods/build_wdt/unit_tests/reports/invalid_inputs.xml]==])
+set_tests_properties( [==[invalid inputs]==] PROPERTIES WORKING_DIRECTORY /src/irods/build_wdt/unit_tests)
+add_test( [==[pop message]==] /src/irods/build_wdt/unit_tests/irods_rerror_stack [==[pop message]==] [==[--reporter junit]==] [==[--out /src/irods/build_wdt/unit_tests/reports/pop_message.xml]==])
+set_tests_properties( [==[pop message]==] PROPERTIES WORKING_DIRECTORY /src/irods/build_wdt/unit_tests)
+set( irods_rerror_stack_TESTS test_ErrorStack [==[invalid inputs]==] [==[pop message]==])

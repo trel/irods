@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="irods_rerror_stack" errors="0" failures="0" skipped="0" tests="4" hostname="tbd" time="0.000" timestamp="2026-01-20T01:38:19Z">
+    <properties>
+      <property name="random-seed" value="1690415832"/>
+      <property name="filters" value="&quot;pop message&quot;"/>
+    </properties>
+    <testcase classname="irods_rerror_stack.global" name="pop message" time="0.000" status="run"/>
+    <system-out/>
+    <system-err/>
+  </testsuite>
+</testsuites>

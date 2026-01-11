@@ -1,0 +1,5 @@
+if(EXISTS "/src/irods/build_wdt/unit_tests/irods_rc_get_library_features_tests-978a00a.cmake")
+  include("/src/irods/build_wdt/unit_tests/irods_rc_get_library_features_tests-978a00a.cmake")
+else()
+  add_test(irods_rc_get_library_features_NOT_BUILT-978a00a irods_rc_get_library_features_NOT_BUILT-978a00a)
+endif()

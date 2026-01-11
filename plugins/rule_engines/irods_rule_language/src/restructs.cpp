@@ -67,6 +67,23 @@ ExprType *newTVar( Region *r ) {
     return t;
 }
 
+/**
+ * Create a union type from multiple concrete types.
+ * Used as a safe fallback when query columns or attribute types are unknown.
+ * Union types constrain values to match one of the disjuncts at usage time.
+ *
+ * @param arity Number of types in the union
+ * @param types Array of concrete ExprType pointers
+ * @param r Region allocator
+ * @return Union type node (T_VAR with disjuncts)
+ */
+ExprType *newUnionType( int arity, ExprType **types, Region *r ) {
+    if ( arity <= 0 || types == NULL ) {
+        return NULL;
+    }
+    return newTVar2( arity, (Node **)types, r );
+}
+
 ExprType *newSimpType( NodeType type, Region *r ) {
     return newExprType( type, 0, NULL, r );
 }
@@ -263,8 +280,12 @@ Res* newErrorRes( Region *r, int errcode ) {
     return res1;
 }
 
-msParamArray_t *newMsParamArray() {
-    msParamArray_t *mpa = ( msParamArray_t * )malloc( sizeof( msParamArray_t ) );
+msParamArray_t *newMsParamArray( Region *r ) {
+    msParamArray_t *mpa = ( msParamArray_t * )region_alloc( r, sizeof( msParamArray_t ) );
+    if ( mpa == NULL ) {
+        rodsLog( LOG_ERROR, "Cannot allocate msParamArray_t" );
+        return NULL;
+    }
     mpa->len = 0;
     mpa->msParam = NULL;
     mpa->oprType = 0;
@@ -478,10 +499,47 @@ Node *createStringNode( char *t, Label * exprloc, Region *r ) {
     return node;
 }
 Node *createErrorNode( char *error, Label * exprloc, Region *r ) {
-    Node *node = newNode( N_ERROR, error, exprloc, r );
-    if ( node == NULL ) {
-        return NULL;
+     Node *node = newNode( N_ERROR, error, exprloc, r );
+     if ( node == NULL ) {
+         return NULL;
+     }
+     return node;
+}
+
+/**
+ * Apply @optional annotation to a type node
+ * Marks the type as optional (value may be absent or null)
+ */
+void applyOptionalAnnotation( Node *typeNode ) {
+    if ( typeNode != NULL ) {
+        setTypeAnnotation( typeNode, OPTION_OPTIONAL_TYPE );
     }
-    return node;
+}
+
+/**
+ * Apply @nonnull annotation to a type node
+ * Marks the type as non-nullable (value must not be null)
+ */
+void applyNonnullAnnotation( Node *typeNode ) {
+    if ( typeNode != NULL ) {
+        setTypeAnnotation( typeNode, OPTION_NONNULL_TYPE );
+    }
+}
+
+/**
+ * Get annotation string for type (for error messages)
+ * Returns "@optional", "@nonnull", or empty string
+ */
+const char *getTypeAnnotationString( Node *typeNode ) {
+    if ( typeNode == NULL ) {
+        return "";
+    }
+    if ( isOptionalType( typeNode ) ) {
+        return "@optional";
+    }
+    if ( isNonnullType( typeNode ) ) {
+        return "@nonnull";
+    }
+    return "";
 }
 

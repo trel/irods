@@ -1,0 +1,5 @@
+if(EXISTS "/src/irods/build_wdt/unit_tests/irods_get_file_descriptor_info_tests-978a00a.cmake")
+  include("/src/irods/build_wdt/unit_tests/irods_get_file_descriptor_info_tests-978a00a.cmake")
+else()
+  add_test(irods_get_file_descriptor_info_NOT_BUILT-978a00a irods_get_file_descriptor_info_NOT_BUILT-978a00a)
+endif()

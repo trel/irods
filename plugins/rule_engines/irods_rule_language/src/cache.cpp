@@ -106,6 +106,12 @@ Cache *restoreCache( const char* _inst_name ) {
     unsigned char *pointersMapped;
     size_t dataSize;
     dataSize = cache->dataSize;
+    /* Allocate bufCopy with malloc (not region_alloc).
+     * Rationale: This function restores Cache data from shared memory into
+     * temporary buffers that must persist beyond the call scope for pointer
+     * translation and shared memory synchronization. Region allocation is
+     * unsuitable because regions are tied to rule execution, while these
+     * buffers support persistent cache management across multiple rule invocations. */
     bufCopy = ( unsigned char * )malloc( dataSize );
     if ( bufCopy == NULL ) {
         rodsLog( LOG_ERROR, "Cannot allocate object buffer of size %lld" , dataSize);
@@ -117,6 +123,11 @@ Cache *restoreCache( const char* _inst_name ) {
     pointersMapped = cacheCopy->pointers;
     bufMapped = cacheCopy->address;
     pointersSize = bufMapped + SHMMAX - pointersMapped;
+    /* Allocate pointersCopy with malloc (not region_alloc).
+     * Rationale: This buffer holds pointer offset data for shared memory translation
+     * during cache restoration. It must persist for the entire cache synchronization
+     * operation independent of rule execution scope. Region allocation is unsuitable
+     * for this persistent cache infrastructure operation. */
     pointersCopy = ( unsigned char * )malloc( pointersSize );
     if ( pointersCopy == NULL ) {
         free( bufCopy );
@@ -197,6 +208,11 @@ void applyDiffToPointers( unsigned char *pointers, long pointersSize, long point
  * It checks the timestamp again and does the actually copying.
  */
 int updateCache( const char* _inst_name, size_t size, Cache *cache ) {
+        /* Allocate buf with malloc (not region_alloc).
+         * Rationale: This buffer is used to prepare cache data for shared memory update.
+         * It must persist through the entire cache synchronization with shared memory
+         * and spans multiple mutex-protected operations. Region allocation would be
+         * inappropriate for this infrastructure-level cache management operation. */
         unsigned char *buf = ( unsigned char * ) malloc( size );
         if ( buf != NULL ) {
             int ret;

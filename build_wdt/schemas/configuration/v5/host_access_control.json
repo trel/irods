@@ -1,0 +1,26 @@
+{
+    "$id": "https://irods.org/configuration_schemas/v5/host_access_control.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+        "access_entries": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "user": {"type": "string"},
+                    "group": {"type": "string"},
+                    "address": {"type": "string"},
+                    "mask": {"type": "string"}
+                },
+                "required": [
+                    "user",
+                    "group",
+                    "address",
+                    "mask"
+                ]
+            }
+        }
+    },
+    "required": ["access_entries"]
+}

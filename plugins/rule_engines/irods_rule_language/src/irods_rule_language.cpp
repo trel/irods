@@ -268,7 +268,15 @@ irods::error exec_rule(irods::default_re_ctx&, const std::string& _rn, std::list
                 addMsParam(&(ar.msParamArray), arg, STR_MS_T, (void *) param.begin()->second.c_str(), NULL);
             }
             else {
+                /* Allocate keyValPair_t with malloc (not region_alloc).
+                 * Rationale: This plugin-level bridge code doesn't have Region context.
+                 * Memory is managed via RAII (ar destructor calls clearMsParamArray at line 237),
+                 * making malloc appropriate for this short-lived execution context. */
                 keyValPair_t* kvp = (keyValPair_t*)malloc(sizeof(keyValPair_t));
+                if ( kvp == NULL ) {
+                    rodsLog( LOG_ERROR, "Cannot allocate keyValPair_t" );
+                    return ERROR(SYS_MALLOC_ERR, "out of memory allocating keyValPair_t");
+                }
                 memset( kvp, 0, sizeof( keyValPair_t ) );
                 for( auto i : param ) {
                     addKeyVal( kvp, i.first.c_str(), i.second.c_str() );

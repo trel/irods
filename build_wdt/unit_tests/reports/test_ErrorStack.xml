@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="irods_rerror_stack" errors="0" failures="0" skipped="0" tests="298" hostname="tbd" time="0.000" timestamp="2026-01-20T01:38:19Z">
+    <properties>
+      <property name="random-seed" value="140415442"/>
+      <property name="filters" value="&quot;test_ErrorStack&quot;"/>
+    </properties>
+    <testcase classname="irods_rerror_stack.global" name="test_ErrorStack" time="0.000" status="run"/>
+    <testcase classname="irods_rerror_stack.global" name="test_ErrorStack/replErrorStack" time="0.000" status="run"/>
+    <testcase classname="irods_rerror_stack.global" name="test_ErrorStack/pop message" time="0.000" status="run"/>
+    <testcase classname="irods_rerror_stack.global" name="test_ErrorStack/exceed max error messages" time="0.000" status="run"/>
+    <system-out/>
+    <system-err/>
+  </testsuite>
+</testsuites>

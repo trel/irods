@@ -1,0 +1,48 @@
+Start testing: Jan 19 20:38 EST
+----------------------------------------------------------
+68/85 Testing: test_ErrorStack
+68/85 Test: test_ErrorStack
+Command: "/src/irods/build_wdt/unit_tests/irods_rerror_stack" "test_ErrorStack" "--reporter junit" "--out /src/irods/build_wdt/unit_tests/reports/test_ErrorStack.xml"
+Directory: /src/irods/build_wdt/unit_tests
+"test_ErrorStack" start time: Jan 19 20:38 EST
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"test_ErrorStack" end time: Jan 19 20:38 EST
+"test_ErrorStack" time elapsed: 00:00:00
+----------------------------------------------------------
+
+69/85 Testing: invalid inputs
+69/85 Test: invalid inputs
+Command: "/src/irods/build_wdt/unit_tests/irods_rerror_stack" "invalid inputs" "--reporter junit" "--out /src/irods/build_wdt/unit_tests/reports/invalid_inputs.xml"
+Directory: /src/irods/build_wdt/unit_tests
+"invalid inputs" start time: Jan 19 20:38 EST
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Passed.
+"invalid inputs" end time: Jan 19 20:38 EST
+"invalid inputs" time elapsed: 00:00:00
+----------------------------------------------------------
+
+70/85 Testing: pop message
+70/85 Test: pop message
+Command: "/src/irods/build_wdt/unit_tests/irods_rerror_stack" "pop message" "--reporter junit" "--out /src/irods/build_wdt/unit_tests/reports/pop_message.xml"
+Directory: /src/irods/build_wdt/unit_tests
+"pop message" start time: Jan 19 20:38 EST
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"pop message" end time: Jan 19 20:38 EST
+"pop message" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Jan 19 20:38 EST

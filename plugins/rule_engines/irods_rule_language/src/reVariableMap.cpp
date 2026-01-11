@@ -37,11 +37,17 @@ int setStrLeafValue( char *leafPtr, size_t len, Res *newVarValue ) {
     return 0;
 }
 int setStrDupLeafValue( char **leafPtr, Res *newVarValue ) {
-    if ( *leafPtr != NULL ) {
-        free( *leafPtr );
-    }
-    *leafPtr = strdup( newVarValue->text );
-    return 0;
+     if ( *leafPtr != NULL ) {
+         free( *leafPtr );
+     }
+     /* Use strdup for rei field updates.
+      * Rationale: This function updates ruleExecInfo_t struct fields with new string values.
+      * The strings are stored directly in rei and freed during rei cleanup in arithmetics.cpp.
+      * No Region context is available (function is called from generated setValFromRuleExecInfo).
+      * Future work: Add Region parameter to setValFromRuleExecInfo in generated reVariableMap.gen.cpp
+      * and replace with region_alloc() after code generator is updated. */
+     *leafPtr = strdup( newVarValue->text );
+     return 0;
 }
 int setLongLeafValue( rodsLong_t *leafPtr, Res *newVarValue ) {
     *leafPtr = ( long )RES_DOUBLE_VAL( newVarValue );
@@ -72,21 +78,27 @@ mapExternalFuncToInternalProc( char *funcName ) {
 
 int
 getVarMap( char *action, char *inVarName, char **varMap, int index ) {
-    int i;
-    char *varName;
+     int i;
+     char *varName;
 
-    if ( inVarName[0] == '$' ) {
-        varName = inVarName + 1;
-    }
-    else {
-        varName = inVarName;
-    }
-    if ( index < 1000 ) {
-        for ( i = index; i < appRuleVarDef.MaxNumOfDVars; i++ ) {
-            if ( !strcmp( appRuleVarDef.varName[i], varName ) ) {
-                if ( strlen( appRuleVarDef.action[i] ) == 0 ||
-                        strstr( appRuleVarDef.action[i], action ) != NULL ) {
-                    *varMap = strdup( appRuleVarDef.var2CMap[i] );
+     if ( inVarName[0] == '$' ) {
+         varName = inVarName + 1;
+     }
+     else {
+         varName = inVarName;
+     }
+     if ( index < 1000 ) {
+         for ( i = index; i < appRuleVarDef.MaxNumOfDVars; i++ ) {
+             if ( !strcmp( appRuleVarDef.varName[i], varName ) ) {
+                 if ( strlen( appRuleVarDef.action[i] ) == 0 ||
+                         strstr( appRuleVarDef.action[i], action ) != NULL ) {
+                     /* Use strdup for variable map string.
+                      * Rationale: This function returns a dynamically-allocated string used to
+                      * look up variable definitions from global maps (appRuleVarDef, coreRuleVarDef).
+                      * Callers free the returned varMap (see arithmetics.cpp:959, 1841). No Region
+                      * context available at this call site (initialization-time utility function).
+                      * Future work: Add Region parameter once caller context can be traced fully. */
+                     *varMap = strdup( appRuleVarDef.var2CMap[i] );
                     return i;
                 }
             }
@@ -98,6 +110,7 @@ getVarMap( char *action, char *inVarName, char **varMap, int index ) {
         if ( !strcmp( coreRuleVarDef.varName[i], varName ) ) {
             if ( strlen( coreRuleVarDef.action[i] ) == 0 ||
                     strstr( coreRuleVarDef.action[i], action ) != NULL ) {
+                /* Use strdup (same rationale as above for app variables). */
                 *varMap = strdup( coreRuleVarDef.var2CMap[i] );
                 return i + 1000;
             }

@@ -1,0 +1,5 @@
+if(EXISTS "/src/irods/build_wdt/unit_tests/irods_user_administration_tests-978a00a.cmake")
+  include("/src/irods/build_wdt/unit_tests/irods_user_administration_tests-978a00a.cmake")
+else()
+  add_test(irods_user_administration_NOT_BUILT-978a00a irods_user_administration_NOT_BUILT-978a00a)
+endif()

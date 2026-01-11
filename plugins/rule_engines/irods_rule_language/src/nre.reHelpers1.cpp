@@ -128,11 +128,18 @@ popReStack( RuleEngineEvent label, char* step ) {
 int
 pushReStack( RuleEngineEvent label, char* step ) {
 
-    int i;
-    i = reDebugStackCurrPtr;
-    if ( i < REDEBUG_STACK_SIZE_CURR ) {
-        reDebugStackCurr[i].label = label;
-        reDebugStackCurr[i].step = strdup( step );
+     int i;
+     i = reDebugStackCurrPtr;
+     if ( i < REDEBUG_STACK_SIZE_CURR ) {
+         reDebugStackCurr[i].label = label;
+         /* Use strdup (malloc-based) for debug stack trace string.
+          * Rationale: This function maintains debug event history in a circular buffer
+          * (reDebugStackCurr[]) for the RE_DEBUG feature. The stack trace strings have
+          * variable length and are freed explicitly in popReStack() and cleanUpDebug().
+          * Region allocation is unsuitable because: (1) debug features may persist beyond
+          * rule execution scope, (2) no Region context is available in this utility function,
+          * (3) this is a debug-only feature with minimal allocation frequency. */
+         reDebugStackCurr[i].step = strdup( step );
         reDebugStackCurrPtr = i + 1;
     }
     return 0;

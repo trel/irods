@@ -19,6 +19,7 @@ packaging/unattended_setup.json
 # CMake
 CMakeLists.txt.user
 compile_commands.json
+/build/
 
 # YouCompleteMe
 .ycm_extra_conf.py

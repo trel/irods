@@ -7,6 +7,7 @@
 #include "irods/private/re/rules.hpp"
 #include "irods/private/re/functions.hpp"
 #include "irods/private/re/configuration.hpp"
+#include "irods/private/re/deprecation.hpp"
 #include "irods/private/re/filesystem.hpp"
 #include "irods/rcMisc.h"
 
@@ -35,6 +36,7 @@ Op new_ops[num_ops] = {
     {"^^", 2, 8},
     {"^", 2, 8},
     {".", 2, 8},
+    {"?", 2, 8},  /* Optional chaining operator: ?. */
     {"floor", 1, 10},
     {"ceiling", 1, 10},
     {"log", 1, 10},
@@ -44,16 +46,13 @@ Op new_ops[num_ops] = {
     {"@@", 2, 20}
 };
 PARSER_FUNC_PROTO2( Term, int rulegen, int prec );
-PARSER_FUNC_PROTO2( Actions, int rulegen, int backwardCompatible );
+PARSER_FUNC_PROTO1( Actions, int rulegen );
 PARSER_FUNC_PROTO1( T, int rulegen );
 PARSER_FUNC_PROTO1( Value, int rulegen );
+PARSER_FUNC_PROTO( UnpackingPattern );
 PARSER_FUNC_PROTO1( StringExpression, Token *tk );
 PARSER_FUNC_PROTO( PathExpression );
 PARSER_FUNC_PROTO( RuleName );
-PARSER_FUNC_PROTO( TermBackwardCompatible );
-PARSER_FUNC_PROTO1( ExprBackwardCompatible, int level );
-PARSER_FUNC_PROTO1( TermSystemBackwardCompatible, int lev );
-PARSER_FUNC_PROTO( ActionArgumentBackwardCompatible );
 PARSER_FUNC_PROTO( FuncExpr );
 PARSER_FUNC_PROTO( Type );
 PARSER_FUNC_PROTO2( _Type, int prec, int lifted );
@@ -68,7 +67,12 @@ PARSER_FUNC_PROTO( Metadata );
 
 /***** utility functions *****/
 ParserContext *newParserContext( rError_t *errmsg, Region *r ) {
-    ParserContext *pc = ( ParserContext * )malloc( sizeof( ParserContext ) );
+    ParserContext *pc = ( ParserContext * )region_alloc( r, sizeof( ParserContext ) );
+    if ( pc == NULL ) {
+        rodsLog( LOG_ERROR, "Cannot allocate ParserContext" );
+        addRErrorMsg( errmsg, SYS_MALLOC_ERR, "Cannot allocate ParserContext" );
+        return NULL;
+    }
     pc->stackTopStackTop = 0;
     pc->nodeStackTop = 0;
     pc->error = 0;
@@ -83,8 +87,44 @@ ParserContext *newParserContext( rError_t *errmsg, Region *r ) {
 }
 
 void deleteParserContext( ParserContext *t ) {
-    free( t );
+    /* no free - region will handle cleanup */
 }
+
+/**
+ * Error recovery: Skip tokens until we reach a sync point (rule boundary)
+ * Sync points: '}' at top level, or EOF
+ * This allows parsing to continue with the next rule after an error.
+ */
+void recoverToSyncPoint( Pointer *e, ParserContext *context ) {
+    Token *token;
+    int braceDepth = 0;
+    
+    /* Skip tokens until we find '}' at brace depth 0, or EOS */
+    while ( 1 ) {
+        token = nextTokenRuleGen( e, context, 1, 0 );
+        if ( token->type == TK_EOS || token->type == N_ERROR ) {
+            break;
+        }
+        if ( token->type == TK_OP || token->type == TK_MISC_OP ) {
+            if ( strcmp( token->text, "{" ) == 0 ) {
+                braceDepth++;
+            }
+            else if ( strcmp( token->text, "}" ) == 0 ) {
+                if ( braceDepth == 0 ) {
+                    /* Found rule boundary, we're done recovering */
+                    break;
+                }
+                braceDepth--;
+            }
+        }
+    }
+    
+    /* Reset parser error state for next rule */
+    context->error = 0;
+    context->nodeStackTop = 0;
+    context->stackTopStackTop = 0;
+}
+
 int isLocalVariableNode( Node *node ) {
     return
         getNodeType( node ) == TK_VAR &&
@@ -96,12 +136,16 @@ int isSessionVariableNode( Node *node ) {
         node->text[0] == '$';
 }
 int isVariableNode( Node *node ) {
+    /* Support tuple unpacking patterns {var, var} as valid assignment targets */
+    if ( getNodeType( node ) == N_UNPACKING_PATTERN ) {
+        return 1;
+    }
     return
         isLocalVariableNode( node ) ||
         isSessionVariableNode( node );
 }
 #define nKeywords 19
-char *keywords[nKeywords] = { "in", "let", "match", "with", "for", "forExec", "while", "whileExec", "foreach", "forEachExec", "if", "ifExec", "then", "else", "data", "constructor", "on", "or", "oron"};
+char *keywords[nKeywords] = { "in", "let", "match", "with", "for", "while", "foreach", "if", "then", "else", "data", "constructor", "template", "on", "or", "oron", "try", "catch", "finally"};
 int isKeyword( char *text ) {
     int i;
     for ( i = 0; i < nKeywords; i++ ) {
@@ -370,10 +414,41 @@ int eol( char ch ) {
  * If error, either ret==NULL or ret->type==N_ERROR.
  */
 
-PARSER_FUNC_BEGIN1( Rule, int backwardCompatible )
+PARSER_FUNC_BEGIN( Rule )
 char *rk;
 int rulegen = 0;
 TRY( defType )
+TTEXT( "template" );
+TTYPE( TK_TEXT );
+BUILD_NODE( TK_TEXT, token->text, &pos, 0, 0 );
+TTEXT( "(" );
+int n_params = 0;
+TRY( params_empty )
+TTEXT( ")" );
+OR( params_empty )
+TTYPE( TK_TEXT );
+BUILD_NODE( TK_TEXT, token->text, &pos, 0, 0 );
+n_params = 1;
+LOOP_BEGIN( params_loop )
+TRY( params_cont )
+TTEXT( "," );
+TTYPE( TK_TEXT );
+BUILD_NODE( TK_TEXT, token->text, &pos, 0, 0 );
+n_params++;
+OR( params_cont )
+TTEXT( ")" );
+DONE( params_loop );
+END_TRY( params_cont )
+LOOP_END( params_loop )
+END_TRY( params_empty )
+BUILD_NODE( N_PARAM_LIST, "PARAM_LIST", &start, n_params, n_params );
+TTEXT( "{" );
+NT1( Actions, 1 );
+TTEXT( "}" );
+NT( Metadata );
+BUILD_NODE( N_TEMPLATE_DEF, "TEMPLATE_DEF", &start, 4, 4 );
+BUILD_NODE( N_RULE_PACK, "TEMPLATE", &start, 1, 1 );
+OR( defType )
 TTEXT( "data" );
 NT( RuleName );
 BUILD_NODE( N_DATA_DEF, "DATA", &start, 1, 1 );
@@ -465,7 +540,7 @@ else if ( rulegen ) {
     END_TRY( rulePackCond )
     NT2( Term, 1, MIN_PREC );
     TTEXT( "{" );
-    NT2( Actions, 1, 0 );
+    NT1( Actions, 1);
     TTEXT( "}" );
     NT( Metadata );
     BUILD_NODE( N_RULE, "RULE", &start, 5, 4 );
@@ -479,7 +554,7 @@ else if ( rulegen ) {
     END_TRY( rulePackUncond )
     BUILD_NODE( TK_BOOL, "true", FPOS, 0, 0 );
     TTEXT( "{" );
-    NT2( Actions, 1, 0 );
+    NT1( Actions, 1);
     TTEXT( "}" );
     NT( Metadata );
     BUILD_NODE( N_RULE, "RULE", &start, 5, 4 );
@@ -492,7 +567,7 @@ else if ( rulegen ) {
     OR( rulePack )
     ABORT( numberOfRules != 0 );
     BUILD_NODE( TK_BOOL, "true", FPOS, 0, 0 );
-    NT2( Actions, 1, 0 );
+    NT1( Actions, 1);
     TTEXT( "}" );
     NT( Metadata );
     numberOfRules = 1;
@@ -511,20 +586,15 @@ else {
     TTEXT( "|" );
     BUILD_NODE( TK_BOOL, "true", FPOS, 0, 0 );
     OR( ruleCond )
-    if ( backwardCompatible >= 0 ) {
-        NT1( ExprBackwardCompatible, 0 );
-    }
-    else {
-        NT2( Term, 0, MIN_PREC );
-    }
+    NT2( Term, 0, MIN_PREC );
     TTEXT( "|" );
     BUILD_NODE( N_TUPLE, TUPLE, &pos, 1, 1 );
     END_TRY( ruleCond )
 
 
-    NT2( Actions, 0, backwardCompatible >= 0 ? 1 : 0 );
+    NT1( Actions, 0 );
     TTEXT( "|" );
-    NT2( Actions, 0, backwardCompatible >= 0 ? 1 : 0 );
+    NT1( Actions, 0 );
     int n = 0;
     Label metadataStart = *FPOS;
     OPTIONAL_BEGIN( ruleId )
@@ -647,19 +717,13 @@ BRANCH_END( reco )
 CHOICE_END( reco )
 PARSER_FUNC_END( FuncExpr )
 
-PARSER_FUNC_BEGIN2( Actions, int rulegen, int backwardCompatible )
+PARSER_FUNC_BEGIN1( Actions, int rulegen )
 int n = 0;
 TRY( actions )
-ABORT( backwardCompatible );
 TTEXT_LOOKAHEAD( "}" );
 OR( actions )
 LOOP_BEGIN( actions );
-if ( !backwardCompatible ) {
-    NT2( Term, rulegen, MIN_PREC );
-}
-else {
-    NT( TermBackwardCompatible );
-}
+NT2( Term, rulegen, MIN_PREC );
 if ( rulegen ) {
     CHOICE_BEGIN( reco )
     BRANCH_BEGIN( reco )
@@ -770,247 +834,6 @@ BUILD_NODE( TK_STRING, actiBuffer, &start, 0, 0 );
 BUILD_NODE( TK_STRING, recoBuffer, &start, 0, 0 );
 PARSER_FUNC_END( ActionsToStrings )
 
-PARSER_FUNC_BEGIN1( TermSystemBackwardCompatible, int level )
-int rulegen = 0;
-TRY( func )
-TTEXT( "ifExec" );
-TTEXT( "(" );
-if ( level == 1 ) {
-    NT1( ExprBackwardCompatible, 0 );
-}
-else {
-    NT2( Term, 0, MIN_PREC );
-}
-TTEXT( "," );
-NT2( Actions, 0, level );
-TTEXT( "," );
-NT2( Actions, 0, level );
-TTEXT( "," );
-NT2( Actions, 0, level );
-TTEXT( "," );
-NT2( Actions, 0, level );
-TTEXT( ")" );
-BUILD_APP_NODE( "if", &start, 5 );
-OR( func )
-TTEXT( "whileExec" );
-TTEXT( "(" );
-if ( level == 1 ) {
-    NT1( ExprBackwardCompatible, 0 );
-}
-else {
-    NT2( Term, 0, MIN_PREC );
-}
-TTEXT( "," );
-NT2( Actions, 0, level );
-TTEXT( "," );
-NT2( Actions, 0, level );
-TTEXT( ")" );
-BUILD_APP_NODE( "while", &start, 3 );
-OR( func )
-TTEXT( "forEachExec" );
-TTEXT( "(" );
-TTYPE( TK_LOCAL_VAR );
-BUILD_NODE( TK_VAR, token->text, &start, 0, 0 );
-TTEXT( "," );
-NT2( Actions, 0, level );
-TTEXT( "," );
-NT2( Actions, 0, level );
-TTEXT( ")" );
-BUILD_APP_NODE( "foreach", &start, 3 );
-
-OR( func )
-TTEXT( "assign" );
-TTEXT( "(" );
-TTYPE( TK_LOCAL_VAR );
-BUILD_NODE( TK_VAR, token->text, &pos, 0, 0 );
-TTEXT( "," );
-if ( level == 1 ) {
-    TRY( expr )
-    NT1( ExprBackwardCompatible, 1 );
-    OR( expr )
-    NT( ActionArgumentBackwardCompatible );
-    END_TRY( expr )
-}
-else {
-    NT2( Term, 0, MIN_PREC );
-}
-TTEXT( ")" );
-if ( level == 1 ) {
-    BUILD_APP_NODE( "assignStr", &start, 2 );
-}
-else {
-    BUILD_APP_NODE( "assign", &start, 2 );
-}
-OR( func )
-TTEXT( "forExec" );
-TTEXT( "(" );
-NT2( Term, 0, MIN_PREC );
-TTEXT( "," );
-NT2( Term, 0, MIN_PREC );
-TTEXT( "," );
-NT2( Term, 0, MIN_PREC );
-TTEXT( "," );
-NT2( Actions, 0, level );
-TTEXT( "," );
-NT2( Actions, 0, level );
-TTEXT( ")" );
-BUILD_APP_NODE( "for", &start, 5 );
-OR( func )
-TTEXT( "breakExec" );
-BUILD_APP_NODE( "break", &start, 0 );
-OR( func )
-TTEXT( "delayExec" );
-TTEXT( "(" );
-NT( ActionArgumentBackwardCompatible )
-TTEXT( "," );
-Token strtoken;
-nextActionArgumentStringBackwardCompatible( e, &strtoken );
-if ( strtoken.type != TK_STRING ) {
-    BUILD_NODE( N_ERROR, "reached the end of stream while parsing an action argument", FPOS, 0, 0 );
-}
-else {
-    BUILD_NODE( TK_STRING, strtoken.text, &pos, 0, 0 );
-}
-TTEXT( "," );
-nextActionArgumentStringBackwardCompatible( e, &strtoken );
-if ( strtoken.type != TK_STRING ) {
-    BUILD_NODE( N_ERROR, "reached the end of stream while parsing an action argument", FPOS, 0, 0 );
-}
-else {
-    BUILD_NODE( TK_STRING, strtoken.text, &pos, 0, 0 );
-}
-TTEXT( ")" );
-BUILD_APP_NODE( "delayExec", &start, 3 );
-OR( func )
-TTEXT( "remoteExec" );
-TTEXT( "(" );
-
-NT( ActionArgumentBackwardCompatible )TTEXT( "," );
-NT( ActionArgumentBackwardCompatible )TTEXT( "," );
-Token strtoken;
-nextActionArgumentStringBackwardCompatible( e, &strtoken );
-if ( strtoken.type != TK_STRING ) {
-    BUILD_NODE( N_ERROR, "reached the end of stream while parsing an action argument", FPOS, 0, 0 );
-}
-else {
-    BUILD_NODE( TK_STRING, strtoken.text, &pos, 0, 0 );
-}
-TTEXT( "," );
-nextActionArgumentStringBackwardCompatible( e, &strtoken );
-if ( strtoken.type != TK_STRING ) {
-    BUILD_NODE( N_ERROR, "reached the end of stream while parsing an action argument", FPOS, 0, 0 );
-}
-else {
-    BUILD_NODE( TK_STRING, strtoken.text, &pos, 0, 0 );
-}
-TTEXT( ")" );
-BUILD_APP_NODE( "remoteExec", &start, 4 );
-END_TRY( func )
-PARSER_FUNC_END( TermSystemBackwardCompatible )
-
-PARSER_FUNC_BEGIN1( ExprBackwardCompatible, int level )
-int rulegen = 0;
-TRY( func )
-ABORT( level == 1 );
-NT( TermBackwardCompatible );
-OR( func )
-TTEXT( "(" );
-NT1( ExprBackwardCompatible,   level );
-TTEXT( ")" );
-OR( func )
-NT1( T, 0 );
-END_TRY( func )
-OPTIONAL_BEGIN( term2 )
-TTYPE( TK_OP );
-char *fn = cpStringExt( token->text, context->region );
-ABORT( !isBinaryOp( token ) );
-if ( TOKEN_TEXT( "like" ) || TOKEN_TEXT( "not like" ) || TOKEN_TEXT( "==" ) || TOKEN_TEXT( "!=" ) ) {
-    BUILD_APP_NODE( "str", FPOS, 1 );
-    NT( ActionArgumentBackwardCompatible );
-}
-else if ( TOKEN_TEXT( "+" ) || TOKEN_TEXT( "-" ) || TOKEN_TEXT( "*" ) || TOKEN_TEXT( "/" ) || TOKEN_TEXT( "<" ) || TOKEN_TEXT( "<=" ) || TOKEN_TEXT( ">" ) || TOKEN_TEXT( ">=" ) ) {
-    BUILD_APP_NODE( "double", FPOS, 1 );
-    NT1( ExprBackwardCompatible, 1 );
-    BUILD_APP_NODE( "double", FPOS, 1 );
-}
-else if ( TOKEN_TEXT( "%%" ) || TOKEN_TEXT( "&&" ) ) {
-    BUILD_APP_NODE( "bool", FPOS, 1 );
-    NT1( ExprBackwardCompatible, 1 );
-    BUILD_APP_NODE( "bool", FPOS, 1 );
-}
-else {
-    BUILD_APP_NODE( "str", FPOS, 1 );
-    NT1( ExprBackwardCompatible, 1 );
-    BUILD_APP_NODE( "str", FPOS, 1 );
-}
-BUILD_APP_NODE( fn, &start, 2 );
-OPTIONAL_END( term2 )
-PARSER_FUNC_END( ExprBackwardCompatible )
-
-PARSER_FUNC_BEGIN( TermBackwardCompatible )
-int rulegen = 0;
-TRY( func )
-NT1( TermSystemBackwardCompatible, 1 );
-
-OR( func )
-TTYPE( TK_TEXT );
-char *fn = cpStringExt( token->text, context->region );
-TTEXT( "(" );
-TTEXT( ")" );
-BUILD_APP_NODE( fn, &start, 0 );
-
-OR( func )
-TTYPE( TK_TEXT );
-char *fn = cpStringExt( token->text, context->region );
-TTEXT( "(" );
-int n = 0;
-LOOP_BEGIN( func )
-NT( ActionArgumentBackwardCompatible );
-n++;
-CHOICE_BEGIN( paramDelim )
-BRANCH_BEGIN( paramDelim )
-TTEXT( "," );
-BRANCH_END( paramDelim )
-BRANCH_BEGIN( paramDelim )
-TTEXT( ")" );
-DONE( func );
-BRANCH_END( paramDelim )
-CHOICE_END( paramDelim )
-LOOP_END( func )
-BUILD_APP_NODE( fn, &start, n );
-OR( func )
-TTYPE( TK_TEXT );
-char *fn = cpStringExt( token->text, context->region );
-BUILD_APP_NODE( fn, &start, 0 );
-
-END_TRY( func )
-
-PARSER_FUNC_END( ValueBackwardCompatible )
-
-
-PARSER_FUNC_BEGIN( ActionArgumentBackwardCompatible )
-int rulegen = 0;
-Token strtoken;
-TRY( var )
-Label vpos = *FPOS;
-TTYPE( TK_LOCAL_VAR );
-char *vn = cpStringExt( token->text, context->region );
-TTEXT3( ",", "|", ")" );
-PUSHBACK;
-BUILD_NODE( TK_VAR, vn, &vpos, 0, 0 );
-OR( var )
-syncTokenQueue( e, context );
-
-nextActionArgumentStringBackwardCompatible( e, &strtoken );
-if ( strtoken.type != TK_STRING ) {
-    BUILD_NODE( N_ERROR, "reached the end of stream while parsing an action argument", FPOS, 0, 0 );
-}
-else {
-    NT1( StringExpression, &strtoken );
-}
-END_TRY( var )
-PARSER_FUNC_END( ActionArgumentBackwardCompatible )
-
 PARSER_FUNC_BEGIN2( Term, int rulegen, int prec )
 TRY(term0)
     int n = 0;
@@ -1050,7 +873,7 @@ OR( term0 )
                 TTEXT( "then" ); 
             OPTIONAL_END( ifThen ) 
             TTEXT( "{" ); 
-            NT2( Actions, 1, 0 ); 
+            NT1( Actions, 1); 
             TTEXT( "}" ); 
             TRY( ifElse ) 
                 TTEXT( "else" ); 
@@ -1062,7 +885,7 @@ OR( term0 )
             OR( ifElse ) 
                 TTEXT( "else" ); 
                 TTEXT( "{" ); 
-                NT2( Actions, 1, 0 ); 
+                NT1( Actions, 1); 
                 TTEXT( "}" ); 
             OR( ifElse ) 
                 BUILD_APP_NODE( "nop", FPOS, 0 ); 
@@ -1086,32 +909,24 @@ OR( term0 )
         END_TRY( funcIf ) 
     OR( func ) 
         ABORT( !rulegen ); 
-        TRY( whil ) 
-            TTEXT( "while" ); 
-        OR( whil ) 
-            TTEXT( "whileExec" ); 
-        END_TRY( whil ) 
+        TTEXT( "while" ); 
         TTEXT( "(" ); 
         NT2( Term, 1, MIN_PREC ); 
         TTEXT( ")" ); 
         TTEXT( "{" ); 
-        NT2( Actions, 1, 0 ); 
+        NT1( Actions, 1); 
         TTEXT( "}" ); 
-        BUILD_APP_NODE( "while", &start, 3 ); 
+        BUILD_APP_NODE( "while", &start, 3 );
     OR( func ) 
         ABORT( !rulegen ); 
-        TRY( foreach ) 
-            TTEXT( "foreach" ); 
-        OR( foreach ) 
-            TTEXT( "forEachExec" ); 
-        END_TRY( foreach ) 
+        TTEXT( "foreach" ); 
         TTEXT( "(" ); 
         TTYPE( TK_LOCAL_VAR ); 
         BUILD_NODE( TK_VAR, token->text, &pos, 0, 0 ); 
         TRY( foreach2 ) 
             TTEXT( ")" ); 
             TTEXT( "{" ); 
-            NT2( Actions, 1, 0 ); 
+            NT1( Actions, 1); 
             TTEXT( "}" ); 
             BUILD_APP_NODE( "foreach", &start, 3 ); 
         OR( foreach2 ) 
@@ -1119,15 +934,11 @@ OR( term0 )
             NT2( Term, 1, MIN_PREC ); 
             TTEXT( ")" ); 
             TTEXT( "{" ); 
-            NT2( Actions, 1, 0 ); TTEXT( "}" ); 
+            NT1( Actions, 1); TTEXT( "}" ); 
             BUILD_APP_NODE( "foreach2", &start, 4 ); END_TRY( foreach2 )
     OR( func )
         ABORT( !rulegen );
-        TRY( fo )
-            TTEXT( "for" );
-        OR( fo )
-            TTEXT( "forExec" );
-        END_TRY( fo )
+        TTEXT( "for" );
         TTEXT( "(" );
         NT2( Term, 1, MIN_PREC );
         TTEXT( ";" );
@@ -1136,7 +947,7 @@ OR( term0 )
         NT2( Term, 1, MIN_PREC );
         TTEXT( ")" );
         TTEXT( "{" );
-        NT2( Actions, 1, 0 );
+        NT1( Actions, 1);
         TTEXT( "}" );
         BUILD_APP_NODE( "for", &start, 5 );
     OR( func )
@@ -1144,13 +955,11 @@ OR( term0 )
         TTEXT( "remote" );
         TTEXT( "(" );
         NT2( Term, 1, MIN_PREC );
-        TTEXT( "," );
-        NT2( Term, 1, MIN_PREC );
         TTEXT( ")" );
         TTEXT( "{" );
         char buf[10000];
         Label actionsStart = *FPOS;
-        NT2( Actions, 1, 0 );
+        NT1( Actions, 1);
         ( void ) POP;
         ( void ) POP;
         Label actionsFinish = *FPOS;
@@ -1158,7 +967,7 @@ OR( term0 )
         dupString( e, &actionsStart, actionsFinish.exprloc - actionsStart.exprloc, buf );
         BUILD_NODE( TK_STRING, buf, &actionsStart, 0, 0 );
         BUILD_NODE( TK_STRING, "", &actionsFinish, 0, 0 );
-        BUILD_APP_NODE( "remoteExec", &start, 4 );
+        BUILD_APP_NODE( "remote", &start, 3 );
     OR( func )
         ABORT( !rulegen );
         TTEXT( "delay" );
@@ -1168,7 +977,7 @@ OR( term0 )
         TTEXT( "{" );
         char buf[10000];
         Label actionsStart = *FPOS;
-        NT2( Actions, 1, 0 );
+        NT1( Actions, 1);
         ( void ) POP;
         ( void ) POP;
         Label actionsFinish = *FPOS;
@@ -1176,7 +985,7 @@ OR( term0 )
         dupString( e, &actionsStart, actionsFinish.exprloc - actionsStart.exprloc, buf );
         BUILD_NODE( TK_STRING, buf, &actionsStart, 0, 0 );
         BUILD_NODE( TK_STRING, "", &actionsFinish, 0, 0 );
-        BUILD_APP_NODE( "delayExec", &start, 3 );
+        BUILD_APP_NODE( "delay", &start, 2 );
     OR( func )
         ABORT( !rulegen );
         TTEXT( "let" );
@@ -1188,31 +997,73 @@ OR( term0 )
         BUILD_APP_NODE( "let", &start, 3 );
     OR( func )
         ABORT( !rulegen );
-        TTEXT( "match" );
-        NT2( Term, 1, 2 );
-        TTEXT( "with" );
-        int n = 0;
-        OPTIONAL_BEGIN( semicolon )
-            TTEXT( "|" );
-        OPTIONAL_END( semicolon )
-        LOOP_BEGIN( cases )
-            Label cpos = *FPOS;
-            NT2( Term, 1, MIN_PREC );
-            TTEXT( "=>" );
-            NT2( Term, 1, MIN_PREC );
-            BUILD_NODE( N_TUPLE, TUPLE, &cpos, 2, 2 );
-            n++;
-            TRY( vbar )
-                TTEXT( "|" );
-            OR( vbar )
-                DONE( cases )
-            END_TRY( vbar );
-        LOOP_END( cases )
-        BUILD_APP_NODE( "match", &start, n + 1 );
-    END_TRY( func )
-OR(term0)
-NT1( Value, rulegen );
-int done = 0;
+        TTEXT( "try" );
+        TTEXT( "{" );
+        NT1( Actions, 1);
+        TTEXT( "}" );
+        int ncatches = 0;
+        LOOP_BEGIN( tryLoopCatches )
+            TTEXT( "catch" );
+            TTEXT( "(" );
+            OPTIONAL_BEGIN( catchVar )
+                TTYPE( TK_LOCAL_VAR );
+                BUILD_NODE( TK_VAR, token->text, &pos, 0, 0 );
+            OR( catchVar )
+                TTEXT( "*" );
+                BUILD_NODE( TK_TEXT, "*", &pos, 0, 0 );
+            END_TRY( catchVar )
+            TTEXT( ")" );
+            TTEXT( "{" );
+            NT1( Actions, 1);
+            TTEXT( "}" );
+            ncatches++;
+            TRY( nextCatch )
+                TTEXT_LOOKAHEAD( "catch" );
+            OR( nextCatch )
+                DONE( tryLoopCatches );
+            END_TRY( nextCatch )
+        LOOP_END( tryLoopCatches )
+        OPTIONAL_BEGIN( finallyBlock )
+            TTEXT( "finally" );
+            TTEXT( "{" );
+            NT1( Actions, 1);
+            TTEXT( "}" );
+        OR( finallyBlock )
+            BUILD_APP_NODE( "nop", FPOS, 0 );
+        END_TRY( finallyBlock )
+        BUILD_NODE( N_TRY_CATCH, "TRY_CATCH", &start, 2 + ncatches, 2 + ncatches );
+    OR( func )
+         ABORT( !rulegen );
+         TTEXT( "match" );
+         NT2( Term, 1, 2 );
+         TTEXT( "with" );
+         int n = 0;
+         OPTIONAL_BEGIN( semicolon )
+             TTEXT( "|" );
+         OPTIONAL_END( semicolon )
+         LOOP_BEGIN( cases )
+             Label cpos = *FPOS;
+             NT2( Term, 1, MIN_PREC );
+             TTEXT( "=>" );
+             NT2( Term, 1, MIN_PREC );
+             BUILD_NODE( N_TUPLE, TUPLE, &cpos, 2, 2 );
+             n++;
+             TRY( vbar )
+                 TTEXT( "|" );
+             OR( vbar )
+                 DONE( cases )
+             END_TRY( vbar );
+         LOOP_END( cases )
+         BUILD_APP_NODE( "match", &start, n + 1 );
+     END_TRY( func )
+    OR(term0)
+    /* Try unpacking pattern first: {a, b, c} = tuple */
+    TRY( unpackingAssign )
+    NT( UnpackingPattern );
+    OR( unpackingAssign )
+    NT1( Value, rulegen );
+    END_TRY( unpackingAssign )
+    int done = 0;
 while ( !done && NO_SYNTAX_ERROR ) {
     CHOICE_BEGIN( term )
     BRANCH_BEGIN( term )
@@ -1226,6 +1077,11 @@ while ( !done && NO_SYNTAX_ERROR ) {
         char *fn;
         if ( TOKEN_TEXT( "=" ) ) {
             fn = "assign";
+        }
+        else if ( TOKEN_TEXT( "?" ) ) {
+            /* Optional chaining: ?. operator */
+            TTEXT( "." );
+            fn = "optionalAccess";
         }
         else {
             fn = token->text;
@@ -1397,7 +1253,7 @@ END_TRY( tuple )
 
 OR( value )
 TTEXT( "{" );
-NT2( Actions, rulegen, 0 );
+NT1( Actions, rulegen);
 if ( rulegen ) {
     BUILD_NODE( N_ACTIONS_RECOVERY, "ACTIONS_RECOVERY", &start, 2, 2 );
 }
@@ -1421,8 +1277,6 @@ NT( PathExpression );
 OR( value )
 TRY( func )
 ABORT( rulegen );
-NT1( TermSystemBackwardCompatible, 0 );
-OR( func )
 TTYPE( TK_TEXT );
 ABORT( rulegen && isKeyword( token->text ) );
 char *fn = cpStringExt( token->text, context->region );
@@ -1445,6 +1299,42 @@ OR( value )
 NT1( StringExpression, NULL );
 END_TRY( value )
 PARSER_FUNC_END( Value )
+
+/**
+ * Unpacking Pattern: Parses {var, var, ...} patterns for tuple unpacking
+ * Syntax: {a, b, c} or {a, _, c} where _ means ignore
+ * Returns N_UNPACKING_PATTERN node with subtrees for each element
+ */
+PARSER_FUNC_BEGIN( UnpackingPattern )
+int rulegen = 0;
+TTEXT( "{" );
+int n = 0;
+TRY( emptyPattern )
+TTEXT( "}" );
+BUILD_NODE( N_UNPACKING_PATTERN, "UNPACKING", &start, 0, 0 );
+OR( emptyPattern )
+LOOP_BEGIN( patternElements )
+    TRY( wildcardPattern )
+    TTEXT( "_" );
+    BUILD_NODE( TK_TEXT, "_", &pos, 0, 0 );
+    OR( wildcardPattern )
+    TTYPE( TK_LOCAL_VAR );
+    BUILD_NODE( TK_VAR, token->text, &pos, 0, 0 );
+    OR( wildcardPattern )
+    /* Nested pattern support: {a, {b, c}} */
+    NT( UnpackingPattern );
+    END_TRY( wildcardPattern )
+    n++;
+    TRY( patternDelim )
+    TTEXT( "," );
+    OR( patternDelim )
+    TTEXT( "}" );
+    DONE( patternElements );
+    END_TRY( patternDelim )
+LOOP_END( patternElements )
+BUILD_NODE( N_UNPACKING_PATTERN, "UNPACKING", &start, n, n );
+END_TRY( emptyPattern )
+PARSER_FUNC_END( UnpackingPattern )
 
 PARSER_FUNC_BEGIN( Column )
 int rulegen = 1;
@@ -2008,7 +1898,7 @@ void termToString( char **p, int *s, int indent, int prec, Node *n, int quote ) 
                         }
                     }
                     else {
-                        /* todo error handling */
+                        /* Invalid query condition structure - skip */
                     }
                 }
             }
@@ -2425,14 +2315,22 @@ int nextChar( Pointer *p ) {
     }
 }
 
-Pointer *newPointer( FILE *fp, const char *ruleBaseName ) {
-    Pointer *e = ( Pointer * )malloc( sizeof( Pointer ) );
-    initPointer( e, fp, ruleBaseName );
+Pointer *newPointer( FILE *fp, const char *ruleBaseName, Region *r ) {
+    Pointer *e = ( Pointer * )region_alloc( r, sizeof( Pointer ) );
+    if ( e == NULL ) {
+        rodsLog( LOG_ERROR, "Cannot allocate Pointer" );
+        return NULL;
+    }
+    initPointer( e, fp, ruleBaseName, r );
     return e;
 }
-Pointer *newPointer2( char* buf ) {
-    Pointer *e = ( Pointer * )malloc( sizeof( Pointer ) );
-    initPointer2( e, buf );
+Pointer *newPointer2( char* buf, Region *r ) {
+    Pointer *e = ( Pointer * )region_alloc( r, sizeof( Pointer ) );
+    if ( e == NULL ) {
+        rodsLog( LOG_ERROR, "Cannot allocate Pointer" );
+        return NULL;
+    }
+    initPointer2( e, buf, r );
 
     return e;
 }
@@ -2441,30 +2339,37 @@ void deletePointer( Pointer* buf ) {
         if ( buf->isFile ) {
             fclose( buf->fp );
         }
-        free( buf->base );
-        free( buf );
+        /* no free - base and buf are region-allocated */
     }
 
 }
 
-void initPointer( Pointer *p, FILE* fp, const char* ruleBaseName /* = NULL */ ) {
+void initPointer( Pointer *p, FILE* fp, const char* ruleBaseName, Region *r ) {
     fseek( fp, 0, SEEK_SET );
     p->fp = fp;
     p->fpos = 0;
     p->len = 0;
     p->p = 0;
     p->isFile = 1;
-    p->base = ( char * )malloc( strlen( ruleBaseName ) + 2 );
+    p->base = ( char * )region_alloc( r, strlen( ruleBaseName ) + 2 );
+    if ( p->base == NULL ) {
+        rodsLog( LOG_ERROR, "Cannot allocate Pointer base" );
+        return;
+    }
     p->base[0] = 'f';
     strcpy( p->base + 1, ruleBaseName );
 }
 
-void initPointer2( Pointer *p, char *buf ) {
+void initPointer2( Pointer *p, char *buf, Region *r ) {
     p->strbuf = buf;
     p->strlen = strlen( buf );
     p->strp = 0;
     p->isFile = 0;
-    p->base = ( char * )malloc( strlen( buf ) + 2 );
+    p->base = ( char * )region_alloc( r, strlen( buf ) + 2 );
+    if ( p->base == NULL ) {
+        rodsLog( LOG_ERROR, "Cannot allocate Pointer base" );
+        return;
+    }
     p->base[0] = 's';
     strcpy( p->base + 1, buf );
 }
@@ -2905,6 +2810,18 @@ PARSER_FUNC_BEGIN2( _Type, int prec, int lifted )
 int rulegen = 1;
 int arity = 0;
 Node *node = NULL;
+int hasOptional = 0;
+int hasNonnull = 0;
+
+/* Check for @optional or @nonnull annotations */
+TRY( annotation )
+TTEXT( "@optional" );
+hasOptional = 1;
+OR( annotation )
+TTEXT( "@nonnull" );
+hasNonnull = 1;
+END_TRY( annotation )
+
 TRY( type )
 ABORT( prec == 1 );
 TRY( typeEnd )
@@ -3105,6 +3022,20 @@ END_TRY( type )
 if ( arity != 1 || lifted ) {
     BUILD_NODE( T_TUPLE, TUPLE, &start, arity, arity );
 }
+
+/* Apply type annotations if present */
+if ( context->error == 0 && context->nodeStackTop > 0 ) {
+    Node *typeNode = peekNode( context );
+    if ( typeNode != NULL ) {
+        if ( hasOptional ) {
+            applyOptionalAnnotation( typeNode );
+        }
+        if ( hasNonnull ) {
+            applyNonnullAnnotation( typeNode );
+        }
+    }
+}
+
 PARSER_FUNC_END( _Type )
 
 PARSER_FUNC_BEGIN( TypeSet )
@@ -3180,8 +3111,6 @@ int parseRuleSet( Pointer *e, RuleSet *ruleSet, Env *funcDescIndex, int *errloc,
     ParserContext *pc = newParserContext( errmsg, r );
 
     int ret = 1;
-    /* parser variables */
-    int backwardCompatible = 0; /* 0 auto 1 true -1 false */
 
     while ( ret == 1 ) {
         pc->nodeStackTop = 0;
@@ -3202,41 +3131,25 @@ int parseRuleSet( Pointer *e, RuleSet *ruleSet, Env *funcDescIndex, int *errloc,
             }
             else if ( token->text[0] == '@' ) { /* directive */
                 token = nextTokenRuleGen( e, pc, 1, 0 );
-                if ( strcmp( token->text, "backwardCompatible" ) == 0 ) {
-                    token = nextTokenRuleGen( e, pc, 1, 0 );
-                    if ( token->type == TK_TEXT ) {
-                        if ( strcmp( token->text, "true" ) == 0 ) {
-                            backwardCompatible = 1;
-                        }
-                        else if ( strcmp( token->text, "false" ) == 0 ) {
-                            backwardCompatible = -1;
-                        }
-                        else if ( strcmp( token->text, "auto" ) == 0 ) {
-                            backwardCompatible = 0;
-                        }
-                        else {
-                            /* todo error handling */
-                        }
-                    }
-                    else {
-                        /* todo error handling */
-                    }
-                }
-                else if ( strcmp( token->text, "include" ) == 0 ) {
-                    token = nextTokenRuleGen( e, pc, 1, 0 );
-                    if ( token->type == TK_TEXT || token->type == TK_STRING ) {
-                        int ret = readRuleSetFromFile( token->text, ruleSet, funcDescIndex, errloc, errmsg, r );
-                        if ( ret != 0 ) {
-                            deleteParserContext( pc );
-                            return ret;
-                        }
-                    }
-                    else {
-                        /* todo error handling */
+                if ( strcmp( token->text, "include" ) == 0 ) {
+                token = nextTokenRuleGen( e, pc, 1, 0 );
+                if ( token->type == TK_TEXT || token->type == TK_STRING ) {
+                    int ret = readRuleSetFromFile( token->text, ruleSet, funcDescIndex, errloc, errmsg, r );
+                    if ( ret != 0 ) {
+                        deleteParserContext( pc );
+                        return ret;
                     }
                 }
                 else {
-                    /* todo error handling */
+                    char errbuf[ERR_MSG_LEN];
+                    generateErrMsg( "error: expected filename after 'include' directive", token->exprloc, e->base, errbuf );
+                    addRErrorMsg( errmsg, RE_PARSER_ERROR, errbuf );
+                }
+                }
+                else {
+                char errbuf[ERR_MSG_LEN];
+                generateErrMsg( "error: unknown directive; expected '@type', '@include', or rule/data/constructor definition", token->exprloc, e->base, errbuf );
+                addRErrorMsg( errmsg, RE_PARSER_ERROR, errbuf );
                 }
                 continue;
             }
@@ -3246,7 +3159,7 @@ int parseRuleSet( Pointer *e, RuleSet *ruleSet, Env *funcDescIndex, int *errloc,
         }
         pushback( token, pc );
 
-        Node *node = parseRuleRuleGen( e, backwardCompatible, pc );
+        Node *node = parseRuleRuleGen( e, pc );
         if ( node == NULL ) {
             addRErrorMsg( errmsg, RE_OUT_OF_MEMORY, "parseRuleSet: out of memory." );
             deleteParserContext( pc );
@@ -3256,10 +3169,9 @@ int parseRuleSet( Pointer *e, RuleSet *ruleSet, Env *funcDescIndex, int *errloc,
             *errloc = NODE_EXPR_POS( node );
             generateErrMsg( "parseRuleSet: error parsing rule.", *errloc, e->base, errbuf );
             addRErrorMsg( errmsg, RE_PARSER_ERROR, errbuf );
-            /* skip the current line and try to parse the rule from the next line */
-            skipComments( e );
-            deleteParserContext( pc );
-            return RE_PARSER_ERROR;
+            /* Error recovery: skip to next sync point (rule boundary) and continue parsing */
+            recoverToSyncPoint( e, pc );
+            continue;
         }
         else {
             int n = node->degree;
@@ -3303,11 +3215,13 @@ int parseRuleSet( Pointer *e, RuleSet *ruleSet, Env *funcDescIndex, int *errloc,
                 pushRule( ruleSet,  newRuleDesc( RK_EXTERN, nodes[0], 0, r ) );
             }
             else if ( strcmp( node->text, "REL" ) == 0 ) {
-                int notyping = backwardCompatible >= 0 ? 1 : 0;
                 int k;
+                /* In strict type checking mode, enforce strict typing for all rules.
+                   Otherwise use 1 (permissive/dynamic) for backward compatibility. */
+                int dynamicTyping = ruleEngineConfig.strictTypeChecking ? 0 : 1;
                 for ( k = 0; k < n; k++ ) {
                     Node *node = nodes[k];
-                    pushRule( ruleSet, newRuleDesc( RK_REL, node, notyping, r ) );
+                    pushRule( ruleSet, newRuleDesc( RK_REL, node, dynamicTyping, r ) );
                     /*        printf("%s\n", node->subtrees[0]->text);
                             printTree(node, 0); */
                 }
@@ -3347,7 +3261,7 @@ int parseRuleSet( Pointer *e, RuleSet *ruleSet, Env *funcDescIndex, int *errloc,
  * forall <var> (in { <type> ... <type> })?, <type> universal
  */
 Node* parseFuncTypeFromString( char *string, Region *r ) {
-    Pointer *p = newPointer2( string );
+    Pointer *p = newPointer2( string, r );
     ParserContext *pc = newParserContext( NULL, r );
     nextRuleGenFuncType( p, pc );
     Node *exprType = pc->nodeStack[0];
@@ -3356,7 +3270,7 @@ Node* parseFuncTypeFromString( char *string, Region *r ) {
     return exprType;
 }
 Node* parseTypingConstraintsFromString( char *string, Region *r ) {
-    Pointer *p = newPointer2( string );
+    Pointer *p = newPointer2( string, r );
     ParserContext *pc = newParserContext( NULL, r );
     nextRuleGenTypingConstraints( p, pc );
     Node *exprType = pc->nodeStack[0];
@@ -3367,8 +3281,8 @@ Node* parseTypingConstraintsFromString( char *string, Region *r ) {
     deletePointer( p );
     return exprType;
 }
-Node *parseRuleRuleGen( Pointer *expr, int backwardCompatible, ParserContext *pc ) {
-    nextRuleGenRule( expr, pc, backwardCompatible );
+Node *parseRuleRuleGen( Pointer *expr, ParserContext *pc ) {
+    nextRuleGenRule( expr, pc );
     Node *rulePackNode = pc->nodeStack[0];
     if ( pc->error ) {
         if ( pc->errnode != NULL ) {
@@ -3395,8 +3309,8 @@ Node *parseTermRuleGen( Pointer *expr, int rulegen, ParserContext *pc ) {
     return rulePackNode;
 
 }
-Node *parseActionsRuleGen( Pointer *expr, int rulegen, int backwardCompatible, ParserContext *pc ) {
-    nextRuleGenActions( expr, pc, rulegen, backwardCompatible );
+Node *parseActionsRuleGen( Pointer *expr, int rulegen, ParserContext *pc ) {
+    nextRuleGenActions( expr, pc, rulegen );
     Node *rulePackNode = pc->nodeStack[0];
     if ( pc->error ) {
         if ( pc->errnode != NULL ) {
@@ -3497,10 +3411,10 @@ char* typeName_NodeType( NodeType s ) {
     }
 }
 
-void generateErrMsgFromFile( char *msg, long errloc, char *ruleBaseName, char* ruleBasePath, char errbuf[ERR_MSG_LEN] ) {
+void generateErrMsgFromFile( char *msg, long errloc, char *ruleBaseName, char* ruleBasePath, char errbuf[ERR_MSG_LEN], Region *r ) {
     FILE *fp = fopen( ruleBasePath, "r" );
     if ( fp != NULL ) {
-        Pointer *e = newPointer( fp, ruleBaseName );
+        Pointer *e = newPointer( fp, ruleBaseName, r );
         Label l;
         l.base = NULL;
         l.exprloc = errloc;
@@ -3509,8 +3423,8 @@ void generateErrMsgFromFile( char *msg, long errloc, char *ruleBaseName, char* r
     }
 }
 
-void generateErrMsgFromSource( char *msg, long errloc, char *src, char errbuf[ERR_MSG_LEN] ) {
-    Pointer *e = newPointer2( src );
+void generateErrMsgFromSource( char *msg, long errloc, char *src, char errbuf[ERR_MSG_LEN], Region *r ) {
+    Pointer *e = newPointer2( src, r );
     Label l;
     l.base = NULL;
     l.exprloc = errloc;
@@ -3552,17 +3466,19 @@ void generateAndAddErrMsg( char *msg, Node *node, int errcode, rError_t *errmsg 
 }
 char *generateErrMsg( char *msg, long errloc, char *ruleBaseName, char errmsg[ERR_MSG_LEN] ) {
     char ruleBasePath[MAX_NAME_LEN];
+    Region *tmpRegion = make_region( 0, NULL );
     switch ( ruleBaseName[0] ) {
     case 's': // source
-        generateErrMsgFromSource( msg, errloc, ruleBaseName + 1, errmsg );
-        return errmsg;
+        generateErrMsgFromSource( msg, errloc, ruleBaseName + 1, errmsg, tmpRegion );
+        break;
     case 'f': // file
         getRuleBasePath( ruleBaseName + 1, ruleBasePath );
-        generateErrMsgFromFile( msg, errloc, ruleBaseName + 1, ruleBasePath, errmsg );
-        return errmsg;
+        generateErrMsgFromFile( msg, errloc, ruleBaseName + 1, ruleBasePath, errmsg, tmpRegion );
+        break;
     default:
         rodsLog(LOG_ERROR, "generateErrMsg: ruleBaseName of unknown type: [%s] [%ji] [%s]", msg, static_cast<intmax_t>(errloc), ruleBaseName);
         snprintf( errmsg, ERR_MSG_LEN, "<unknown source type>" );
-        return errmsg;
     }
+    region_free( tmpRegion );
+    return errmsg;
 }

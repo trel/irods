@@ -53,8 +53,6 @@ region_free(_rnew); \
 _rnew = _rnew2;}
 #define GC_END region_free(_rnew);
 
-#define RE_BACKWARD_COMPATIBLE
-
 static char globalSessionId[MAX_NAME_LEN] = "Unspecified";
 static keyValPair_t globalHashtable = {0, NULL, NULL};
 
@@ -121,8 +119,17 @@ ReIterableData *newReIterableData(
     ruleExecInfo_t* rei,
     int reiSaveFlag,
     Env* env,
-    rError_t* errmsg ) {
-    ReIterableData *itrData = ( ReIterableData * ) malloc( sizeof( ReIterableData ) );
+    rError_t* errmsg,
+    Region* r ) {
+    ReIterableData *itrData = ( ReIterableData * ) region_alloc( r, sizeof( ReIterableData ) );
+    if ( itrData == NULL ) {
+        rodsLog( LOG_ERROR, "Cannot allocate ReIterableData" );
+        char errbuf[ERR_MSG_LEN];
+        snprintf( errbuf, ERR_MSG_LEN, "cannot allocate iterable data structure" );
+        generateErrMsg( errbuf, NODE_EXPR_POS( node ), node->base, errbuf );
+        addRErrorMsg( errmsg, SYS_MALLOC_ERR, errbuf );
+        return NULL;
+    }
     itrData->varName = varName;
     itrData->res = res;
     itrData->itrSpecData = NULL;
@@ -137,9 +144,6 @@ ReIterableData *newReIterableData(
 
 }
 
-void deleteReIterableData( ReIterableData *itrData ) {
-    free( itrData );
-}
 int fileConcatenate( const char *file1, const char *file2, const char *file3 );
 
 Node *wrapToActions( Node* node, Region* r ) {
@@ -153,19 +157,6 @@ Node *wrapToActions( Node* node, Region* r ) {
     }
     return node;
 }
-Res *smsi_ifExec( Node** params, int, Node*, ruleExecInfo_t* rei, int reiSaveFlag, Env* env, rError_t* errmsg, Region* r ) {
-    Res *res = evaluateExpression3( ( Node * )params[0], 0, 1, rei, reiSaveFlag & ~DISCARD_EXPRESSION_RESULT, env, errmsg, r );
-    if ( getNodeType( res ) == N_ERROR ) {
-        return res;
-    }
-    if ( RES_BOOL_VAL( res ) == 0 ) {
-        return evaluateActions( wrapToActions( params[2], r ), wrapToActions( params[4], r ), 0, rei, reiSaveFlag, env, errmsg, r );
-    }
-    else {
-        return evaluateActions( wrapToActions( params[1], r ), wrapToActions( params[3], r ), 0, rei, reiSaveFlag, env, errmsg, r );
-    }
-}
-
 Res *smsi_if2Exec( Node** params, int, Node*, ruleExecInfo_t* rei, int reiSaveFlag, Env* env, rError_t* errmsg, Region* r ) {
     Res *res = evaluateExpression3( ( Node * )params[0], 0, 1, rei, reiSaveFlag & ~DISCARD_EXPRESSION_RESULT, env, errmsg, r );
     if ( getNodeType( res ) == N_ERROR ) {
@@ -205,63 +196,36 @@ Res *smsi_letExec( Node** params, int, Node*, ruleExecInfo_t* rei, int reiSaveFl
     return res;
 }
 Res *smsi_matchExec( Node** params, int n, Node* node, ruleExecInfo_t* rei, int reiSaveFlag, Env* env, rError_t* errmsg, Region* r ) {
-    Res *res = evaluateExpression3( params[0], 0, 1, rei, reiSaveFlag & ~DISCARD_EXPRESSION_RESULT, env, errmsg, r );
-    if ( getNodeType( res ) == N_ERROR ) {
-        return res;
-    }
-    int i;
-    for ( i = 1; i < n; i++ ) {
-        Env *nEnv = newEnv( newHashTable2( 100, r ), env, NULL, r );
-        Res *pres = matchPattern( params[i]->subtrees[0], res, nEnv, rei, reiSaveFlag, errmsg, r );
-        if ( getNodeType( pres ) == N_ERROR ) {
-            /*deleteEnv(nEnv, 1); */
-            addRErrorMsg( errmsg, RE_PATTERN_NOT_MATCHED, ERR_MSG_SEP );
-            continue;
-        }
-        res = evaluateExpression3( params[i]->subtrees[1], 0, 0, rei, reiSaveFlag, nEnv, errmsg, r );
-        /*deleteEnv(nEnv, 1); */
-        return res;
-    }
-    generateAndAddErrMsg( "pattern not matched", node, RE_PATTERN_NOT_MATCHED, errmsg );
-    return newErrorRes( r, RE_PATTERN_NOT_MATCHED );
+     Res *res = evaluateExpression3( params[0], 0, 1, rei, reiSaveFlag & ~DISCARD_EXPRESSION_RESULT, env, errmsg, r );
+     if ( getNodeType( res ) == N_ERROR ) {
+         return res;
+     }
+     int i;
+     for ( i = 1; i < n; i++ ) {
+         Env *nEnv = newEnv( newHashTable2( 100, r ), env, NULL, r );
+         Node *pattern = params[i]->subtrees[0];
+         Res *pres;
+         
+         /* Check if this is a type pattern */
+         if ( isTypePattern( pattern ) ) {
+             pres = matchTypePattern( pattern, res, nEnv, rei, reiSaveFlag, errmsg, r );
+         } else {
+             pres = matchPattern( pattern, res, nEnv, rei, reiSaveFlag, errmsg, r );
+         }
+         
+         if ( getNodeType( pres ) == N_ERROR ) {
+             /*deleteEnv(nEnv, 1); */
+             addRErrorMsg( errmsg, RE_PATTERN_NOT_MATCHED, ERR_MSG_SEP );
+             continue;
+         }
+         res = evaluateExpression3( params[i]->subtrees[1], 0, 0, rei, reiSaveFlag, nEnv, errmsg, r );
+         /*deleteEnv(nEnv, 1); */
+         return res;
+     }
+     generateAndAddErrMsg( "pattern not matched", node, RE_PATTERN_NOT_MATCHED, errmsg );
+     return newErrorRes( r, RE_PATTERN_NOT_MATCHED );
 }
 
-
-Res *smsi_whileExec( Node** params, int, Node*, ruleExecInfo_t* rei, int reiSaveFlag, Env* env, rError_t* errmsg, Region* r ) {
-
-    Res *cond, *res;
-    GC_BEGIN
-    while ( 1 ) {
-
-        cond = evaluateExpression3( ( Node * )params[0], 0, 1, rei, reiSaveFlag & ~DISCARD_EXPRESSION_RESULT, env, errmsg, GC_REGION );
-        if ( getNodeType( cond ) == N_ERROR ) {
-            res = cond;
-            break;
-        }
-        if ( RES_BOOL_VAL( cond ) == 0 ) {
-            res = newIntRes( r, 0 );
-            break;
-        }
-        res = evaluateActions( ( Node * )params[1], ( Node * )params[2], 0, rei, reiSaveFlag, env, errmsg, GC_REGION );
-        if ( getNodeType( res ) == N_ERROR ) {
-            break;
-        }
-        else if ( TYPE( res ) == T_BREAK ) {
-            res = newIntRes( r, 0 );
-            break;
-        }
-        else if ( TYPE( res ) == T_SUCCESS ) {
-            break;
-        }
-        GC_ON( env );
-
-    }
-    cpEnv( env, r );
-    res = cpRes( res, r );
-    GC_END
-    return res;
-
-}
 
 Res *smsi_forExec( Node** params, int, Node*, ruleExecInfo_t* rei, int reiSaveFlag, Env* env, rError_t* errmsg, Region* r ) {
 
@@ -319,8 +283,8 @@ Res *smsi_split( Node** params, int, Node* node, ruleExecInfo_t* rei, int reiSav
 Res *smsi_collection( Node** subtrees, int, Node*, ruleExecInfo_t*, int, Env*, rError_t*, Region* r ) {
     char *collName = subtrees[0]->text;
 
-    /* todo need to find a way to free this buffer */
-    collInp_t *collInpCache = ( collInp_t * )malloc( sizeof( collInp_t ) );
+    /* Allocate from Region (cleaned up when region is freed, typically with rule execution) */
+    collInp_t *collInpCache = ( collInp_t * )region_alloc( r, sizeof( collInp_t ) );
     memset( collInpCache, 0, sizeof( collInp_t ) );
     rstrcpy( collInpCache->collName, collName, MAX_NAME_LEN );
 
@@ -377,8 +341,14 @@ typedef struct reIterable_genQuery_data {
     genQueryOut_t *genQueryOut;
 } ReIterable_genQuery_data;
 
-void reIterable_genQuery_init( ReIterableData *itrData, Region* ) {
-    ReIterable_genQuery_data *data = ( ReIterable_genQuery_data * ) malloc( sizeof( ReIterable_genQuery_data ) );
+void reIterable_genQuery_init( ReIterableData *itrData, Region* r ) {
+    ReIterable_genQuery_data *data = ( ReIterable_genQuery_data * ) region_alloc( r, sizeof( ReIterable_genQuery_data ) );
+    if ( data == NULL ) {
+        rodsLog( LOG_ERROR, "Cannot allocate ReIterable_genQuery_data" );
+        generateAndAddErrMsg( "cannot allocate genQuery iterator data", itrData->node, SYS_MALLOC_ERR, itrData->errmsg );
+        itrData->errorRes = newErrorRes( NULL, SYS_MALLOC_ERR );
+        return;
+    }
 
     itrData->itrSpecData = data;
 
@@ -387,8 +357,8 @@ void reIterable_genQuery_init( ReIterableData *itrData, Region* ) {
     data->len = getCollectionSize( itrData->res->subtrees[1]->exprType->text, data->genQueryOut );
     data->i = 0;
 
-    convertResToMsParam( &( data->genQInpParam ), itrData->res->subtrees[0], itrData->errmsg );
-    convertResToMsParam( &( data->genQOutParam ), itrData->res->subtrees[1], itrData->errmsg );
+    convertResToMsParam( &( data->genQInpParam ), itrData->res->subtrees[0], itrData->errmsg, r );
+    convertResToMsParam( &( data->genQOutParam ), itrData->res->subtrees[1], itrData->errmsg, r );
 
 }
 
@@ -440,6 +410,9 @@ Res *reIterable_genQuery_next( ReIterableData *itrData, Region* r ) {
 }
 void reIterable_genQuery_finalize( ReIterableData *itrData, Region* r ) {
     ReIterable_genQuery_data *data = ( ReIterable_genQuery_data * ) itrData->itrSpecData;
+    if ( data == NULL ) {
+        return;
+    }
     int status = msiCloseGenQuery( &( data->genQInpParam ), &( data->genQOutParam ), itrData->rei );
     freeGenQueryInp((genQueryInp_t **) &( data->genQInpParam.inOutStruct ));
     clearMsParam( &( data->genQInpParam ), 0 );
@@ -459,8 +432,14 @@ typedef struct reIterable_list_data {
     int n;
 } ReIterable_list_data;
 
-void reIterable_list_init( ReIterableData *itrData, Region* ) {
-    ReIterable_list_data *data = ( ReIterable_list_data * ) malloc( sizeof( ReIterable_list_data ) );
+void reIterable_list_init( ReIterableData *itrData, Region* r ) {
+    ReIterable_list_data *data = ( ReIterable_list_data * ) region_alloc( r, sizeof( ReIterable_list_data ) );
+    if ( data == NULL ) {
+        rodsLog( LOG_ERROR, "Cannot allocate ReIterable_list_data" );
+        generateAndAddErrMsg( "cannot allocate list iterator data", itrData->node, SYS_MALLOC_ERR, itrData->errmsg );
+        itrData->errorRes = newErrorRes( r, SYS_MALLOC_ERR );
+        return;
+    }
 
     itrData->itrSpecData = data;
     data->i = 0;
@@ -483,7 +462,9 @@ Res *reIterable_list_next( ReIterableData *itrData, Region* r ) {
 
 void reIterable_list_finalize( ReIterableData *itrData, Region* ) {
     ReIterable_list_data *data = ( ReIterable_list_data * ) itrData->itrSpecData;
-    free( data );
+    if ( data == NULL ) {
+        return;
+    }
 }
 
 /* intArray strArray genQueryOut iterable */
@@ -492,8 +473,14 @@ typedef struct reIterable_irods_data {
     int n;
 } ReIterable_irods_data;
 
-void reIterable_irods_init( ReIterableData *itrData, Region* ) {
-    ReIterable_irods_data *data = ( ReIterable_irods_data * ) malloc( sizeof( ReIterable_irods_data ) );
+void reIterable_irods_init( ReIterableData *itrData, Region* r ) {
+    ReIterable_irods_data *data = ( ReIterable_irods_data * ) region_alloc( r, sizeof( ReIterable_irods_data ) );
+    if ( data == NULL ) {
+        rodsLog( LOG_ERROR, "Cannot allocate ReIterable_irods_data" );
+        generateAndAddErrMsg( "cannot allocate irods iterator data", itrData->node, SYS_MALLOC_ERR, itrData->errmsg );
+        itrData->errorRes = newErrorRes( r, SYS_MALLOC_ERR );
+        return;
+    }
 
     itrData->itrSpecData = data;
     data->i = 0;
@@ -515,7 +502,9 @@ Res *reIterable_irods_next( ReIterableData *itrData, Region* r ) {
 
 void reIterable_irods_finalize( ReIterableData *itrData, Region* ) {
     ReIterable_irods_data *data = ( ReIterable_irods_data * ) itrData->itrSpecData;
-    free( data );
+    if ( data == NULL ) {
+        return;
+    }
 }
 
 /* path/collection iterable */
@@ -527,7 +516,20 @@ typedef struct reIterable_collection_data {
 } ReIterable_collection_data;
 
 void reIterable_collection_init( ReIterableData *itrData, Region* r ) {
-    ReIterable_collection_data *data = ( ReIterable_collection_data * ) malloc( sizeof( ReIterable_collection_data ) );
+    ReIterable_collection_data *data = ( ReIterable_collection_data * ) region_alloc( r, sizeof( ReIterable_collection_data ) );
+    if ( data == NULL ) {
+        rodsLog( LOG_ERROR, "Cannot allocate ReIterable_collection_data" );
+        generateAndAddErrMsg( "cannot allocate collection iterator data", itrData->node, SYS_MALLOC_ERR, itrData->errmsg );
+        itrData->errorRes = newErrorRes( r, SYS_MALLOC_ERR );
+        return;
+    }
+
+    /* Initialize data structure fields to safe defaults for early error handling */
+    memset( data, 0, sizeof( ReIterable_collection_data ) );
+    data->dataObjInp = NULL;
+    data->collInp = NULL;
+    data->handleInx = -1;
+    data->collEnt = NULL;
 
     itrData->itrSpecData = data;
 
@@ -552,7 +554,13 @@ void reIterable_collection_init( ReIterableData *itrData, Region* r ) {
     data->collInp = ( collInp_t * ) RES_UNINTER_STRUCT( collRes );
 
     /* Allocate memory for dataObjInp. Needs to be persistent since will be freed later along with other msParams */
-    data->dataObjInp = ( dataObjInp_t * )malloc( sizeof( dataObjInp_t ) );
+    data->dataObjInp = ( dataObjInp_t * ) region_alloc( r, sizeof( dataObjInp_t ) );
+    if ( data->dataObjInp == NULL ) {
+        rodsLog( LOG_ERROR, "Cannot allocate dataObjInp_t" );
+        generateAndAddErrMsg( "cannot allocate data object input structure", itrData->node, SYS_MALLOC_ERR, itrData->errmsg );
+        itrData->errorRes = newErrorRes( r, SYS_MALLOC_ERR );
+        return;
+    }
 
     /* Open collection in recursive mode */
     data->collInp->flags = RECUR_QUERY_FG;
@@ -606,18 +614,26 @@ Res *reIterable_collection_next( ReIterableData *itrData, Region* r ) {
 }
 void reIterable_collection_finalize( ReIterableData *itrData, Region* r ) {
     ReIterable_collection_data *data = ( ReIterable_collection_data * ) itrData->itrSpecData;
-    free( data->dataObjInp );
-    itrData->rei->status = rsCloseCollection( itrData->rei->rsComm, &data->handleInx );
-    if ( itrData->rei->status < 0 ) {
-        itrData->errorRes = newErrorRes( r, itrData->rei->status );
+    if ( data == NULL ) {
+        return;
+    }
+    free( data->collEnt );
+    /* dataObjInp is region-allocated, will be freed with region */
+    
+    /* Only close collection if it was successfully opened */
+    if ( data->handleInx >= 0 ) {
+        itrData->rei->status = rsCloseCollection( itrData->rei->rsComm, &data->handleInx );
+        if ( itrData->rei->status < 0 ) {
+            itrData->errorRes = newErrorRes( r, itrData->rei->status );
+        }
     }
 
-    if ( TYPE( itrData->subtrees[1] ) == T_PATH ) {
+    if ( TYPE( itrData->subtrees[1] ) == T_PATH && data->collInp != NULL ) {
         /* free automatically generated collInp_t struct */
         free( data->collInp );
     }
-    else {
-    }
+    
+    /* data is region-allocated, will be freed with region */
 }
 ReIterable *getReIterable( ReIterableType nodeType ) {
     int i;
@@ -663,7 +679,7 @@ Res *smsi_forEach2Exec( Node** subtrees, int, Node* node, ruleExecInfo_t* rei, i
     case RE_ITERABLE_KEY_VALUE_PAIRS:
     case RE_ITERABLE_LIST: {
         res = newIntRes( r, 0 );
-        itrData = newReIterableData( subtrees[0]->text, subtrees[1], subtrees, node, rei, reiSaveFlag, env, errmsg );
+        itrData = newReIterableData( subtrees[0]->text, subtrees[1], subtrees, node, rei, reiSaveFlag, env, errmsg, r );
         /* save the old value of variable in the current env */
         oldVal = ( Res * ) lookupFromHashTable( env->current, itrData->varName );
         GC_BEGIN
@@ -709,7 +725,7 @@ Res *smsi_forEach2Exec( Node** subtrees, int, Node* node, ruleExecInfo_t* rei, i
         else {
             updateInEnv( env, itrData->varName, oldVal );
         }
-        deleteReIterableData( itrData );
+        /* itrData is region-allocated, will be freed with region */
         if ( getNodeType( res ) != N_ERROR ) {
             res = newIntRes( r, 0 );
         }
@@ -722,24 +738,6 @@ Res *smsi_forEach2Exec( Node** subtrees, int, Node* node, ruleExecInfo_t* rei, i
     }
 
 }
-Res *smsi_forEachExec( Node** subtrees, int, Node* node, ruleExecInfo_t* rei, int reiSaveFlag, Env* env, rError_t* errmsg, Region* r ) {
-    Res *res;
-    char* varName = ( ( Node * )subtrees[0] )->text;
-    Res* orig = evaluateVar3( varName, ( ( Node * )subtrees[0] ), rei, env, errmsg, r );
-    if ( getNodeType( orig ) == N_ERROR || TYPE( orig ) == T_ERROR ) {
-        return orig;
-    }
-
-    Node *subtreesNew[4];
-    subtreesNew[0] = subtrees[0];
-    subtreesNew[1] = orig;
-    subtreesNew[2] = subtrees[1];
-    subtreesNew[3] = subtrees[2];
-
-    res = smsi_forEach2Exec( subtreesNew, 4, node, rei, reiSaveFlag, env, errmsg, r );
-    return res;
-}
-
 void columnToString( Node *n, char **queryStr, int *size ) {
     if ( strlen( n->text ) == 0 ) { /* no attribute function */
         PRINT( queryStr, size, "%s", n->subtrees[0]->text );
@@ -767,14 +765,24 @@ Res *smsi_query( Node** subtrees, int, Node* node, ruleExecInfo_t* rei, int reiS
     char *p;
     int size;
 
-    genQueryInp_t *genQueryInp = ( genQueryInp_t* )malloc( sizeof( genQueryInp_t ) );
+    genQueryInp_t *genQueryInp = ( genQueryInp_t* ) region_alloc( r, sizeof( genQueryInp_t ) );
+    if ( genQueryInp == NULL ) {
+        rodsLog( LOG_ERROR, "Cannot allocate genQueryInp_t" );
+        generateAndAddErrMsg( "cannot allocate genQuery input structure", node, SYS_MALLOC_ERR, errmsg );
+        return newErrorRes( r, SYS_MALLOC_ERR );
+    }
     memset( genQueryInp, 0, sizeof( genQueryInp_t ) );
     genQueryInp->maxRows = MAX_SQL_ROWS;
 
     msParam_t genQInpParam;
     memset( &genQInpParam, 0, sizeof( msParam_t ) );
     genQInpParam.inOutStruct = ( void* )genQueryInp;
-    genQInpParam.type = strdup( GenQueryInp_MS_T );
+    genQInpParam.type = ( char* ) region_alloc( r, strlen( GenQueryInp_MS_T ) + 1 );
+    if ( genQInpParam.type == NULL ) {
+        rodsLog( LOG_ERROR, "Cannot allocate genQuery input parameter type string" );
+        return newErrorRes( r, SYS_MALLOC_ERR );
+    }
+    strcpy( genQInpParam.type, GenQueryInp_MS_T );
 
     Node *queNode = subtrees[0];
     Node *subQueNode;
@@ -1352,15 +1360,24 @@ Res *smsi_str( Node** params, int, Node* node, ruleExecInfo_t*, int, Env*, rErro
                 return newStringRes( r, ( char * ) buf->buf );
             }
         }
-        char *tmp = ( char * )malloc( len + 1 );
+        char *tmp = ( char * ) region_alloc( r, len + 1 );
+        if ( tmp == NULL ) {
+            rodsLog( LOG_ERROR, "Cannot allocate temporary string buffer" );
+            generateAndAddErrMsg( "cannot allocate temporary string buffer", node, SYS_MALLOC_ERR, errmsg );
+            return newErrorRes( r, SYS_MALLOC_ERR );
+        }
         memcpy( tmp, buf->buf, len );
         tmp[len] = '\0';
         res = newStringRes( r, tmp );
-        free( tmp );
     }
     else if ( TYPE( val ) == T_IRODS && strcmp( val->exprType->text, KeyValPair_MS_T ) == 0 ) {
-        int size = 1024;
-        char *buf = ( char * ) malloc( size );
+        int size = 8192;
+        char *buf = ( char * ) region_alloc( r, size );
+        if ( buf == NULL ) {
+            rodsLog( LOG_ERROR, "Cannot allocate string buffer" );
+            generateAndAddErrMsg( "cannot allocate string buffer", node, SYS_MALLOC_ERR, errmsg );
+            return newErrorRes( r, SYS_MALLOC_ERR );
+        }
         buf[0] = '\0';
         keyValPair_t *kvp = ( keyValPair_t * ) RES_UNINTER_STRUCT( val );
         int i;
@@ -1371,18 +1388,12 @@ Res *smsi_str( Node** params, int, Node* node, ruleExecInfo_t*, int, Env*, rErro
             vl = strlen( kvp->value[i] );
             int diff = strlen( buf );
             if ( diff + kl + 1 + vl + ( i == 0 ? 0 : 4 ) >= size ) {
-                size *= 2;
-                if ( char * tmp = ( char * ) realloc( buf, size ) ) {
-                    buf = tmp;
-                }
-                else {
-                    break;
-                }
+                /* Buffer exceeded - stop appending */
+                break;
             }
             snprintf( buf + diff, size - diff, "%s%s=%s", i == 0 ? "" : "++++", kvp->keyWord[i], kvp->value[i] );
         }
         res = newStringRes( r, buf );
-        free( buf );
     }
     else {
         res = newErrorRes( r, RE_UNSUPPORTED_OP_OR_TYPE );
@@ -1581,15 +1592,19 @@ Res *smsi_root( Node** params, int, Node* node, ruleExecInfo_t*, int, Env*, rErr
     return newErrorRes( r, RE_DIVISION_BY_ZERO );
 }
 
-Res *smsi_concat( Node** params, int, Node*, ruleExecInfo_t*, int, Env*, rError_t*, Region* r ) {
+Res *smsi_concat( Node** params, int, Node*, ruleExecInfo_t*, int, Env*, rError_t* errmsg, Region* r ) {
     Res **args = ( Res ** )params;
-    char *newbuf = ( char * )malloc( ( RES_STRING_STR_LEN( args[0] ) + RES_STRING_STR_LEN( args[1] ) + 1 ) * sizeof( char ) );
+    char *newbuf = ( char * ) region_alloc( r, ( RES_STRING_STR_LEN( args[0] ) + RES_STRING_STR_LEN( args[1] ) + 1 ) * sizeof( char ) );
+    if ( newbuf == NULL ) {
+        rodsLog( LOG_ERROR, "Cannot allocate string buffer for concat" );
+        generateAndAddErrMsg( "cannot allocate string buffer for concat", params[0], SYS_MALLOC_ERR, errmsg );
+        return newErrorRes( r, SYS_MALLOC_ERR );
+    }
 
     strcpy( newbuf, args[0]->text );
     strcpy( newbuf + RES_STRING_STR_LEN( args[0] ), args[1]->text );
 
     Res *res = newStringRes( r, newbuf );
-    free( newbuf );
     return res;
     /*}*/
 }
@@ -1748,7 +1763,13 @@ Res *smsi_like( Node** paramsr, int, Node*, ruleExecInfo_t*, int, Env*, rError_t
     pattern = params[1]->text;
     Res *res;
 
-    bufstr = strdup( params[0]->text );
+    size_t len = strlen( params[0]->text ) + 1;
+    bufstr = ( char * ) region_alloc( r, len );
+    if ( bufstr == NULL ) {
+        rodsLog( LOG_ERROR, "Cannot allocate string buffer for like pattern matching" );
+        return newErrorRes( r, SYS_MALLOC_ERR );
+    }
+    strcpy( bufstr, params[0]->text );
     /* make the regexp match whole strings */
     char *buf2;
     buf2 = wildCardToRegex( pattern );
@@ -1757,7 +1778,6 @@ Res *smsi_like( Node** paramsr, int, Node*, ruleExecInfo_t*, int, Env*, rError_t
     res = newBoolRes( r, regexec( &regbuf, bufstr, 0, 0, 0 ) == 0 ? 1 : 0 );
     regfree( &regbuf );
     free( buf2 );
-    free( bufstr );
     return res;
 }
 Res *smsi_not_like( Node** paramsr, int n, Node* node, ruleExecInfo_t* rei, int reiSaveFlag, Env* env, rError_t* errmsg, Region* r ) {
@@ -1773,17 +1793,22 @@ Res *smsi_like_regex( Node** paramsr, int, Node*, ruleExecInfo_t*, int, Env*, rE
     char *bufstr;
     Res *res;
 
-    bufstr = strdup( params[0]->text );
+    size_t len = strlen( params[0]->text ) + 1;
+    bufstr = ( char * ) region_alloc( r, len );
+    if ( bufstr == NULL ) {
+        rodsLog( LOG_ERROR, "Cannot allocate string buffer for like_regex pattern matching" );
+        return newErrorRes( r, SYS_MALLOC_ERR );
+    }
+    strcpy( bufstr, params[0]->text );
     /* make the regexp match whole strings */
     pattern = matchWholeString( params[1]->text );
     regex_t regbuf;
     regcomp( &regbuf, pattern, REG_EXTENDED );
     res = newBoolRes( r, regexec( &regbuf, bufstr, 0, 0, 0 ) == 0 ? 1 : 0 );
     regfree( &regbuf );
-    free( bufstr );
     free( pattern );
     return res;
-}
+    }
 Res *smsi_not_like_regex( Node** paramsr, int n, Node* node, ruleExecInfo_t* rei, int reiSaveFlag, Env* env, rError_t* errmsg, Region* r ) {
     Res *res = smsi_like_regex( paramsr, n, node, rei, reiSaveFlag, env, errmsg, r );
     if ( TYPE( res ) != N_ERROR ) {
@@ -1830,7 +1855,11 @@ Res *smsi_errorcode( Node** paramsr, int, Node*, ruleExecInfo_t* rei, int reiSav
  * If the execution is successful, the returned errorcode is 0.
  */
 Res *smsi_errormsg( Node** paramsr, int, Node*, ruleExecInfo_t* rei, int reiSaveFlag, Env* env, rError_t* errmsg, Region* r ) {
-    char *errbuf = ( char * )malloc( ERR_MSG_LEN * 1024 * sizeof( char ) );
+    char *errbuf = ( char * ) region_alloc( r, ERR_MSG_LEN * 1024 * sizeof( char ) );
+    if ( errbuf == NULL ) {
+        rodsLog( LOG_ERROR, "Cannot allocate error message buffer" );
+        return newErrorRes( r, SYS_MALLOC_ERR );
+    }
     Res *res;
     switch ( getNodeType( paramsr[0] ) ) {
     case N_ACTIONS:
@@ -1843,7 +1872,6 @@ Res *smsi_errormsg( Node** paramsr, int, Node*, ruleExecInfo_t* rei, int reiSave
         break;
     }
     freeRErrorContent( errmsg );
-    free( errbuf );
     switch ( getNodeType( res ) ) {
     case N_ERROR:
         return newIntRes( r, RES_ERR_CODE( res ) );
@@ -1865,7 +1893,7 @@ Res *smsi_delayExec( Node** paramsr, int, Node* node, ruleExecInfo_t* rei, int, 
     rstrcpy( recoveryActionCall, params[2]->text, MAX_ACTION_SIZE );
 
     msParamArray_t *tmp = rei->msParamArray;
-    rei->msParamArray = newMsParamArray();
+    rei->msParamArray = newMsParamArray( r );
 
     int ret = convertEnvToMsParamArray( rei->msParamArray, env, errmsg, r );
     if ( ret != 0 ) {
@@ -1929,7 +1957,7 @@ Res *smsi_remoteExec( Node** paramsr, int, Node* node, ruleExecInfo_t* rei, int,
     }
     addKeyVal( &execMyRuleInp.condInput, "execCondition", params[1]->text );
 
-    execMyRuleInp.inpParamArray = newMsParamArray();
+    execMyRuleInp.inpParamArray = newMsParamArray( r );
     int ret = convertEnvToMsParamArray( execMyRuleInp.inpParamArray, env, errmsg, r );
     if ( ret != 0 ) {
         generateAndAddErrMsg( "error converting Env to MsParamArray", node, ret, errmsg );
@@ -2057,6 +2085,115 @@ Res *smsi_triml( Node** paramsr, int, Node*, ruleExecInfo_t*, int, Env*, rError_
         return strres;
     }
 }
+
+/* ============================================================================
+ * Type Guard Predicates (i-d43d)
+ * ============================================================================
+ * 
+ * Type guard predicates enable safe type narrowing in conditionals.
+ * Each predicate returns boolean indicating if value matches target type.
+ */
+
+/* Check if value is of int type */
+Res *smsi_is_int( Node** paramsr, int, Node*, ruleExecInfo_t*, int, Env*, rError_t*, Region* r ) {
+    Res *val = ( Res * )paramsr[0];
+    ExprType *valType = val->exprType;
+    int isIntType = (valType != NULL && TYPE(val) == T_INT);
+    return newBoolRes( r, isIntType );
+}
+
+/* Check if value is of double type */
+Res *smsi_is_double( Node** paramsr, int, Node*, ruleExecInfo_t*, int, Env*, rError_t*, Region* r ) {
+    Res *val = ( Res * )paramsr[0];
+    ExprType *valType = val->exprType;
+    int isDoubleType = (valType != NULL && TYPE(val) == T_DOUBLE);
+    return newBoolRes( r, isDoubleType );
+}
+
+/* Check if value is of string type */
+Res *smsi_is_string( Node** paramsr, int, Node*, ruleExecInfo_t*, int, Env*, rError_t*, Region* r ) {
+    Res *val = ( Res * )paramsr[0];
+    ExprType *valType = val->exprType;
+    int isStringType = (valType != NULL && TYPE(val) == T_STRING);
+    return newBoolRes( r, isStringType );
+}
+
+/* Check if value is of bool type */
+Res *smsi_is_bool( Node** paramsr, int, Node*, ruleExecInfo_t*, int, Env*, rError_t*, Region* r ) {
+    Res *val = ( Res * )paramsr[0];
+    ExprType *valType = val->exprType;
+    int isBoolType = (valType != NULL && TYPE(val) == T_BOOL);
+    return newBoolRes( r, isBoolType );
+}
+
+/* Check if value is of datetime type */
+Res *smsi_is_datetime( Node** paramsr, int, Node*, ruleExecInfo_t*, int, Env*, rError_t*, Region* r ) {
+    Res *val = ( Res * )paramsr[0];
+    ExprType *valType = val->exprType;
+    int isDatetimeType = (valType != NULL && TYPE(val) == T_DATETIME);
+    return newBoolRes( r, isDatetimeType );
+}
+
+/* Check if value is of path type */
+Res *smsi_is_path( Node** paramsr, int, Node*, ruleExecInfo_t*, int, Env*, rError_t*, Region* r ) {
+    Res *val = ( Res * )paramsr[0];
+    ExprType *valType = val->exprType;
+    int isPathType = (valType != NULL && TYPE(val) == T_PATH);
+    return newBoolRes( r, isPathType );
+}
+
+/* Check if value is of list type */
+Res *smsi_is_list( Node** paramsr, int, Node*, ruleExecInfo_t*, int, Env*, rError_t*, Region* r ) {
+    Res *val = ( Res * )paramsr[0];
+    ExprType *valType = val->exprType;
+    int isListType = (valType != NULL && TYPE(val) == T_CONS);
+    return newBoolRes( r, isListType );
+}
+
+/* Check if value is of tuple type */
+Res *smsi_is_tuple( Node** paramsr, int, Node*, ruleExecInfo_t*, int, Env*, rError_t*, Region* r ) {
+    Res *val = ( Res * )paramsr[0];
+    ExprType *valType = val->exprType;
+    int isTupleType = (valType != NULL && TYPE(val) == N_TUPLE);
+    return newBoolRes( r, isTupleType );
+}
+
+/* Check if value is null/absent */
+Res *smsi_is_null( Node** paramsr, int, Node*, ruleExecInfo_t*, int, Env*, rError_t*, Region* r ) {
+    Res *val = ( Res * )paramsr[0];
+    /* A value is null if it has no type or is the uninitialized value */
+    int isNullValue = (val == NULL || val->exprType == NULL || val->text == NULL);
+    return newBoolRes( r, isNullValue );
+}
+
+/* Check if value is non-null (opposite of is_null) */
+Res *smsi_is_nonnull( Node** paramsr, int, Node*, ruleExecInfo_t*, int, Env*, rError_t*, Region* r ) {
+    Res *val = ( Res * )paramsr[0];
+    int isNonnullValue = (val != NULL && val->exprType != NULL);
+    return newBoolRes( r, isNonnullValue );
+}
+
+/* Check if value has optional type annotation */
+Res *smsi_is_optional( Node** paramsr, int, Node*, ruleExecInfo_t*, int, Env*, rError_t*, Region* r ) {
+    Res *val = ( Res * )paramsr[0];
+    ExprType *valType = val->exprType;
+    int hasOptionalAnnotation = (valType != NULL && isOptionalType(valType));
+    return newBoolRes( r, hasOptionalAnnotation );
+}
+
+/* Check if value has dynamic type */
+Res *smsi_is_dynamic( Node** paramsr, int, Node*, ruleExecInfo_t*, int, Env*, rError_t*, Region* r ) {
+    Res *val = ( Res * )paramsr[0];
+    ExprType *valType = val->exprType;
+    int isDynamicType = (valType != NULL && TYPE(val) == T_DYNAMIC);
+    return newBoolRes( r, isDynamicType );
+}
+
+/* ============================================================================
+ * String functions (strlen continues below)
+ * ============================================================================
+ */
+
 Res *smsi_strlen( Node** paramsr, int, Node*, ruleExecInfo_t*, int, Env*, rError_t*, Region* r ) {
     Res *strres = ( Res * )paramsr[0];
     return newIntRes( r, strlen( strres->text ) );
@@ -2271,20 +2408,6 @@ Res *smsi_getstderr( Node** paramsr, int, Node* node, ruleExecInfo_t* rei, int r
     return ret;
 }
 
-Res *smsi_assignStr( Node** subtrees, int, Node* node, ruleExecInfo_t* rei, int reiSaveFlag, Env* env, rError_t* errmsg, Region* r ) {
-    Res *val = evaluateExpression3( ( Node * )subtrees[1], 0, 1, rei, reiSaveFlag & ~DISCARD_EXPRESSION_RESULT,  env, errmsg, r );
-    if ( getNodeType( val ) == N_ERROR ) {
-        return val;
-    }
-    if ( TYPE( val ) == T_INT || TYPE( val ) == T_DOUBLE || TYPE( val ) == T_BOOL ) {
-        CASCADE_N_ERROR( val = smsi_str( &val, 1, node, rei, reiSaveFlag, env, errmsg, r ) );
-    }
-    Res *ret = matchPattern( subtrees[0], val, env, rei, reiSaveFlag, errmsg, r );
-
-    return ret;
-
-}
-
 extern int GlobalAllRuleExecFlag;
 Res *smsi_applyAllRules( Node** subtrees, int, Node*, ruleExecInfo_t* rei, int, Env* env, rError_t* errmsg, Region* r ) {
     Res *res;
@@ -2315,9 +2438,14 @@ Res *smsi_path( Node** subtrees, int, Node*, ruleExecInfo_t*, int, Env*, rError_
     return res;
 }
 
-Res *smsi_execCmdArg( Node** subtrees, int, Node*, ruleExecInfo_t*, int, Env*, rError_t*, Region* r ) {
+Res *smsi_execCmdArg( Node** subtrees, int, Node*, ruleExecInfo_t*, int, Env*, rError_t* errmsg, Region* r ) {
     char *arg = subtrees[0]->text;
-    char *argNew = ( char * ) malloc( strlen( arg ) * 2 + 4 );
+    char *argNew = ( char * ) region_alloc( r, strlen( arg ) * 2 + 4 );
+    if ( argNew == NULL ) {
+        rodsLog( LOG_ERROR, "Cannot allocate argument string" );
+        generateAndAddErrMsg( "cannot allocate argument string", subtrees[0], SYS_MALLOC_ERR, errmsg );
+        return newErrorRes( r, SYS_MALLOC_ERR );
+    }
     char *p = arg, *q = argNew;
     /* this prevent invalid read:
      * when msiExecCmd sees a quote it tries to read the previous char to determine whether the quote is escaped
@@ -2334,7 +2462,6 @@ Res *smsi_execCmdArg( Node** subtrees, int, Node*, ruleExecInfo_t*, int, Env*, r
     *( q++ ) = '\"';
     *( q++ ) = '\0';
     Res *res = newStringRes( r, argNew );
-    free( argNew );
     return res;
 
 }
@@ -2353,7 +2480,7 @@ Res *smsi_msiCheckStringForSystem( Node** paramsr, int, Node*, ruleExecInfo_t*, 
 
 int
 parseResForCollInp( Node *inpParam, collInp_t *collInpCache,
-                    collInp_t **outCollInp, int outputToCache ) {
+                    collInp_t **outCollInp, int outputToCache, Region* r ) {
     *outCollInp = NULL;
 
     if ( inpParam == NULL ) {
@@ -2365,7 +2492,11 @@ parseResForCollInp( Node *inpParam, collInp_t *collInpCache,
     if ( TYPE( inpParam ) == T_STRING ) {
         /* str input */
         if ( collInpCache == NULL ) {
-            collInpCache = ( collInp_t * )malloc( sizeof( collInp_t ) );
+            collInpCache = ( collInp_t * ) region_alloc( r, sizeof( collInp_t ) );
+            if ( collInpCache == NULL ) {
+                rodsLog( LOG_ERROR, "Cannot allocate collInp_t" );
+                return SYS_MALLOC_ERR;
+            }
         }
         memset( collInpCache, 0, sizeof( collInp_t ) );
         *outCollInp = collInpCache;
@@ -2379,7 +2510,11 @@ parseResForCollInp( Node *inpParam, collInp_t *collInpCache,
             collInp_t *tmpCollInp;
             tmpCollInp = ( collInp_t * ) RES_UNINTER_STRUCT( inpParam );
             if ( collInpCache == NULL ) {
-                collInpCache = ( collInp_t * )malloc( sizeof( collInp_t ) );
+                collInpCache = ( collInp_t * ) region_alloc( r, sizeof( collInp_t ) );
+                if ( collInpCache == NULL ) {
+                    rodsLog( LOG_ERROR, "Cannot allocate collInp_t" );
+                    return SYS_MALLOC_ERR;
+                }
             }
             *collInpCache = *tmpCollInp;
             /* zero out the condition of the original because it has been
@@ -2417,7 +2552,7 @@ Res *smsiCollectionSpider( Node** subtrees, int, Node* node, ruleExecInfo_t* rei
     }
 
     /* Parse collection input */
-    rei->status = parseResForCollInp( subtrees[1], &collInpCache, &collInp, 0 );
+    rei->status = parseResForCollInp( subtrees[1], &collInpCache, &collInp, 0, r );
     if ( rei->status < 0 ) {
         char buf[ERR_MSG_LEN];
         snprintf( buf, ERR_MSG_LEN, "msiCollectionSpider: input collection error. status = %d", rei->status );
@@ -2449,7 +2584,11 @@ Res *smsiCollectionSpider( Node** subtrees, int, Node* node, ruleExecInfo_t* rei
     Res *oldVal = ( Res * ) lookupFromHashTable( env->current, varname );
 
     /* Allocate memory for dataObjInp. Needs to be persistent since will be freed later along with other msParams */
-    dataObjInp = ( dataObjInp_t * )malloc( sizeof( dataObjInp_t ) );
+    dataObjInp = ( dataObjInp_t * ) region_alloc( r, sizeof( dataObjInp_t ) );
+    if ( dataObjInp == NULL ) {
+        rodsLog( LOG_ERROR, "Cannot allocate dataObjInp_t" );
+        return newErrorRes( r, SYS_MALLOC_ERR );
+    }
 
     /* Read our collection one object at a time */
     while ( ( rei->status = rsReadCollection( rei->rsComm, &handleInx, &collEnt ) ) >= 0 ) {
@@ -2585,6 +2724,10 @@ Node *deconstruct( Node** args, int proj ) {
 
 char *matchWholeString( char *buf ) {
     char *buf2 = ( char * )malloc( sizeof( char ) * strlen( buf ) + 2 + 1 );
+    if ( buf2 == NULL ) {
+        rodsLog( LOG_ERROR, "Cannot allocate regex buffer" );
+        return NULL;
+    }
     buf2[0] = '^';
     strcpy( buf2 + 1, buf );
     buf2[strlen( buf ) + 1] = '$';
@@ -2594,6 +2737,10 @@ char *matchWholeString( char *buf ) {
 
 char *wildCardToRegex( char *buf ) {
     char *buf2 = ( char * )malloc( sizeof( char ) * strlen( buf ) * 3 + 2 + 1 );
+    if ( buf2 == NULL ) {
+        rodsLog( LOG_ERROR, "Cannot allocate regex buffer" );
+        return NULL;
+    }
     char *p = buf2;
     int i;
     *( p++ ) = '^';
@@ -2647,10 +2794,7 @@ void getSystemFunctions( Hashtable *ft, Region* r ) {
     insertIntoHashTable( ft, "let", newFunctionFD( "e 0 * e f 0 * e 1->1", smsi_letExec, r ) );
     insertIntoHashTable( ft, "match", newFunctionFD( "e 0 * e (0 * 1)*->1", smsi_matchExec, r ) );
     insertIntoHashTable( ft, "if2", newFunctionFD( "e boolean * e 0 * e 0 * e ? * e ?->0", smsi_if2Exec, r ) );
-    insertIntoHashTable( ft, "if", newFunctionFD( "e boolean * a ? * a ? * a ? * a ?->?", smsi_ifExec, r ) );
     insertIntoHashTable( ft, "for", newFunctionFD( "e ? * e boolean * e ? * a ? * a ?->?", smsi_forExec, r ) );
-    insertIntoHashTable( ft, "while", newFunctionFD( "e boolean * a ? * a ?->?", smsi_whileExec, r ) );
-    insertIntoHashTable( ft, "foreach", newFunctionFD( "e f list 0 * a ? * a ?->?", smsi_forEachExec, r ) );
     insertIntoHashTable( ft, "foreach2", newFunctionFD( "forall X, e X * f list X * a ? * a ?->?", smsi_forEach2Exec, r ) );
     insertIntoHashTable( ft, "break", newFunctionFD( "->integer", smsi_break, r ) );
     insertIntoHashTable( ft, "succeed", newFunctionFD( "->integer", smsi_succeed, r ) );
@@ -2735,6 +2879,20 @@ void getSystemFunctions( Hashtable *ft, Region* r ) {
     insertIntoHashTable( ft, "strlen", newFunctionFD( "string->integer", smsi_strlen, r ) );
     insertIntoHashTable( ft, "substr", newFunctionFD( "string * integer * integer->string", smsi_substr, r ) );
     insertIntoHashTable( ft, "split", newFunctionFD( "string * string -> list string", smsi_split, r ) );
+
+    /* Type Guard Predicates (i-d43d) */
+    insertIntoHashTable( ft, "is_int", newFunctionFD( "?->boolean", smsi_is_int, r ) );
+    insertIntoHashTable( ft, "is_double", newFunctionFD( "?->boolean", smsi_is_double, r ) );
+    insertIntoHashTable( ft, "is_string", newFunctionFD( "?->boolean", smsi_is_string, r ) );
+    insertIntoHashTable( ft, "is_bool", newFunctionFD( "?->boolean", smsi_is_bool, r ) );
+    insertIntoHashTable( ft, "is_datetime", newFunctionFD( "?->boolean", smsi_is_datetime, r ) );
+    insertIntoHashTable( ft, "is_path", newFunctionFD( "?->boolean", smsi_is_path, r ) );
+    insertIntoHashTable( ft, "is_list", newFunctionFD( "?->boolean", smsi_is_list, r ) );
+    insertIntoHashTable( ft, "is_tuple", newFunctionFD( "?->boolean", smsi_is_tuple, r ) );
+    insertIntoHashTable( ft, "is_null", newFunctionFD( "?->boolean", smsi_is_null, r ) );
+    insertIntoHashTable( ft, "is_nonnull", newFunctionFD( "?->boolean", smsi_is_nonnull, r ) );
+    insertIntoHashTable( ft, "is_optional", newFunctionFD( "?->boolean", smsi_is_optional, r ) );
+    insertIntoHashTable( ft, "is_dynamic", newFunctionFD( "?->boolean", smsi_is_dynamic, r ) );
     insertIntoHashTable( ft, "error", newFunctionFD( "string -> integer",
                          smsi_error<Node**,int,Node*,ruleExecInfo_t*,int,Env*,rError_t*,Region*>, r ) );
     insertIntoHashTable( ft, "state", newFunctionFD( "string -> integer",
@@ -2757,14 +2915,6 @@ void getSystemFunctions( Hashtable *ft, Region* r ) {
     /*    insertIntoHashTable(ft, "msiDataObjInfo", newFunctionFD("input `DataObjInp_PI` * output `DataObjInfo_PI` -> integer", smsi_msiDataObjInfo, r));*/
     insertIntoHashTable( ft, "rei->doi->dataSize", newFunctionFD( "double : 0 {string}", ( SmsiFuncTypePtr ) NULL, r ) );
     insertIntoHashTable( ft, "rei->doi->writeFlag", newFunctionFD( "integer : 0 {string}", ( SmsiFuncTypePtr ) NULL, r ) );
-
-#ifdef RE_BACKWARD_COMPATIBLE
-    insertIntoHashTable( ft, "assignStr", newFunctionFD( "e ? * e ?->integer", smsi_assignStr, r ) );
-    insertIntoHashTable( ft, "ifExec", newFunctionFD( "e boolean * a ? * a ? * a ? * a ?->?", smsi_ifExec, r ) );
-    insertIntoHashTable( ft, "forExec", newFunctionFD( "e ? * e boolean * a ? * a ? * a ?->?", smsi_forExec, r ) );
-    insertIntoHashTable( ft, "whileExec", newFunctionFD( "e boolean * a ? * a ?->?", smsi_whileExec, r ) );
-    insertIntoHashTable( ft, "forEachExec", newFunctionFD( "e list 0 * a ? * a ?->?", smsi_forEachExec, r ) );
-#endif
     insertIntoHashTable( ft, "msiSegFault", newFunctionFD( " -> integer", smsi_segfault, r ) );
 
 

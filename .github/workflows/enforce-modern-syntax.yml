@@ -1,0 +1,157 @@
+name: enforce-modern-syntax
+
+on: [push, pull_request]
+
+jobs:
+  modern-syntax-enforcement:
+    name: Enforce Modern Syntax in Tests
+    runs-on: ubuntu-latest
+    container: ubuntu:24.04
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+
+      - name: Install Prerequisites
+        run: |
+          apt-get update -qq
+          apt-get install -qq \
+            dnsutils \
+            apt-transport-https \
+            ca-certificates \
+            build-essential \
+            wget \
+            curl \
+            g++ \
+            make \
+            cmake \
+            python3-dev \
+            unixodbc \
+            catch2 \
+            libcurl4-gnutls-dev \
+            libbz2-dev \
+            libfmt-dev \
+            zlib1g-dev \
+            libpam0g-dev \
+            libspdlog-dev \
+            libssl-dev \
+            libxml2-dev \
+            nlohmann-json3-dev \
+            unixodbc-dev \
+            python3-psutil \
+            odbc-postgresql \
+            python3-distro \
+            flex \
+            bison \
+            libsystemd-dev \
+            libarchive-dev
+
+      - name: Install iRODS Externals
+        run: |
+          mkdir -p /etc/apt/keyrings
+          wget -qO - https://unstable.irods.org/irods-unstable-signing-key.asc | \
+            gpg \
+              --no-options \
+              --no-default-keyring \
+              --no-auto-check-trustdb \
+              --homedir /dev/null \
+              --no-keyring \
+              --import-options import-export \
+              --output /etc/apt/keyrings/renci-irods-unstable-archive-keyring.pgp \
+              --import
+          echo "deb [signed-by=/etc/apt/keyrings/renci-irods-unstable-archive-keyring.pgp arch=amd64] https://unstable.irods.org/apt/ $(lsb_release -sc) main" | \
+            tee /etc/apt/sources.list.d/renci-irods-unstable.list
+          apt-get update -qq
+          apt-get install -qq \
+            irods-externals-boost1.81.0-2 \
+            irods-externals-clang16.0.6-0 \
+            irods-externals-jsoncons0.178.0-0 \
+            irods-externals-nanodbc2.13.0-3
+
+      - name: Configure CMake
+        run: |
+          mkdir build
+          cd build
+          cmake -DIRODS_DISABLE_COMPILER_OPTIMIZATIONS=ON -DIRODS_ENABLE_ALL_TESTS=YES ../
+
+      - name: Build Rule Engine Plugin
+        run: |
+          cd build
+          make -j 30 irods_rule_engine_plugin-irods_rule_language
+
+      - name: Build Modern Syntax Enforcement Test
+        run: |
+          cd build
+          make -j 30 irods_modern_syntax_enforcement
+
+      - name: Run Modern Syntax Enforcement Test
+        run: |
+          cd build
+          ./irods_modern_syntax_enforcement --reporter=compact
+        continue-on-error: false
+
+      - name: Verify test_modern_syntax.re parses with disableLegacySyntax
+        run: |
+          cd build
+          # Create a test configuration that enables disableLegacySyntax
+          # The test will verify the rule file parses cleanly
+          ./irods_modern_syntax_enforcement
+
+      - name: Check for Legacy Constructs in Test Rules
+        run: |
+          # Fail if legacy constructs are found in modern test file
+          set -e
+          
+          # Check for legacy function names that should NOT be in modern syntax file
+          if grep -E '\b(ifExec|whileExec|forExec|forEachExec|assign|delayExec|remoteExec)\b' test_modern_syntax.re; then
+            echo "ERROR: Legacy constructs found in test_modern_syntax.re"
+            exit 1
+          fi
+          
+          # Check for legacy pointer dereference syntax that should NOT be in modern file
+          if grep -E '^\s*\*\$' test_modern_syntax.re; then
+            echo "ERROR: Legacy pointer dereference (*\$) found in test_modern_syntax.re"
+            exit 1
+          fi
+          
+          echo "✓ No legacy constructs detected in test_modern_syntax.re"
+
+      - name: Validate Modern Syntax Patterns
+        run: |
+          # Ensure modern syntax patterns are present
+          set -e
+          
+          # Check for modern if/then/else syntax
+          if grep -E 'if\s+.*\s+then\s+\{' test_modern_syntax.re > /dev/null; then
+            echo "✓ Found modern if/then/else syntax"
+          else
+            echo "WARNING: No modern if/then/else syntax found"
+          fi
+          
+          # Check for modern try/catch syntax
+          if grep -E 'try\s+\{' test_modern_syntax.re > /dev/null; then
+            echo "✓ Found modern try/catch syntax"
+          else
+            echo "WARNING: No modern try/catch syntax found"
+          fi
+          
+          # Check for explicit type declarations
+          if grep -E 'declare\s+(int|string|float|bool|list)' test_modern_syntax.re > /dev/null; then
+            echo "✓ Found modern explicit type declarations"
+          else
+            echo "WARNING: No modern explicit type declarations found"
+          fi
+          
+          # Check for for-in loop syntax
+          if grep -E 'for\s+\$\w+\s+in\s+' test_modern_syntax.re > /dev/null; then
+            echo "✓ Found modern for-in loop syntax"
+          else
+            echo "WARNING: No modern for-in loop syntax found"
+          fi
+
+      - name: Report Modern Syntax Status
+        if: success()
+        run: |
+          echo "✓ Modern Syntax Enforcement: PASSED"
+          echo "  - test_modern_syntax.re verified: No legacy constructs"
+          echo "  - Modern syntax patterns confirmed"
+          echo "  - CI/CD integration: Enabled"

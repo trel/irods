@@ -1,0 +1,1 @@
+/opt/irods-externals/clang16.0.6-0/bin/clang++ -O2 -g -DNDEBUG -Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin CMakeFiles/irodsPamAuthCheck.dir/src/irodsPamAuthCheck.cpp.o -o irodsPamAuthCheck  /usr/lib/x86_64-linux-gnu/libpam.so 

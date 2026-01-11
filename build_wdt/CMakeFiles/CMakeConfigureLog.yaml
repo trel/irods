@@ -1,0 +1,1059 @@
+
+---
+events:
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/CMakeDetermineSystem.cmake:233 (message)"
+      - "CMakeLists.txt:137 (project)"
+    message: |
+      The system is: Linux - 5.4.0-216-generic - x86_64
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/CMakeDetermineCompilerId.cmake:17 (message)"
+      - "/usr/share/cmake-3.28/Modules/CMakeDetermineCompilerId.cmake:64 (__determine_compiler_id_test)"
+      - "/usr/share/cmake-3.28/Modules/CMakeDetermineCCompiler.cmake:123 (CMAKE_DETERMINE_COMPILER_ID)"
+      - "CMakeLists.txt:137 (project)"
+    message: |
+      Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
+      Compiler: /opt/irods-externals/clang16.0.6-0/bin/clang 
+      Build flags: 
+      Id flags:  
+      
+      The output was:
+      0
+      
+      
+      Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "a.out"
+      
+      The C compiler identification is Clang, found in:
+        /src/irods/build_wdt/CMakeFiles/3.28.3/CompilerIdC/a.out
+      
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/CMakeDetermineCompilerId.cmake:17 (message)"
+      - "/usr/share/cmake-3.28/Modules/CMakeDetermineCompilerId.cmake:64 (__determine_compiler_id_test)"
+      - "/usr/share/cmake-3.28/Modules/CMakeDetermineCXXCompiler.cmake:126 (CMAKE_DETERMINE_COMPILER_ID)"
+      - "CMakeLists.txt:137 (project)"
+    message: |
+      Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" succeeded.
+      Compiler: /opt/irods-externals/clang16.0.6-0/bin/clang++ 
+      Build flags: 
+      Id flags:  
+      
+      The output was:
+      0
+      
+      
+      Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "a.out"
+      
+      The CXX compiler identification is Clang, found in:
+        /src/irods/build_wdt/CMakeFiles/3.28.3/CompilerIdCXX/a.out
+      
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/CMakeDetermineCompilerABI.cmake:57 (try_compile)"
+      - "/usr/share/cmake-3.28/Modules/CMakeTestCCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:137 (project)"
+    checks:
+      - "Detecting C compiler ABI info"
+    directories:
+      source: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-4UkW4q"
+      binary: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-4UkW4q"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/opt/irods-externals/clang16.0.6-0/bin/clang-scan-deps"
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: "-Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin"
+      CMAKE_MODULE_PATH: "/src/irods/cmake/Modules"
+    buildResult:
+      variable: "CMAKE_C_ABI_COMPILED"
+      cached: true
+      stdout: |
+        Change Dir: '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-4UkW4q'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_24929/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_24929.dir/build.make CMakeFiles/cmTC_24929.dir/build
+        gmake[1]: Entering directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-4UkW4q'
+        Building C object CMakeFiles/cmTC_24929.dir/CMakeCCompilerABI.c.o
+        /opt/irods-externals/clang16.0.6-0/bin/clang   -v -MD -MT CMakeFiles/cmTC_24929.dir/CMakeCCompilerABI.c.o -MF CMakeFiles/cmTC_24929.dir/CMakeCCompilerABI.c.o.d -o CMakeFiles/cmTC_24929.dir/CMakeCCompilerABI.c.o -c /usr/share/cmake-3.28/Modules/CMakeCCompilerABI.c
+        clang version 16.0.6 (https://github.com/irods/llvm-project 7cbf1a2591520c2491aa35339f227775f4d3adf6)
+        Target: x86_64-unknown-linux-gnu
+        Thread model: posix
+        InstalledDir: /opt/irods-externals/clang16.0.6-0/bin
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/13
+        Selected GCC installation: /usr/lib/gcc/x86_64-linux-gnu/13
+        Candidate multilib: .;@m64
+        Selected multilib: .;@m64
+         (in-process)
+         "/opt/irods-externals/clang16.0.6-0/bin/clang-16" -cc1 -triple x86_64-unknown-linux-gnu -emit-obj -mrelax-all -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name CMakeCCompilerABI.c -mrelocation-model pic -pic-level 2 -pic-is-pie -mframe-pointer=all -fmath-errno -ffp-contract=on -fno-rounding-math -mconstructor-aliases -funwind-tables=2 -target-cpu x86-64 -tune-cpu generic -mllvm -treat-scalable-fixed-error-as-warning -debugger-tuning=gdb -v -fcoverage-compilation-dir=/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-4UkW4q -resource-dir /opt/irods-externals/clang16.0.6-0/lib/clang/16 -dependency-file CMakeFiles/cmTC_24929.dir/CMakeCCompilerABI.c.o.d -MT CMakeFiles/cmTC_24929.dir/CMakeCCompilerABI.c.o -sys-header-deps -internal-isystem /opt/irods-externals/clang16.0.6-0/lib/clang/16/include -internal-isystem /usr/local/include -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/13/../../../../x86_64-linux-gnu/include -internal-externc-isystem /usr/include/x86_64-linux-gnu -internal-externc-isystem /include -internal-externc-isystem /usr/include -fdebug-compilation-dir=/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-4UkW4q -ferror-limit 19 -fgnuc-version=4.2.1 -faddrsig -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_24929.dir/CMakeCCompilerABI.c.o -x c /usr/share/cmake-3.28/Modules/CMakeCCompilerABI.c
+        clang -cc1 version 16.0.6 based upon LLVM 16.0.6 default target x86_64-unknown-linux-gnu
+        ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/13/../../../../x86_64-linux-gnu/include"
+        ignoring nonexistent directory "/include"
+        #include "..." search starts here:
+        #include <...> search starts here:
+         /opt/irods-externals/clang16.0.6-0/lib/clang/16/include
+         /usr/local/include
+         /usr/include/x86_64-linux-gnu
+         /usr/include
+        End of search list.
+        Linking C executable cmTC_24929
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_24929.dir/link.txt --verbose=1
+        /opt/irods-externals/clang16.0.6-0/bin/clang -Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin -v CMakeFiles/cmTC_24929.dir/CMakeCCompilerABI.c.o -o cmTC_24929 
+        clang version 16.0.6 (https://github.com/irods/llvm-project 7cbf1a2591520c2491aa35339f227775f4d3adf6)
+        Target: x86_64-unknown-linux-gnu
+        Thread model: posix
+        InstalledDir: /opt/irods-externals/clang16.0.6-0/bin
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/13
+        Selected GCC installation: /usr/lib/gcc/x86_64-linux-gnu/13
+        Candidate multilib: .;@m64
+        Selected multilib: .;@m64
+         "/usr/bin/ld" -pie -z relro --hash-style=gnu --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_24929 /lib/x86_64-linux-gnu/Scrt1.o /lib/x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/13/crtbeginS.o -L/usr/lib/gcc/x86_64-linux-gnu/13 -L/usr/lib/gcc/x86_64-linux-gnu/13/../../../../lib64 -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib64 -L/lib -L/usr/lib --export-dynamic --enable-new-dtags --as-needed -z defs -z origin CMakeFiles/cmTC_24929.dir/CMakeCCompilerABI.c.o -lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/lib/gcc/x86_64-linux-gnu/13/crtendS.o /lib/x86_64-linux-gnu/crtn.o
+        gmake[1]: Leaving directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-4UkW4q'
+        
+      exitCode: 0
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/CMakeDetermineCompilerABI.cmake:127 (message)"
+      - "/usr/share/cmake-3.28/Modules/CMakeTestCCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:137 (project)"
+    message: |
+      Parsed C implicit include dir info: rv=done
+        found start of include info
+        found start of implicit include info
+          add: [/opt/irods-externals/clang16.0.6-0/lib/clang/16/include]
+          add: [/usr/local/include]
+          add: [/usr/include/x86_64-linux-gnu]
+          add: [/usr/include]
+        end of search list found
+        collapse include dir [/opt/irods-externals/clang16.0.6-0/lib/clang/16/include] ==> [/opt/irods-externals/clang16.0.6-0/lib/clang/16/include]
+        collapse include dir [/usr/local/include] ==> [/usr/local/include]
+        collapse include dir [/usr/include/x86_64-linux-gnu] ==> [/usr/include/x86_64-linux-gnu]
+        collapse include dir [/usr/include] ==> [/usr/include]
+        implicit include dirs: [/opt/irods-externals/clang16.0.6-0/lib/clang/16/include;/usr/local/include;/usr/include/x86_64-linux-gnu;/usr/include]
+      
+      
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/CMakeDetermineCompilerABI.cmake:159 (message)"
+      - "/usr/share/cmake-3.28/Modules/CMakeTestCCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:137 (project)"
+    message: |
+      Parsed C implicit link information:
+        link line regex: [^( *|.*[/\\])(ld|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\\]+-)?ld|collect2)[^/\\]*( |$)]
+        ignore line: [Change Dir: '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-4UkW4q']
+        ignore line: []
+        ignore line: [Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_24929/fast]
+        ignore line: [/usr/bin/gmake  -f CMakeFiles/cmTC_24929.dir/build.make CMakeFiles/cmTC_24929.dir/build]
+        ignore line: [gmake[1]: Entering directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-4UkW4q']
+        ignore line: [Building C object CMakeFiles/cmTC_24929.dir/CMakeCCompilerABI.c.o]
+        ignore line: [/opt/irods-externals/clang16.0.6-0/bin/clang   -v -MD -MT CMakeFiles/cmTC_24929.dir/CMakeCCompilerABI.c.o -MF CMakeFiles/cmTC_24929.dir/CMakeCCompilerABI.c.o.d -o CMakeFiles/cmTC_24929.dir/CMakeCCompilerABI.c.o -c /usr/share/cmake-3.28/Modules/CMakeCCompilerABI.c]
+        ignore line: [clang version 16.0.6 (https://github.com/irods/llvm-project 7cbf1a2591520c2491aa35339f227775f4d3adf6)]
+        ignore line: [Target: x86_64-unknown-linux-gnu]
+        ignore line: [Thread model: posix]
+        ignore line: [InstalledDir: /opt/irods-externals/clang16.0.6-0/bin]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/13]
+        ignore line: [Selected GCC installation: /usr/lib/gcc/x86_64-linux-gnu/13]
+        ignore line: [Candidate multilib: .]
+        ignore line: [@m64]
+        ignore line: [Selected multilib: .]
+        ignore line: [@m64]
+        ignore line: [ (in-process)]
+        ignore line: [ "/opt/irods-externals/clang16.0.6-0/bin/clang-16" -cc1 -triple x86_64-unknown-linux-gnu -emit-obj -mrelax-all -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name CMakeCCompilerABI.c -mrelocation-model pic -pic-level 2 -pic-is-pie -mframe-pointer=all -fmath-errno -ffp-contract=on -fno-rounding-math -mconstructor-aliases -funwind-tables=2 -target-cpu x86-64 -tune-cpu generic -mllvm -treat-scalable-fixed-error-as-warning -debugger-tuning=gdb -v -fcoverage-compilation-dir=/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-4UkW4q -resource-dir /opt/irods-externals/clang16.0.6-0/lib/clang/16 -dependency-file CMakeFiles/cmTC_24929.dir/CMakeCCompilerABI.c.o.d -MT CMakeFiles/cmTC_24929.dir/CMakeCCompilerABI.c.o -sys-header-deps -internal-isystem /opt/irods-externals/clang16.0.6-0/lib/clang/16/include -internal-isystem /usr/local/include -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/13/../../../../x86_64-linux-gnu/include -internal-externc-isystem /usr/include/x86_64-linux-gnu -internal-externc-isystem /include -internal-externc-isystem /usr/include -fdebug-compilation-dir=/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-4UkW4q -ferror-limit 19 -fgnuc-version=4.2.1 -faddrsig -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_24929.dir/CMakeCCompilerABI.c.o -x c /usr/share/cmake-3.28/Modules/CMakeCCompilerABI.c]
+        ignore line: [clang -cc1 version 16.0.6 based upon LLVM 16.0.6 default target x86_64-unknown-linux-gnu]
+        ignore line: [ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/13/../../../../x86_64-linux-gnu/include"]
+        ignore line: [ignoring nonexistent directory "/include"]
+        ignore line: [#include "..." search starts here:]
+        ignore line: [#include <...> search starts here:]
+        ignore line: [ /opt/irods-externals/clang16.0.6-0/lib/clang/16/include]
+        ignore line: [ /usr/local/include]
+        ignore line: [ /usr/include/x86_64-linux-gnu]
+        ignore line: [ /usr/include]
+        ignore line: [End of search list.]
+        ignore line: [Linking C executable cmTC_24929]
+        ignore line: [/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_24929.dir/link.txt --verbose=1]
+        ignore line: [/opt/irods-externals/clang16.0.6-0/bin/clang -Wl --export-dynamic -Wl --enable-new-dtags -Wl --as-needed -Wl -z defs -Wl -z origin -v CMakeFiles/cmTC_24929.dir/CMakeCCompilerABI.c.o -o cmTC_24929 ]
+        ignore line: [clang version 16.0.6 (https://github.com/irods/llvm-project 7cbf1a2591520c2491aa35339f227775f4d3adf6)]
+        ignore line: [Target: x86_64-unknown-linux-gnu]
+        ignore line: [Thread model: posix]
+        ignore line: [InstalledDir: /opt/irods-externals/clang16.0.6-0/bin]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/13]
+        ignore line: [Selected GCC installation: /usr/lib/gcc/x86_64-linux-gnu/13]
+        ignore line: [Candidate multilib: .]
+        ignore line: [@m64]
+        ignore line: [Selected multilib: .]
+        ignore line: [@m64]
+        link line: [ "/usr/bin/ld" -pie -z relro --hash-style=gnu --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_24929 /lib/x86_64-linux-gnu/Scrt1.o /lib/x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/13/crtbeginS.o -L/usr/lib/gcc/x86_64-linux-gnu/13 -L/usr/lib/gcc/x86_64-linux-gnu/13/../../../../lib64 -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib64 -L/lib -L/usr/lib --export-dynamic --enable-new-dtags --as-needed -z defs -z origin CMakeFiles/cmTC_24929.dir/CMakeCCompilerABI.c.o -lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/lib/gcc/x86_64-linux-gnu/13/crtendS.o /lib/x86_64-linux-gnu/crtn.o]
+          arg [/usr/bin/ld] ==> ignore
+          arg [-pie] ==> ignore
+          arg [-zrelro] ==> ignore
+          arg [--hash-style=gnu] ==> ignore
+          arg [--eh-frame-hdr] ==> ignore
+          arg [-m] ==> ignore
+          arg [elf_x86_64] ==> ignore
+          arg [-dynamic-linker] ==> ignore
+          arg [/lib64/ld-linux-x86-64.so.2] ==> ignore
+          arg [-o] ==> ignore
+          arg [cmTC_24929] ==> ignore
+          arg [/lib/x86_64-linux-gnu/Scrt1.o] ==> obj [/lib/x86_64-linux-gnu/Scrt1.o]
+          arg [/lib/x86_64-linux-gnu/crti.o] ==> obj [/lib/x86_64-linux-gnu/crti.o]
+          arg [/usr/lib/gcc/x86_64-linux-gnu/13/crtbeginS.o] ==> obj [/usr/lib/gcc/x86_64-linux-gnu/13/crtbeginS.o]
+          arg [-L/usr/lib/gcc/x86_64-linux-gnu/13] ==> dir [/usr/lib/gcc/x86_64-linux-gnu/13]
+          arg [-L/usr/lib/gcc/x86_64-linux-gnu/13/../../../../lib64] ==> dir [/usr/lib/gcc/x86_64-linux-gnu/13/../../../../lib64]
+          arg [-L/lib/x86_64-linux-gnu] ==> dir [/lib/x86_64-linux-gnu]
+          arg [-L/lib/../lib64] ==> dir [/lib/../lib64]
+          arg [-L/usr/lib/x86_64-linux-gnu] ==> dir [/usr/lib/x86_64-linux-gnu]
+          arg [-L/usr/lib/../lib64] ==> dir [/usr/lib/../lib64]
+          arg [-L/lib] ==> dir [/lib]
+          arg [-L/usr/lib] ==> dir [/usr/lib]
+          arg [--export-dynamic] ==> ignore
+          arg [--enable-new-dtags] ==> ignore
+          arg [--as-needed] ==> ignore
+          arg [-zdefs] ==> ignore
+          arg [-zorigin] ==> ignore
+          arg [CMakeFiles/cmTC_24929.dir/CMakeCCompilerABI.c.o] ==> ignore
+          arg [-lgcc] ==> lib [gcc]
+          arg [--as-needed] ==> ignore
+          arg [-lgcc_s] ==> lib [gcc_s]
+          arg [--no-as-needed] ==> ignore
+          arg [-lc] ==> lib [c]
+          arg [-lgcc] ==> lib [gcc]
+          arg [--as-needed] ==> ignore
+          arg [-lgcc_s] ==> lib [gcc_s]
+          arg [--no-as-needed] ==> ignore
+          arg [/usr/lib/gcc/x86_64-linux-gnu/13/crtendS.o] ==> obj [/usr/lib/gcc/x86_64-linux-gnu/13/crtendS.o]
+          arg [/lib/x86_64-linux-gnu/crtn.o] ==> obj [/lib/x86_64-linux-gnu/crtn.o]
+        collapse library dir [/usr/lib/gcc/x86_64-linux-gnu/13] ==> [/usr/lib/gcc/x86_64-linux-gnu/13]
+        collapse library dir [/usr/lib/gcc/x86_64-linux-gnu/13/../../../../lib64] ==> [/usr/lib64]
+        collapse library dir [/lib/x86_64-linux-gnu] ==> [/lib/x86_64-linux-gnu]
+        collapse library dir [/lib/../lib64] ==> [/lib64]
+        collapse library dir [/usr/lib/x86_64-linux-gnu] ==> [/usr/lib/x86_64-linux-gnu]
+        collapse library dir [/usr/lib/../lib64] ==> [/usr/lib64]
+        collapse library dir [/lib] ==> [/lib]
+        collapse library dir [/usr/lib] ==> [/usr/lib]
+        implicit libs: [gcc;gcc_s;c;gcc;gcc_s]
+        implicit objs: [/lib/x86_64-linux-gnu/Scrt1.o;/lib/x86_64-linux-gnu/crti.o;/usr/lib/gcc/x86_64-linux-gnu/13/crtbeginS.o;/usr/lib/gcc/x86_64-linux-gnu/13/crtendS.o;/lib/x86_64-linux-gnu/crtn.o]
+        implicit dirs: [/usr/lib/gcc/x86_64-linux-gnu/13;/usr/lib64;/lib/x86_64-linux-gnu;/lib64;/usr/lib/x86_64-linux-gnu;/lib;/usr/lib]
+        implicit fwks: []
+      
+      
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/CMakeDetermineCompilerABI.cmake:57 (try_compile)"
+      - "/usr/share/cmake-3.28/Modules/CMakeTestCXXCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:137 (project)"
+    checks:
+      - "Detecting CXX compiler ABI info"
+    directories:
+      source: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-C8TpTv"
+      binary: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-C8TpTv"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/opt/irods-externals/clang16.0.6-0/bin/clang-scan-deps"
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: "-Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin"
+      CMAKE_MODULE_PATH: "/src/irods/cmake/Modules"
+    buildResult:
+      variable: "CMAKE_CXX_ABI_COMPILED"
+      cached: true
+      stdout: |
+        Change Dir: '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-C8TpTv'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_2bfb4/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_2bfb4.dir/build.make CMakeFiles/cmTC_2bfb4.dir/build
+        gmake[1]: Entering directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-C8TpTv'
+        Building CXX object CMakeFiles/cmTC_2bfb4.dir/CMakeCXXCompilerABI.cpp.o
+        /opt/irods-externals/clang16.0.6-0/bin/clang++   -std=c++20   -v -MD -MT CMakeFiles/cmTC_2bfb4.dir/CMakeCXXCompilerABI.cpp.o -MF CMakeFiles/cmTC_2bfb4.dir/CMakeCXXCompilerABI.cpp.o.d -o CMakeFiles/cmTC_2bfb4.dir/CMakeCXXCompilerABI.cpp.o -c /usr/share/cmake-3.28/Modules/CMakeCXXCompilerABI.cpp
+        clang version 16.0.6 (https://github.com/irods/llvm-project 7cbf1a2591520c2491aa35339f227775f4d3adf6)
+        Target: x86_64-unknown-linux-gnu
+        Thread model: posix
+        InstalledDir: /opt/irods-externals/clang16.0.6-0/bin
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/13
+        Selected GCC installation: /usr/lib/gcc/x86_64-linux-gnu/13
+        Candidate multilib: .;@m64
+        Selected multilib: .;@m64
+         (in-process)
+         "/opt/irods-externals/clang16.0.6-0/bin/clang-16" -cc1 -triple x86_64-unknown-linux-gnu -emit-obj -mrelax-all -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name CMakeCXXCompilerABI.cpp -mrelocation-model pic -pic-level 2 -pic-is-pie -mframe-pointer=all -fmath-errno -ffp-contract=on -fno-rounding-math -mconstructor-aliases -funwind-tables=2 -target-cpu x86-64 -tune-cpu generic -mllvm -treat-scalable-fixed-error-as-warning -debugger-tuning=gdb -v -fcoverage-compilation-dir=/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-C8TpTv -resource-dir /opt/irods-externals/clang16.0.6-0/lib/clang/16 -dependency-file CMakeFiles/cmTC_2bfb4.dir/CMakeCXXCompilerABI.cpp.o.d -MT CMakeFiles/cmTC_2bfb4.dir/CMakeCXXCompilerABI.cpp.o -sys-header-deps -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/x86_64-linux-gnu/c++/13 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/backward -internal-isystem /opt/irods-externals/clang16.0.6-0/lib/clang/16/include -internal-isystem /usr/local/include -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/13/../../../../x86_64-linux-gnu/include -internal-externc-isystem /usr/include/x86_64-linux-gnu -internal-externc-isystem /include -internal-externc-isystem /usr/include -std=c++20 -fdeprecated-macro -fdebug-compilation-dir=/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-C8TpTv -ferror-limit 19 -fgnuc-version=4.2.1 -fno-implicit-modules -fcxx-exceptions -fexceptions -faddrsig -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_2bfb4.dir/CMakeCXXCompilerABI.cpp.o -x c++ /usr/share/cmake-3.28/Modules/CMakeCXXCompilerABI.cpp
+        clang -cc1 version 16.0.6 based upon LLVM 16.0.6 default target x86_64-unknown-linux-gnu
+        ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/13/../../../../x86_64-linux-gnu/include"
+        ignoring nonexistent directory "/include"
+        #include "..." search starts here:
+        #include <...> search starts here:
+         /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13
+         /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/x86_64-linux-gnu/c++/13
+         /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/backward
+         /opt/irods-externals/clang16.0.6-0/lib/clang/16/include
+         /usr/local/include
+         /usr/include/x86_64-linux-gnu
+         /usr/include
+        End of search list.
+        Linking CXX executable cmTC_2bfb4
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_2bfb4.dir/link.txt --verbose=1
+        /opt/irods-externals/clang16.0.6-0/bin/clang++ -Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin -v CMakeFiles/cmTC_2bfb4.dir/CMakeCXXCompilerABI.cpp.o -o cmTC_2bfb4 
+        clang version 16.0.6 (https://github.com/irods/llvm-project 7cbf1a2591520c2491aa35339f227775f4d3adf6)
+        Target: x86_64-unknown-linux-gnu
+        Thread model: posix
+        InstalledDir: /opt/irods-externals/clang16.0.6-0/bin
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/13
+        Selected GCC installation: /usr/lib/gcc/x86_64-linux-gnu/13
+        Candidate multilib: .;@m64
+        Selected multilib: .;@m64
+         "/usr/bin/ld" -pie -z relro --hash-style=gnu --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_2bfb4 /lib/x86_64-linux-gnu/Scrt1.o /lib/x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/13/crtbeginS.o -L/usr/lib/gcc/x86_64-linux-gnu/13 -L/usr/lib/gcc/x86_64-linux-gnu/13/../../../../lib64 -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib64 -L/lib -L/usr/lib --export-dynamic --enable-new-dtags --as-needed -z defs -z origin CMakeFiles/cmTC_2bfb4.dir/CMakeCXXCompilerABI.cpp.o -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/lib/gcc/x86_64-linux-gnu/13/crtendS.o /lib/x86_64-linux-gnu/crtn.o
+        gmake[1]: Leaving directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-C8TpTv'
+        
+      exitCode: 0
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/CMakeDetermineCompilerABI.cmake:127 (message)"
+      - "/usr/share/cmake-3.28/Modules/CMakeTestCXXCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:137 (project)"
+    message: |
+      Parsed CXX implicit include dir info: rv=done
+        found start of include info
+        found start of implicit include info
+          add: [/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13]
+          add: [/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/x86_64-linux-gnu/c++/13]
+          add: [/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/backward]
+          add: [/opt/irods-externals/clang16.0.6-0/lib/clang/16/include]
+          add: [/usr/local/include]
+          add: [/usr/include/x86_64-linux-gnu]
+          add: [/usr/include]
+        end of search list found
+        collapse include dir [/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13] ==> [/usr/include/c++/13]
+        collapse include dir [/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/x86_64-linux-gnu/c++/13] ==> [/usr/include/x86_64-linux-gnu/c++/13]
+        collapse include dir [/usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/backward] ==> [/usr/include/c++/13/backward]
+        collapse include dir [/opt/irods-externals/clang16.0.6-0/lib/clang/16/include] ==> [/opt/irods-externals/clang16.0.6-0/lib/clang/16/include]
+        collapse include dir [/usr/local/include] ==> [/usr/local/include]
+        collapse include dir [/usr/include/x86_64-linux-gnu] ==> [/usr/include/x86_64-linux-gnu]
+        collapse include dir [/usr/include] ==> [/usr/include]
+        implicit include dirs: [/usr/include/c++/13;/usr/include/x86_64-linux-gnu/c++/13;/usr/include/c++/13/backward;/opt/irods-externals/clang16.0.6-0/lib/clang/16/include;/usr/local/include;/usr/include/x86_64-linux-gnu;/usr/include]
+      
+      
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/CMakeDetermineCompilerABI.cmake:159 (message)"
+      - "/usr/share/cmake-3.28/Modules/CMakeTestCXXCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:137 (project)"
+    message: |
+      Parsed CXX implicit link information:
+        link line regex: [^( *|.*[/\\])(ld|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\\]+-)?ld|collect2)[^/\\]*( |$)]
+        ignore line: [Change Dir: '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-C8TpTv']
+        ignore line: []
+        ignore line: [Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_2bfb4/fast]
+        ignore line: [/usr/bin/gmake  -f CMakeFiles/cmTC_2bfb4.dir/build.make CMakeFiles/cmTC_2bfb4.dir/build]
+        ignore line: [gmake[1]: Entering directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-C8TpTv']
+        ignore line: [Building CXX object CMakeFiles/cmTC_2bfb4.dir/CMakeCXXCompilerABI.cpp.o]
+        ignore line: [/opt/irods-externals/clang16.0.6-0/bin/clang++   -std=c++20   -v -MD -MT CMakeFiles/cmTC_2bfb4.dir/CMakeCXXCompilerABI.cpp.o -MF CMakeFiles/cmTC_2bfb4.dir/CMakeCXXCompilerABI.cpp.o.d -o CMakeFiles/cmTC_2bfb4.dir/CMakeCXXCompilerABI.cpp.o -c /usr/share/cmake-3.28/Modules/CMakeCXXCompilerABI.cpp]
+        ignore line: [clang version 16.0.6 (https://github.com/irods/llvm-project 7cbf1a2591520c2491aa35339f227775f4d3adf6)]
+        ignore line: [Target: x86_64-unknown-linux-gnu]
+        ignore line: [Thread model: posix]
+        ignore line: [InstalledDir: /opt/irods-externals/clang16.0.6-0/bin]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/13]
+        ignore line: [Selected GCC installation: /usr/lib/gcc/x86_64-linux-gnu/13]
+        ignore line: [Candidate multilib: .]
+        ignore line: [@m64]
+        ignore line: [Selected multilib: .]
+        ignore line: [@m64]
+        ignore line: [ (in-process)]
+        ignore line: [ "/opt/irods-externals/clang16.0.6-0/bin/clang-16" -cc1 -triple x86_64-unknown-linux-gnu -emit-obj -mrelax-all -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name CMakeCXXCompilerABI.cpp -mrelocation-model pic -pic-level 2 -pic-is-pie -mframe-pointer=all -fmath-errno -ffp-contract=on -fno-rounding-math -mconstructor-aliases -funwind-tables=2 -target-cpu x86-64 -tune-cpu generic -mllvm -treat-scalable-fixed-error-as-warning -debugger-tuning=gdb -v -fcoverage-compilation-dir=/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-C8TpTv -resource-dir /opt/irods-externals/clang16.0.6-0/lib/clang/16 -dependency-file CMakeFiles/cmTC_2bfb4.dir/CMakeCXXCompilerABI.cpp.o.d -MT CMakeFiles/cmTC_2bfb4.dir/CMakeCXXCompilerABI.cpp.o -sys-header-deps -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/x86_64-linux-gnu/c++/13 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/backward -internal-isystem /opt/irods-externals/clang16.0.6-0/lib/clang/16/include -internal-isystem /usr/local/include -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/13/../../../../x86_64-linux-gnu/include -internal-externc-isystem /usr/include/x86_64-linux-gnu -internal-externc-isystem /include -internal-externc-isystem /usr/include -std=c++20 -fdeprecated-macro -fdebug-compilation-dir=/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-C8TpTv -ferror-limit 19 -fgnuc-version=4.2.1 -fno-implicit-modules -fcxx-exceptions -fexceptions -faddrsig -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_2bfb4.dir/CMakeCXXCompilerABI.cpp.o -x c++ /usr/share/cmake-3.28/Modules/CMakeCXXCompilerABI.cpp]
+        ignore line: [clang -cc1 version 16.0.6 based upon LLVM 16.0.6 default target x86_64-unknown-linux-gnu]
+        ignore line: [ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/13/../../../../x86_64-linux-gnu/include"]
+        ignore line: [ignoring nonexistent directory "/include"]
+        ignore line: [#include "..." search starts here:]
+        ignore line: [#include <...> search starts here:]
+        ignore line: [ /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13]
+        ignore line: [ /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/x86_64-linux-gnu/c++/13]
+        ignore line: [ /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/backward]
+        ignore line: [ /opt/irods-externals/clang16.0.6-0/lib/clang/16/include]
+        ignore line: [ /usr/local/include]
+        ignore line: [ /usr/include/x86_64-linux-gnu]
+        ignore line: [ /usr/include]
+        ignore line: [End of search list.]
+        ignore line: [Linking CXX executable cmTC_2bfb4]
+        ignore line: [/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_2bfb4.dir/link.txt --verbose=1]
+        ignore line: [/opt/irods-externals/clang16.0.6-0/bin/clang++ -Wl --export-dynamic -Wl --enable-new-dtags -Wl --as-needed -Wl -z defs -Wl -z origin -v CMakeFiles/cmTC_2bfb4.dir/CMakeCXXCompilerABI.cpp.o -o cmTC_2bfb4 ]
+        ignore line: [clang version 16.0.6 (https://github.com/irods/llvm-project 7cbf1a2591520c2491aa35339f227775f4d3adf6)]
+        ignore line: [Target: x86_64-unknown-linux-gnu]
+        ignore line: [Thread model: posix]
+        ignore line: [InstalledDir: /opt/irods-externals/clang16.0.6-0/bin]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/13]
+        ignore line: [Selected GCC installation: /usr/lib/gcc/x86_64-linux-gnu/13]
+        ignore line: [Candidate multilib: .]
+        ignore line: [@m64]
+        ignore line: [Selected multilib: .]
+        ignore line: [@m64]
+        link line: [ "/usr/bin/ld" -pie -z relro --hash-style=gnu --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_2bfb4 /lib/x86_64-linux-gnu/Scrt1.o /lib/x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/13/crtbeginS.o -L/usr/lib/gcc/x86_64-linux-gnu/13 -L/usr/lib/gcc/x86_64-linux-gnu/13/../../../../lib64 -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib64 -L/lib -L/usr/lib --export-dynamic --enable-new-dtags --as-needed -z defs -z origin CMakeFiles/cmTC_2bfb4.dir/CMakeCXXCompilerABI.cpp.o -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/lib/gcc/x86_64-linux-gnu/13/crtendS.o /lib/x86_64-linux-gnu/crtn.o]
+          arg [/usr/bin/ld] ==> ignore
+          arg [-pie] ==> ignore
+          arg [-zrelro] ==> ignore
+          arg [--hash-style=gnu] ==> ignore
+          arg [--eh-frame-hdr] ==> ignore
+          arg [-m] ==> ignore
+          arg [elf_x86_64] ==> ignore
+          arg [-dynamic-linker] ==> ignore
+          arg [/lib64/ld-linux-x86-64.so.2] ==> ignore
+          arg [-o] ==> ignore
+          arg [cmTC_2bfb4] ==> ignore
+          arg [/lib/x86_64-linux-gnu/Scrt1.o] ==> obj [/lib/x86_64-linux-gnu/Scrt1.o]
+          arg [/lib/x86_64-linux-gnu/crti.o] ==> obj [/lib/x86_64-linux-gnu/crti.o]
+          arg [/usr/lib/gcc/x86_64-linux-gnu/13/crtbeginS.o] ==> obj [/usr/lib/gcc/x86_64-linux-gnu/13/crtbeginS.o]
+          arg [-L/usr/lib/gcc/x86_64-linux-gnu/13] ==> dir [/usr/lib/gcc/x86_64-linux-gnu/13]
+          arg [-L/usr/lib/gcc/x86_64-linux-gnu/13/../../../../lib64] ==> dir [/usr/lib/gcc/x86_64-linux-gnu/13/../../../../lib64]
+          arg [-L/lib/x86_64-linux-gnu] ==> dir [/lib/x86_64-linux-gnu]
+          arg [-L/lib/../lib64] ==> dir [/lib/../lib64]
+          arg [-L/usr/lib/x86_64-linux-gnu] ==> dir [/usr/lib/x86_64-linux-gnu]
+          arg [-L/usr/lib/../lib64] ==> dir [/usr/lib/../lib64]
+          arg [-L/lib] ==> dir [/lib]
+          arg [-L/usr/lib] ==> dir [/usr/lib]
+          arg [--export-dynamic] ==> ignore
+          arg [--enable-new-dtags] ==> ignore
+          arg [--as-needed] ==> ignore
+          arg [-zdefs] ==> ignore
+          arg [-zorigin] ==> ignore
+          arg [CMakeFiles/cmTC_2bfb4.dir/CMakeCXXCompilerABI.cpp.o] ==> ignore
+          arg [-lstdc++] ==> lib [stdc++]
+          arg [-lm] ==> lib [m]
+          arg [-lgcc_s] ==> lib [gcc_s]
+          arg [-lgcc] ==> lib [gcc]
+          arg [-lc] ==> lib [c]
+          arg [-lgcc_s] ==> lib [gcc_s]
+          arg [-lgcc] ==> lib [gcc]
+          arg [/usr/lib/gcc/x86_64-linux-gnu/13/crtendS.o] ==> obj [/usr/lib/gcc/x86_64-linux-gnu/13/crtendS.o]
+          arg [/lib/x86_64-linux-gnu/crtn.o] ==> obj [/lib/x86_64-linux-gnu/crtn.o]
+        collapse library dir [/usr/lib/gcc/x86_64-linux-gnu/13] ==> [/usr/lib/gcc/x86_64-linux-gnu/13]
+        collapse library dir [/usr/lib/gcc/x86_64-linux-gnu/13/../../../../lib64] ==> [/usr/lib64]
+        collapse library dir [/lib/x86_64-linux-gnu] ==> [/lib/x86_64-linux-gnu]
+        collapse library dir [/lib/../lib64] ==> [/lib64]
+        collapse library dir [/usr/lib/x86_64-linux-gnu] ==> [/usr/lib/x86_64-linux-gnu]
+        collapse library dir [/usr/lib/../lib64] ==> [/usr/lib64]
+        collapse library dir [/lib] ==> [/lib]
+        collapse library dir [/usr/lib] ==> [/usr/lib]
+        implicit libs: [stdc++;m;gcc_s;gcc;c;gcc_s;gcc]
+        implicit objs: [/lib/x86_64-linux-gnu/Scrt1.o;/lib/x86_64-linux-gnu/crti.o;/usr/lib/gcc/x86_64-linux-gnu/13/crtbeginS.o;/usr/lib/gcc/x86_64-linux-gnu/13/crtendS.o;/lib/x86_64-linux-gnu/crtn.o]
+        implicit dirs: [/usr/lib/gcc/x86_64-linux-gnu/13;/usr/lib64;/lib/x86_64-linux-gnu;/lib64;/usr/lib/x86_64-linux-gnu;/lib;/usr/lib]
+        implicit fwks: []
+      
+      
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckSourceCompiles.cmake:101 (try_compile)"
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake-3.28/Modules/CheckCXXCompilerFlag.cmake:34 (cmake_check_compiler_flag)"
+      - "CMakeLists.txt:175 (check_cxx_compiler_flag)"
+    checks:
+      - "Performing Test can_use_wwrite_strings_cxx"
+    directories:
+      source: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-kwALw8"
+      binary: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-kwALw8"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/opt/irods-externals/clang16.0.6-0/bin/clang-scan-deps"
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: "-Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin"
+      CMAKE_MODULE_PATH: "/src/irods/cmake/Modules"
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "can_use_wwrite_strings_cxx"
+      cached: true
+      stdout: |
+        Change Dir: '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-kwALw8'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_1038a/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_1038a.dir/build.make CMakeFiles/cmTC_1038a.dir/build
+        gmake[1]: Entering directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-kwALw8'
+        Building CXX object CMakeFiles/cmTC_1038a.dir/src.cxx.o
+        /opt/irods-externals/clang16.0.6-0/bin/clang++ -Dcan_use_wwrite_strings_cxx  -std=c++20 -fPIE   -Wno-write-strings -MD -MT CMakeFiles/cmTC_1038a.dir/src.cxx.o -MF CMakeFiles/cmTC_1038a.dir/src.cxx.o.d -o CMakeFiles/cmTC_1038a.dir/src.cxx.o -c /src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-kwALw8/src.cxx
+        Linking CXX executable cmTC_1038a
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_1038a.dir/link.txt --verbose=1
+        /opt/irods-externals/clang16.0.6-0/bin/clang++ -Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin  CMakeFiles/cmTC_1038a.dir/src.cxx.o -o cmTC_1038a 
+        gmake[1]: Leaving directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-kwALw8'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckSourceCompiles.cmake:101 (try_compile)"
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake-3.28/Modules/CheckCCompilerFlag.cmake:51 (cmake_check_compiler_flag)"
+      - "CMakeLists.txt:179 (check_c_compiler_flag)"
+    checks:
+      - "Performing Test can_use_wunused_function_c"
+    directories:
+      source: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-ZTmBWd"
+      binary: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-ZTmBWd"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/opt/irods-externals/clang16.0.6-0/bin/clang-scan-deps"
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: "-Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin"
+      CMAKE_MODULE_PATH: "/src/irods/cmake/Modules"
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "can_use_wunused_function_c"
+      cached: true
+      stdout: |
+        Change Dir: '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-ZTmBWd'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_9c749/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_9c749.dir/build.make CMakeFiles/cmTC_9c749.dir/build
+        gmake[1]: Entering directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-ZTmBWd'
+        Building C object CMakeFiles/cmTC_9c749.dir/src.c.o
+        /opt/irods-externals/clang16.0.6-0/bin/clang -Dcan_use_wunused_function_c  -fPIE   -Wno-unused-function -MD -MT CMakeFiles/cmTC_9c749.dir/src.c.o -MF CMakeFiles/cmTC_9c749.dir/src.c.o.d -o CMakeFiles/cmTC_9c749.dir/src.c.o -c /src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-ZTmBWd/src.c
+        Linking C executable cmTC_9c749
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_9c749.dir/link.txt --verbose=1
+        /opt/irods-externals/clang16.0.6-0/bin/clang -Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin  CMakeFiles/cmTC_9c749.dir/src.c.o -o cmTC_9c749 
+        gmake[1]: Leaving directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-ZTmBWd'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckSourceCompiles.cmake:101 (try_compile)"
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake-3.28/Modules/CheckCXXCompilerFlag.cmake:34 (cmake_check_compiler_flag)"
+      - "CMakeLists.txt:180 (check_cxx_compiler_flag)"
+    checks:
+      - "Performing Test can_use_wunused_function_cxx"
+    directories:
+      source: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-u1KwyY"
+      binary: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-u1KwyY"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/opt/irods-externals/clang16.0.6-0/bin/clang-scan-deps"
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: "-Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin"
+      CMAKE_MODULE_PATH: "/src/irods/cmake/Modules"
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "can_use_wunused_function_cxx"
+      cached: true
+      stdout: |
+        Change Dir: '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-u1KwyY'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_8683f/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_8683f.dir/build.make CMakeFiles/cmTC_8683f.dir/build
+        gmake[1]: Entering directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-u1KwyY'
+        Building CXX object CMakeFiles/cmTC_8683f.dir/src.cxx.o
+        /opt/irods-externals/clang16.0.6-0/bin/clang++ -Dcan_use_wunused_function_cxx  -std=c++20 -fPIE   -Wno-unused-function -MD -MT CMakeFiles/cmTC_8683f.dir/src.cxx.o -MF CMakeFiles/cmTC_8683f.dir/src.cxx.o.d -o CMakeFiles/cmTC_8683f.dir/src.cxx.o -c /src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-u1KwyY/src.cxx
+        Linking CXX executable cmTC_8683f
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_8683f.dir/link.txt --verbose=1
+        /opt/irods-externals/clang16.0.6-0/bin/clang++ -Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin  CMakeFiles/cmTC_8683f.dir/src.cxx.o -o cmTC_8683f 
+        gmake[1]: Leaving directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-u1KwyY'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckSourceCompiles.cmake:101 (try_compile)"
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake-3.28/Modules/CheckCCompilerFlag.cmake:51 (cmake_check_compiler_flag)"
+      - "CMakeLists.txt:187 (check_c_compiler_flag)"
+    checks:
+      - "Performing Test can_use_wunused_parameter_c"
+    directories:
+      source: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-wSOSYo"
+      binary: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-wSOSYo"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/opt/irods-externals/clang16.0.6-0/bin/clang-scan-deps"
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: "-Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin"
+      CMAKE_MODULE_PATH: "/src/irods/cmake/Modules"
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "can_use_wunused_parameter_c"
+      cached: true
+      stdout: |
+        Change Dir: '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-wSOSYo'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_14de7/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_14de7.dir/build.make CMakeFiles/cmTC_14de7.dir/build
+        gmake[1]: Entering directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-wSOSYo'
+        Building C object CMakeFiles/cmTC_14de7.dir/src.c.o
+        /opt/irods-externals/clang16.0.6-0/bin/clang -Dcan_use_wunused_parameter_c  -fPIE   -Wno-unused-parameter -MD -MT CMakeFiles/cmTC_14de7.dir/src.c.o -MF CMakeFiles/cmTC_14de7.dir/src.c.o.d -o CMakeFiles/cmTC_14de7.dir/src.c.o -c /src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-wSOSYo/src.c
+        Linking C executable cmTC_14de7
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_14de7.dir/link.txt --verbose=1
+        /opt/irods-externals/clang16.0.6-0/bin/clang -Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin  CMakeFiles/cmTC_14de7.dir/src.c.o -o cmTC_14de7 
+        gmake[1]: Leaving directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-wSOSYo'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckSourceCompiles.cmake:101 (try_compile)"
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake-3.28/Modules/CheckCXXCompilerFlag.cmake:34 (cmake_check_compiler_flag)"
+      - "CMakeLists.txt:188 (check_cxx_compiler_flag)"
+    checks:
+      - "Performing Test can_use_wunused_parameter_cxx"
+    directories:
+      source: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-ZxekEm"
+      binary: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-ZxekEm"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/opt/irods-externals/clang16.0.6-0/bin/clang-scan-deps"
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: "-Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin"
+      CMAKE_MODULE_PATH: "/src/irods/cmake/Modules"
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "can_use_wunused_parameter_cxx"
+      cached: true
+      stdout: |
+        Change Dir: '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-ZxekEm'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_60b14/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_60b14.dir/build.make CMakeFiles/cmTC_60b14.dir/build
+        gmake[1]: Entering directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-ZxekEm'
+        Building CXX object CMakeFiles/cmTC_60b14.dir/src.cxx.o
+        /opt/irods-externals/clang16.0.6-0/bin/clang++ -Dcan_use_wunused_parameter_cxx  -std=c++20 -fPIE   -Wno-unused-parameter -MD -MT CMakeFiles/cmTC_60b14.dir/src.cxx.o -MF CMakeFiles/cmTC_60b14.dir/src.cxx.o.d -o CMakeFiles/cmTC_60b14.dir/src.cxx.o -c /src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-ZxekEm/src.cxx
+        Linking CXX executable cmTC_60b14
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_60b14.dir/link.txt --verbose=1
+        /opt/irods-externals/clang16.0.6-0/bin/clang++ -Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin  CMakeFiles/cmTC_60b14.dir/src.cxx.o -o cmTC_60b14 
+        gmake[1]: Leaving directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-ZxekEm'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckSourceCompiles.cmake:101 (try_compile)"
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake-3.28/Modules/CheckCCompilerFlag.cmake:51 (cmake_check_compiler_flag)"
+      - "CMakeLists.txt:195 (check_c_compiler_flag)"
+    checks:
+      - "Performing Test can_use_wparentheses_c"
+    directories:
+      source: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-mUOYS4"
+      binary: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-mUOYS4"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/opt/irods-externals/clang16.0.6-0/bin/clang-scan-deps"
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: "-Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin"
+      CMAKE_MODULE_PATH: "/src/irods/cmake/Modules"
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "can_use_wparentheses_c"
+      cached: true
+      stdout: |
+        Change Dir: '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-mUOYS4'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_e1b64/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_e1b64.dir/build.make CMakeFiles/cmTC_e1b64.dir/build
+        gmake[1]: Entering directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-mUOYS4'
+        Building C object CMakeFiles/cmTC_e1b64.dir/src.c.o
+        /opt/irods-externals/clang16.0.6-0/bin/clang -Dcan_use_wparentheses_c  -fPIE   -Wno-parentheses -MD -MT CMakeFiles/cmTC_e1b64.dir/src.c.o -MF CMakeFiles/cmTC_e1b64.dir/src.c.o.d -o CMakeFiles/cmTC_e1b64.dir/src.c.o -c /src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-mUOYS4/src.c
+        Linking C executable cmTC_e1b64
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_e1b64.dir/link.txt --verbose=1
+        /opt/irods-externals/clang16.0.6-0/bin/clang -Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin  CMakeFiles/cmTC_e1b64.dir/src.c.o -o cmTC_e1b64 
+        gmake[1]: Leaving directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-mUOYS4'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckSourceCompiles.cmake:101 (try_compile)"
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake-3.28/Modules/CheckCXXCompilerFlag.cmake:34 (cmake_check_compiler_flag)"
+      - "CMakeLists.txt:196 (check_cxx_compiler_flag)"
+    checks:
+      - "Performing Test can_use_wparentheses_cxx"
+    directories:
+      source: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-r4wyv4"
+      binary: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-r4wyv4"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/opt/irods-externals/clang16.0.6-0/bin/clang-scan-deps"
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: "-Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin"
+      CMAKE_MODULE_PATH: "/src/irods/cmake/Modules"
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "can_use_wparentheses_cxx"
+      cached: true
+      stdout: |
+        Change Dir: '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-r4wyv4'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_31a62/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_31a62.dir/build.make CMakeFiles/cmTC_31a62.dir/build
+        gmake[1]: Entering directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-r4wyv4'
+        Building CXX object CMakeFiles/cmTC_31a62.dir/src.cxx.o
+        /opt/irods-externals/clang16.0.6-0/bin/clang++ -Dcan_use_wparentheses_cxx  -std=c++20 -fPIE   -Wno-parentheses -MD -MT CMakeFiles/cmTC_31a62.dir/src.cxx.o -MF CMakeFiles/cmTC_31a62.dir/src.cxx.o.d -o CMakeFiles/cmTC_31a62.dir/src.cxx.o -c /src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-r4wyv4/src.cxx
+        Linking CXX executable cmTC_31a62
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_31a62.dir/link.txt --verbose=1
+        /opt/irods-externals/clang16.0.6-0/bin/clang++ -Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin  CMakeFiles/cmTC_31a62.dir/src.cxx.o -o cmTC_31a62 
+        gmake[1]: Leaving directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-r4wyv4'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckSourceCompiles.cmake:101 (try_compile)"
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake-3.28/Modules/CheckCXXCompilerFlag.cmake:34 (cmake_check_compiler_flag)"
+      - "CMakeLists.txt:203 (check_cxx_compiler_flag)"
+    checks:
+      - "Performing Test can_use_wignored_qualifiers_cxx"
+    directories:
+      source: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-4cyscI"
+      binary: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-4cyscI"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/opt/irods-externals/clang16.0.6-0/bin/clang-scan-deps"
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: "-Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin"
+      CMAKE_MODULE_PATH: "/src/irods/cmake/Modules"
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "can_use_wignored_qualifiers_cxx"
+      cached: true
+      stdout: |
+        Change Dir: '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-4cyscI'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_7e4d9/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_7e4d9.dir/build.make CMakeFiles/cmTC_7e4d9.dir/build
+        gmake[1]: Entering directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-4cyscI'
+        Building CXX object CMakeFiles/cmTC_7e4d9.dir/src.cxx.o
+        /opt/irods-externals/clang16.0.6-0/bin/clang++ -Dcan_use_wignored_qualifiers_cxx  -std=c++20 -fPIE   -Wno-ignored-qualifiers -MD -MT CMakeFiles/cmTC_7e4d9.dir/src.cxx.o -MF CMakeFiles/cmTC_7e4d9.dir/src.cxx.o.d -o CMakeFiles/cmTC_7e4d9.dir/src.cxx.o -c /src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-4cyscI/src.cxx
+        Linking CXX executable cmTC_7e4d9
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_7e4d9.dir/link.txt --verbose=1
+        /opt/irods-externals/clang16.0.6-0/bin/clang++ -Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin  CMakeFiles/cmTC_7e4d9.dir/src.cxx.o -o cmTC_7e4d9 
+        gmake[1]: Leaving directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-4cyscI'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckSourceCompiles.cmake:101 (try_compile)"
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake-3.28/Modules/CheckCCompilerFlag.cmake:51 (cmake_check_compiler_flag)"
+      - "CMakeLists.txt:204 (check_c_compiler_flag)"
+    checks:
+      - "Performing Test can_use_wignored_qualifiers_c"
+    directories:
+      source: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-xe90Gc"
+      binary: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-xe90Gc"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/opt/irods-externals/clang16.0.6-0/bin/clang-scan-deps"
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: "-Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin"
+      CMAKE_MODULE_PATH: "/src/irods/cmake/Modules"
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "can_use_wignored_qualifiers_c"
+      cached: true
+      stdout: |
+        Change Dir: '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-xe90Gc'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_aacbb/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_aacbb.dir/build.make CMakeFiles/cmTC_aacbb.dir/build
+        gmake[1]: Entering directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-xe90Gc'
+        Building C object CMakeFiles/cmTC_aacbb.dir/src.c.o
+        /opt/irods-externals/clang16.0.6-0/bin/clang -Dcan_use_wignored_qualifiers_c  -fPIE   -Wno-ignored-qualifiers -MD -MT CMakeFiles/cmTC_aacbb.dir/src.c.o -MF CMakeFiles/cmTC_aacbb.dir/src.c.o.d -o CMakeFiles/cmTC_aacbb.dir/src.c.o -c /src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-xe90Gc/src.c
+        Linking C executable cmTC_aacbb
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_aacbb.dir/link.txt --verbose=1
+        /opt/irods-externals/clang16.0.6-0/bin/clang -Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin  CMakeFiles/cmTC_aacbb.dir/src.c.o -o cmTC_aacbb 
+        gmake[1]: Leaving directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-xe90Gc'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckSourceCompiles.cmake:101 (try_compile)"
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake-3.28/Modules/CheckCCompilerFlag.cmake:51 (cmake_check_compiler_flag)"
+      - "CMakeLists.txt:213 (check_c_compiler_flag)"
+    checks:
+      - "Performing Test can_use_wunused_variable_c"
+    directories:
+      source: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-Sv8dnR"
+      binary: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-Sv8dnR"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/opt/irods-externals/clang16.0.6-0/bin/clang-scan-deps"
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: "-Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin"
+      CMAKE_MODULE_PATH: "/src/irods/cmake/Modules"
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "can_use_wunused_variable_c"
+      cached: true
+      stdout: |
+        Change Dir: '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-Sv8dnR'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_1bae3/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_1bae3.dir/build.make CMakeFiles/cmTC_1bae3.dir/build
+        gmake[1]: Entering directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-Sv8dnR'
+        Building C object CMakeFiles/cmTC_1bae3.dir/src.c.o
+        /opt/irods-externals/clang16.0.6-0/bin/clang -Dcan_use_wunused_variable_c  -fPIE   -Wno-error=unused-variable -MD -MT CMakeFiles/cmTC_1bae3.dir/src.c.o -MF CMakeFiles/cmTC_1bae3.dir/src.c.o.d -o CMakeFiles/cmTC_1bae3.dir/src.c.o -c /src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-Sv8dnR/src.c
+        Linking C executable cmTC_1bae3
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_1bae3.dir/link.txt --verbose=1
+        /opt/irods-externals/clang16.0.6-0/bin/clang -Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin  CMakeFiles/cmTC_1bae3.dir/src.c.o -o cmTC_1bae3 
+        gmake[1]: Leaving directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-Sv8dnR'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckSourceCompiles.cmake:101 (try_compile)"
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake-3.28/Modules/CheckCXXCompilerFlag.cmake:34 (cmake_check_compiler_flag)"
+      - "CMakeLists.txt:214 (check_cxx_compiler_flag)"
+    checks:
+      - "Performing Test can_use_wunused_variable_cxx"
+    directories:
+      source: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-CeckiW"
+      binary: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-CeckiW"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/opt/irods-externals/clang16.0.6-0/bin/clang-scan-deps"
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: "-Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin"
+      CMAKE_MODULE_PATH: "/src/irods/cmake/Modules"
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "can_use_wunused_variable_cxx"
+      cached: true
+      stdout: |
+        Change Dir: '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-CeckiW'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_a9893/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_a9893.dir/build.make CMakeFiles/cmTC_a9893.dir/build
+        gmake[1]: Entering directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-CeckiW'
+        Building CXX object CMakeFiles/cmTC_a9893.dir/src.cxx.o
+        /opt/irods-externals/clang16.0.6-0/bin/clang++ -Dcan_use_wunused_variable_cxx  -std=c++20 -fPIE   -Wno-error=unused-variable -MD -MT CMakeFiles/cmTC_a9893.dir/src.cxx.o -MF CMakeFiles/cmTC_a9893.dir/src.cxx.o.d -o CMakeFiles/cmTC_a9893.dir/src.cxx.o -c /src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-CeckiW/src.cxx
+        Linking CXX executable cmTC_a9893
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_a9893.dir/link.txt --verbose=1
+        /opt/irods-externals/clang16.0.6-0/bin/clang++ -Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin  CMakeFiles/cmTC_a9893.dir/src.cxx.o -o cmTC_a9893 
+        gmake[1]: Leaving directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-CeckiW'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckSourceCompiles.cmake:101 (try_compile)"
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake-3.28/Modules/CheckCCompilerFlag.cmake:51 (cmake_check_compiler_flag)"
+      - "CMakeLists.txt:221 (check_c_compiler_flag)"
+    checks:
+      - "Performing Test can_use_wunused_but_set_variable_c"
+    directories:
+      source: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-MLnGOd"
+      binary: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-MLnGOd"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/opt/irods-externals/clang16.0.6-0/bin/clang-scan-deps"
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: "-Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin"
+      CMAKE_MODULE_PATH: "/src/irods/cmake/Modules"
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "can_use_wunused_but_set_variable_c"
+      cached: true
+      stdout: |
+        Change Dir: '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-MLnGOd'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_53ef0/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_53ef0.dir/build.make CMakeFiles/cmTC_53ef0.dir/build
+        gmake[1]: Entering directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-MLnGOd'
+        Building C object CMakeFiles/cmTC_53ef0.dir/src.c.o
+        /opt/irods-externals/clang16.0.6-0/bin/clang -Dcan_use_wunused_but_set_variable_c  -fPIE   -Wno-error=unused-but-set-variable -MD -MT CMakeFiles/cmTC_53ef0.dir/src.c.o -MF CMakeFiles/cmTC_53ef0.dir/src.c.o.d -o CMakeFiles/cmTC_53ef0.dir/src.c.o -c /src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-MLnGOd/src.c
+        Linking C executable cmTC_53ef0
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_53ef0.dir/link.txt --verbose=1
+        /opt/irods-externals/clang16.0.6-0/bin/clang -Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin  CMakeFiles/cmTC_53ef0.dir/src.c.o -o cmTC_53ef0 
+        gmake[1]: Leaving directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-MLnGOd'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckSourceCompiles.cmake:101 (try_compile)"
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake-3.28/Modules/CheckCXXCompilerFlag.cmake:34 (cmake_check_compiler_flag)"
+      - "CMakeLists.txt:222 (check_cxx_compiler_flag)"
+    checks:
+      - "Performing Test can_use_wunused_but_set_variable_cxx"
+    directories:
+      source: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-HJS3tR"
+      binary: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-HJS3tR"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/opt/irods-externals/clang16.0.6-0/bin/clang-scan-deps"
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: "-Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin"
+      CMAKE_MODULE_PATH: "/src/irods/cmake/Modules"
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "can_use_wunused_but_set_variable_cxx"
+      cached: true
+      stdout: |
+        Change Dir: '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-HJS3tR'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_b21cd/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_b21cd.dir/build.make CMakeFiles/cmTC_b21cd.dir/build
+        gmake[1]: Entering directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-HJS3tR'
+        Building CXX object CMakeFiles/cmTC_b21cd.dir/src.cxx.o
+        /opt/irods-externals/clang16.0.6-0/bin/clang++ -Dcan_use_wunused_but_set_variable_cxx  -std=c++20 -fPIE   -Wno-error=unused-but-set-variable -MD -MT CMakeFiles/cmTC_b21cd.dir/src.cxx.o -MF CMakeFiles/cmTC_b21cd.dir/src.cxx.o.d -o CMakeFiles/cmTC_b21cd.dir/src.cxx.o -c /src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-HJS3tR/src.cxx
+        Linking CXX executable cmTC_b21cd
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_b21cd.dir/link.txt --verbose=1
+        /opt/irods-externals/clang16.0.6-0/bin/clang++ -Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin  CMakeFiles/cmTC_b21cd.dir/src.cxx.o -o cmTC_b21cd 
+        gmake[1]: Leaving directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-HJS3tR'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckSourceCompiles.cmake:101 (try_compile)"
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake-3.28/Modules/CheckCXXCompilerFlag.cmake:34 (cmake_check_compiler_flag)"
+      - "CMakeLists.txt:232 (check_cxx_compiler_flag)"
+    checks:
+      - "Performing Test can_use_wdeprecated_copy_cxx"
+    directories:
+      source: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-oGIRfC"
+      binary: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-oGIRfC"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/opt/irods-externals/clang16.0.6-0/bin/clang-scan-deps"
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: "-Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin"
+      CMAKE_MODULE_PATH: "/src/irods/cmake/Modules"
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "can_use_wdeprecated_copy_cxx"
+      cached: true
+      stdout: |
+        Change Dir: '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-oGIRfC'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_e71ea/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_e71ea.dir/build.make CMakeFiles/cmTC_e71ea.dir/build
+        gmake[1]: Entering directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-oGIRfC'
+        Building CXX object CMakeFiles/cmTC_e71ea.dir/src.cxx.o
+        /opt/irods-externals/clang16.0.6-0/bin/clang++ -Dcan_use_wdeprecated_copy_cxx  -std=c++20 -fPIE   -Wno-error=deprecated-copy -MD -MT CMakeFiles/cmTC_e71ea.dir/src.cxx.o -MF CMakeFiles/cmTC_e71ea.dir/src.cxx.o.d -o CMakeFiles/cmTC_e71ea.dir/src.cxx.o -c /src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-oGIRfC/src.cxx
+        Linking CXX executable cmTC_e71ea
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_e71ea.dir/link.txt --verbose=1
+        /opt/irods-externals/clang16.0.6-0/bin/clang++ -Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin  CMakeFiles/cmTC_e71ea.dir/src.cxx.o -o cmTC_e71ea 
+        gmake[1]: Leaving directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-oGIRfC'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckSourceCompiles.cmake:101 (try_compile)"
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake-3.28/Modules/CheckCCompilerFlag.cmake:51 (cmake_check_compiler_flag)"
+      - "CMakeLists.txt:238 (check_c_compiler_flag)"
+    checks:
+      - "Performing Test can_use_wtautological_overlap_compare_c"
+    directories:
+      source: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-zfgbJH"
+      binary: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-zfgbJH"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/opt/irods-externals/clang16.0.6-0/bin/clang-scan-deps"
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: "-Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin"
+      CMAKE_MODULE_PATH: "/src/irods/cmake/Modules"
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "can_use_wtautological_overlap_compare_c"
+      cached: true
+      stdout: |
+        Change Dir: '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-zfgbJH'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_06f89/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_06f89.dir/build.make CMakeFiles/cmTC_06f89.dir/build
+        gmake[1]: Entering directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-zfgbJH'
+        Building C object CMakeFiles/cmTC_06f89.dir/src.c.o
+        /opt/irods-externals/clang16.0.6-0/bin/clang -Dcan_use_wtautological_overlap_compare_c  -fPIE   -Wno-error=tautological-overlap-compare -MD -MT CMakeFiles/cmTC_06f89.dir/src.c.o -MF CMakeFiles/cmTC_06f89.dir/src.c.o.d -o CMakeFiles/cmTC_06f89.dir/src.c.o -c /src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-zfgbJH/src.c
+        Linking C executable cmTC_06f89
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_06f89.dir/link.txt --verbose=1
+        /opt/irods-externals/clang16.0.6-0/bin/clang -Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin  CMakeFiles/cmTC_06f89.dir/src.c.o -o cmTC_06f89 
+        gmake[1]: Leaving directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-zfgbJH'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckSourceCompiles.cmake:101 (try_compile)"
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake-3.28/Modules/CheckCXXCompilerFlag.cmake:34 (cmake_check_compiler_flag)"
+      - "CMakeLists.txt:239 (check_cxx_compiler_flag)"
+    checks:
+      - "Performing Test can_use_wtautological_overlap_compare_cxx"
+    directories:
+      source: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-kMRxi2"
+      binary: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-kMRxi2"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/opt/irods-externals/clang16.0.6-0/bin/clang-scan-deps"
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: "-Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin"
+      CMAKE_MODULE_PATH: "/src/irods/cmake/Modules"
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "can_use_wtautological_overlap_compare_cxx"
+      cached: true
+      stdout: |
+        Change Dir: '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-kMRxi2'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_ddd64/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_ddd64.dir/build.make CMakeFiles/cmTC_ddd64.dir/build
+        gmake[1]: Entering directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-kMRxi2'
+        Building CXX object CMakeFiles/cmTC_ddd64.dir/src.cxx.o
+        /opt/irods-externals/clang16.0.6-0/bin/clang++ -Dcan_use_wtautological_overlap_compare_cxx  -std=c++20 -fPIE   -Wno-error=tautological-overlap-compare -MD -MT CMakeFiles/cmTC_ddd64.dir/src.cxx.o -MF CMakeFiles/cmTC_ddd64.dir/src.cxx.o.d -o CMakeFiles/cmTC_ddd64.dir/src.cxx.o -c /src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-kMRxi2/src.cxx
+        Linking CXX executable cmTC_ddd64
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_ddd64.dir/link.txt --verbose=1
+        /opt/irods-externals/clang16.0.6-0/bin/clang++ -Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin  CMakeFiles/cmTC_ddd64.dir/src.cxx.o -o cmTC_ddd64 
+        gmake[1]: Leaving directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-kMRxi2'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/Internal/CheckSourceCompiles.cmake:101 (try_compile)"
+      - "/usr/share/cmake-3.28/Modules/CheckCSourceCompiles.cmake:52 (cmake_check_source_compiles)"
+      - "/usr/share/cmake-3.28/Modules/FindThreads.cmake:97 (CHECK_C_SOURCE_COMPILES)"
+      - "/usr/share/cmake-3.28/Modules/FindThreads.cmake:163 (_threads_check_libc)"
+      - "/usr/lib/x86_64-linux-gnu/cmake/spdlog/spdlogConfig.cmake:40 (find_package)"
+      - "CMakeLists.txt:254 (find_package)"
+    checks:
+      - "Performing Test CMAKE_HAVE_LIBC_PTHREAD"
+    directories:
+      source: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-cpaN7C"
+      binary: "/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-cpaN7C"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/opt/irods-externals/clang16.0.6-0/bin/clang-scan-deps"
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: "-Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin"
+      CMAKE_MODULE_PATH: "/src/irods/cmake/Modules"
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "CMAKE_HAVE_LIBC_PTHREAD"
+      cached: true
+      stdout: |
+        Change Dir: '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-cpaN7C'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_0723c/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_0723c.dir/build.make CMakeFiles/cmTC_0723c.dir/build
+        gmake[1]: Entering directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-cpaN7C'
+        Building C object CMakeFiles/cmTC_0723c.dir/src.c.o
+        /opt/irods-externals/clang16.0.6-0/bin/clang -DCMAKE_HAVE_LIBC_PTHREAD  -fPIE -MD -MT CMakeFiles/cmTC_0723c.dir/src.c.o -MF CMakeFiles/cmTC_0723c.dir/src.c.o.d -o CMakeFiles/cmTC_0723c.dir/src.c.o -c /src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-cpaN7C/src.c
+        Linking C executable cmTC_0723c
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_0723c.dir/link.txt --verbose=1
+        /opt/irods-externals/clang16.0.6-0/bin/clang -Wl,--export-dynamic -Wl,--enable-new-dtags -Wl,--as-needed -Wl,-z,defs -Wl,-z,origin  CMakeFiles/cmTC_0723c.dir/src.c.o -o cmTC_0723c 
+        gmake[1]: Leaving directory '/src/irods/build_wdt/CMakeFiles/CMakeScratch/TryCompile-cpaN7C'
+        
+      exitCode: 0
+...

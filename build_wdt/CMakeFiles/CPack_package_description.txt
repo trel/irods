@@ -1,0 +1,5 @@
+The Integrated Rule-Oriented Data System (iRODS) is open source data management software used by research, commercial, and governmental organizations worldwide.
+
+iRODS is released as a production-level distribution aimed at deployment in mission critical environments. It virtualizes data storage resources, so users can take control of their data, regardless of where and on what device the data is stored.
+
+The development infrastructure supports exhaustive testing on supported platforms; plugin support for microservices, storage resources, authentication mechanisms, network protocols, rule engines, new API endpoints, and databases; and extensive documentation, training, and support services.

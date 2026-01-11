@@ -1,0 +1,2 @@
+# CMAKE generated file: DO NOT EDIT!
+# Timestamp file for compiler generated dependencies management for irods_microservice_plugin-atomic_apply_metadata_operations.

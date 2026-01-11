@@ -4,7 +4,7 @@
 #include "irods/private/re/rules.hpp"
 #include "irods/private/re/debug.hpp"
 #include "irods/private/re/configuration.hpp"
-#define RE_ERROR(x) if(x) { goto error; }
+// RE_ERROR macro replaced with explicit error handling (i-5509)
 
 #include <assert.h>
 
@@ -22,12 +22,22 @@ void clearIndex( Hashtable **ruleIndex ) {
  * returns 0 if out of memory
  */
 int createRuleStructIndex( ruleStruct_t *inRuleStrct, Hashtable *ruleIndex ) {
-    if ( ruleIndex == NULL ) {
-        return 0;
-    }
-    for ( int i = 0; i < inRuleStrct->MaxNumOfRules; i++ ) {
-        char *key = inRuleStrct->action[i];
-        int *value = ( int * )malloc( sizeof( int ) );
+     if ( ruleIndex == NULL ) {
+         return 0;
+     }
+     for ( int i = 0; i < inRuleStrct->MaxNumOfRules; i++ ) {
+         char *key = inRuleStrct->action[i];
+         /* Allocate value with malloc (not region_alloc).
+          * Rationale: This function populates static hashtables during plugin initialization.
+          * No Region context is available at this call site. The hashtables (coreRuleFuncMapDefIndex,
+          * appRuleFuncMapDefIndex) persist for the plugin lifetime. The int pointers are freed
+          * immediately after hashtable insertion (line 41), which is a non-ideal pattern but
+          * preserves existing behavior. Regions are unsuitable for init-time global structure setup. */
+         int *value = ( int * )malloc( sizeof( int ) );
+        if ( value == NULL ) {
+            rodsLog( LOG_ERROR, "Cannot allocate int for rule index" );
+            return 0;
+        }
         *value = i;
 
         if ( 0 == insertIntoHashTable( ruleIndex, key, value ) ) {
@@ -246,7 +256,7 @@ int createRuleNodeIndex( RuleSet *inRuleSet, Hashtable *ruleIndex, int offset, R
                     }
                 }
                 else {
-                    /* todo error handling */
+                    rodsLog( LOG_ERROR, "indexRules: unexpected function descriptor type %d for rule %s at index %d", getNodeType( fd ), key, i + offset );
                     return -1;
                 }
             }
@@ -265,14 +275,27 @@ int createRuleNodeIndex( RuleSet *inRuleSet, Hashtable *ruleIndex, int offset, R
  * returns 0 if out of memory
  */
 int createFuncMapDefIndex( rulefmapdef_t *inFuncStrct, Hashtable **ruleIndex ) {
-    clearIndex( ruleIndex );
-    *ruleIndex = newHashTable( MAX_NUM_OF_DVARS * 2 );
-    if ( *ruleIndex == NULL ) {
-        return 0;
-    }
-    for ( int i = 0; i < inFuncStrct->MaxNumOfFMaps; i++ ) {
-        char *key = inFuncStrct->funcName[i];
-        int *value = ( int * )malloc( sizeof( int ) );
+     clearIndex( ruleIndex );
+     *ruleIndex = newHashTable( MAX_NUM_OF_DVARS * 2 );
+     if ( *ruleIndex == NULL ) {
+         return 0;
+     }
+     for ( int i = 0; i < inFuncStrct->MaxNumOfFMaps; i++ ) {
+         char *key = inFuncStrct->funcName[i];
+         /* Allocate value with malloc (not region_alloc).
+          * Rationale: This function creates function mapping hashtables during plugin initialization
+          * (called from readFuncMapStructFromFile at nre.reLib1.cpp:934, 937). No Region context is
+          * available at this call site. The hashtables persist for the plugin lifetime and are
+          * referenced throughout rule execution. The int pointers are freed immediately after
+          * hashtable insertion (line 294), following existing behavior. Regions are unsuitable for
+          * plugin initialization-time global structure construction. */
+         int *value = ( int * )malloc( sizeof( int ) );
+        if ( value == NULL ) {
+            rodsLog( LOG_ERROR, "Cannot allocate int for function index" );
+            deleteHashTable( *ruleIndex, free_const );
+            *ruleIndex = NULL;
+            return 0;
+        }
         *value = i;
 
         if ( 0 == insertIntoHashTable( *ruleIndex, key, value ) ) {
@@ -361,8 +384,17 @@ void deleteCondIndexVal( CondIndexVal *h ) {
 }
 
 char *convertRuleNameArityToKey( char *ruleName, int arity ) {
-    // assume that arity < 100
-    char *key = ( char * )malloc( strlen( ruleName ) + 3 );
+     // assume that arity < 100
+     /* Allocate key with malloc (not region_alloc).
+      * Rationale: This utility function returns a dynamically-allocated string (formatted
+      * rule name with arity prefix) to callers who are responsible for freeing it. The
+      * string lifetime is controlled by the caller, not bound to a specific execution context.
+      * No Region context is available or appropriate for caller-managed allocations. */
+     char *key = ( char * )malloc( strlen( ruleName ) + 3 );
+    if ( key == NULL ) {
+        rodsLog( LOG_ERROR, "Cannot allocate string for rule key" );
+        return NULL;
+    }
     sprintf( key, "%02d%s", arity, ruleName );
     return key;
 }

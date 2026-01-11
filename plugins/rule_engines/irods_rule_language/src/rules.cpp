@@ -14,7 +14,7 @@
 #include "irods/irods_re_plugin.hpp"
 #include "irods/irods_error.hpp"
 
-#define RE_ERROR(cond) if(cond) { goto error; }
+// RE_ERROR macro replaced with explicit error handling (i-5509)
 
 extern int GlobalAllRuleExecFlag;
 
@@ -43,7 +43,7 @@ int readRuleSetFromLocalFile( const char *ruleBaseName, const char *rulesFileNam
         addRErrorMsg( errmsg, RULES_FILE_READ_ERROR, errbuf );
         return RULES_FILE_READ_ERROR;
     }
-    Pointer *e = newPointer( file, ruleBaseName );
+    Pointer *e = newPointer( file, ruleBaseName, r );
     int ret = parseRuleSet( e, ruleSet, funcDesc, errloc, errmsg, r );
     deletePointer( e );
     if ( ret < 0 ) {
@@ -78,7 +78,7 @@ int readRuleSetFromBuffer(const char* ruleBaseName,
         addRErrorMsg(errmsg, RULES_FILE_READ_ERROR, static_cast<char*>(errbuf));
         return RULES_FILE_READ_ERROR;
     }
-    Pointer* e = newPointer(file, ruleBaseName);
+    Pointer* e = newPointer(file, ruleBaseName, r);
     int ret = parseRuleSet(e, ruleSet, funcDesc, errloc, errmsg, r);
     deletePointer(e);
     if (ret < 0) {
@@ -129,94 +129,140 @@ int parseAndComputeMsParamArrayToEnv( msParamArray_t *var, Env *env, ruleExecInf
 
 }
 Env *defaultEnv( Region *r ) {
-    Env *global = newEnv( newHashTable2( 10, r ), NULL, NULL, r );
-    Env *env = newEnv( newHashTable2( 10, r ), global, NULL, r );
+    Hashtable *globalTable = newHashTable2( 10, r );
+    if ( globalTable == NULL ) {
+        rodsLog( LOG_ERROR, "defaultEnv: Failed to allocate global environment table" );
+        return NULL;
+    }
+    Env *global = newEnv( globalTable, NULL, NULL, r );
+    
+    Hashtable *envTable = newHashTable2( 10, r );
+    if ( envTable == NULL ) {
+        rodsLog( LOG_ERROR, "defaultEnv: Failed to allocate local environment table" );
+        return NULL;
+    }
+    Env *env = newEnv( envTable, global, NULL, r );
 
     return env;
 }
 
 int parseAndComputeRuleAdapter( char *rule, msParamArray_t *msParamArray, ruleExecInfo_t *rei, int reiSaveFlag, Region *r ) {
-    /* set clearDelayed to 0 so that nested calls to this function do not call clearDelay() */
-    int recclearDelayed = ruleEngineConfig.clearDelayed;
-    ruleEngineConfig.clearDelayed = 0;
-
-    rError_t errmsgBuf;
-    errmsgBuf.errMsg = NULL;
-    errmsgBuf.len = 0;
-
-    Env *env = defaultEnv( r );
-
-    rei->status = 0;
-
-    int rescode = 0;
-    if ( msParamArray != NULL ) {
-        if ( strncmp( rule, "@external\n", 10 ) == 0 ) {
-            rescode = parseAndComputeMsParamArrayToEnv( msParamArray, globalEnv( env ), rei, reiSaveFlag, &errmsgBuf, r );
-            RE_ERROR( rescode < 0 );
-            rule = rule + 10;
-        }
-        else {
-            rescode = convertMsParamArrayToEnv( msParamArray, globalEnv( env ), r );
-            RE_ERROR( rescode < 0 );
-        }
-    }
-
-    deleteFromHashTable(globalEnv(env)->current, "ruleExecOut");
-
-    rei->msParamArray = msParamArray;
-
-    rescode = parseAndComputeRule( rule, env, rei, reiSaveFlag, &errmsgBuf, r );
-    RE_ERROR( rescode < 0 );
-
-    if ( NULL == rei->msParamArray ) {
-        rei->msParamArray = newMsParamArray();
-    }
-    rescode = convertEnvToMsParamArray( rei->msParamArray, env, &errmsgBuf, r );
-    RE_ERROR( rescode < 0 );
-
-    freeRErrorContent( &errmsgBuf );
-    /* deleteEnv(env, 3); */
-
-    return rescode;
-error:
-    logErrMsg( &errmsgBuf, &rei->rsComm->rError );
-    rei->status = rescode;
-    freeRErrorContent( &errmsgBuf );
-    /* deleteEnv(env, 3); */
-    if ( recclearDelayed ) {
-        clearDelayed();
-    }
-    ruleEngineConfig.clearDelayed = recclearDelayed;
-
-    return rescode;
-
-
-}
+     /* set clearDelayed to 0 so that nested calls to this function do not call clearDelay() */
+     int recclearDelayed = ruleEngineConfig.clearDelayed;
+     ruleEngineConfig.clearDelayed = 0;
+ 
+     rError_t errmsgBuf;
+     errmsgBuf.errMsg = NULL;
+     errmsgBuf.len = 0;
+ 
+     Env *env = defaultEnv( r );
+ 
+     rei->status = 0;
+ 
+     int rescode = 0;
+     if ( msParamArray != NULL ) {
+         if ( strncmp( rule, "@external\n", 10 ) == 0 ) {
+             rescode = parseAndComputeMsParamArrayToEnv( msParamArray, globalEnv( env ), rei, reiSaveFlag, &errmsgBuf, r );
+             if ( rescode < 0 ) {
+                 logErrMsg( &errmsgBuf, &rei->rsComm->rError );
+                 rei->status = rescode;
+                 freeRErrorContent( &errmsgBuf );
+                 /* deleteEnv(env, 3); */
+                 if ( recclearDelayed ) {
+                     clearDelayed();
+                 }
+                 ruleEngineConfig.clearDelayed = recclearDelayed;
+                 return rescode;
+             }
+             rule = rule + 10;
+         }
+         else {
+             rescode = convertMsParamArrayToEnv( msParamArray, globalEnv( env ), r );
+             if ( rescode < 0 ) {
+                 logErrMsg( &errmsgBuf, &rei->rsComm->rError );
+                 rei->status = rescode;
+                 freeRErrorContent( &errmsgBuf );
+                 /* deleteEnv(env, 3); */
+                 if ( recclearDelayed ) {
+                     clearDelayed();
+                 }
+                 ruleEngineConfig.clearDelayed = recclearDelayed;
+                 return rescode;
+             }
+         }
+     }
+ 
+     deleteFromHashTable(globalEnv(env)->current, "ruleExecOut");
+ 
+     rei->msParamArray = msParamArray;
+ 
+     rescode = parseAndComputeRule( rule, env, rei, reiSaveFlag, &errmsgBuf, r );
+     if ( rescode < 0 ) {
+         logErrMsg( &errmsgBuf, &rei->rsComm->rError );
+         rei->status = rescode;
+         freeRErrorContent( &errmsgBuf );
+         /* deleteEnv(env, 3); */
+         if ( recclearDelayed ) {
+             clearDelayed();
+         }
+         ruleEngineConfig.clearDelayed = recclearDelayed;
+         return rescode;
+     }
+ 
+     if ( NULL == rei->msParamArray ) {
+         rei->msParamArray = newMsParamArray( r );
+     }
+     rescode = convertEnvToMsParamArray( rei->msParamArray, env, &errmsgBuf, r );
+     if ( rescode < 0 ) {
+         logErrMsg( &errmsgBuf, &rei->rsComm->rError );
+         rei->status = rescode;
+         freeRErrorContent( &errmsgBuf );
+         /* deleteEnv(env, 3); */
+         if ( recclearDelayed ) {
+             clearDelayed();
+         }
+         ruleEngineConfig.clearDelayed = recclearDelayed;
+         return rescode;
+     }
+ 
+     freeRErrorContent( &errmsgBuf );
+     /* deleteEnv(env, 3); */
+     if ( recclearDelayed ) {
+         clearDelayed();
+     }
+     ruleEngineConfig.clearDelayed = recclearDelayed;
+ 
+     return rescode;
+ }
 
 int parseAndComputeRuleNewEnv( char *rule, ruleExecInfo_t *rei, int reiSaveFlag, msParamArray_t *msParamArray, rError_t *errmsg, Region *r ) {
-    Env *env = defaultEnv( r );
-
-    int rescode = 0;
-
-    if ( msParamArray != NULL ) {
-        rescode = convertMsParamArrayToEnv( msParamArray, env->previous, r );
-        RE_ERROR( rescode < 0 );
-        deleteFromHashTable(env->previous->current, "ruleExecOut");
-    }
-
-    rescode = parseAndComputeRule( rule, env, rei, reiSaveFlag, errmsg, r );
-    RE_ERROR( rescode < 0 );
-
-    rescode = convertEnvToMsParamArray( rei->msParamArray, env, errmsg, r );
-    RE_ERROR( rescode < 0 );
-    /* deleteEnv(env, 3); */
-    return rescode;
-
-error:
-
-    /* deleteEnv(env, 3); */
-    return rescode;
-}
+     Env *env = defaultEnv( r );
+ 
+     int rescode = 0;
+ 
+     if ( msParamArray != NULL ) {
+         rescode = convertMsParamArrayToEnv( msParamArray, env->previous, r );
+         if ( rescode < 0 ) {
+             /* deleteEnv(env, 3); */
+             return rescode;
+         }
+         deleteFromHashTable(env->previous->current, "ruleExecOut");
+     }
+ 
+     rescode = parseAndComputeRule( rule, env, rei, reiSaveFlag, errmsg, r );
+     if ( rescode < 0 ) {
+         /* deleteEnv(env, 3); */
+         return rescode;
+     }
+ 
+     rescode = convertEnvToMsParamArray( rei->msParamArray, env, errmsg, r );
+     if ( rescode < 0 ) {
+         /* deleteEnv(env, 3); */
+         return rescode;
+     }
+     /* deleteEnv(env, 3); */
+     return rescode;
+ }
 
 /* parse and compute a rule */
 int parseAndComputeRule( char *rule, Env *env, ruleExecInfo_t *rei, int reiSaveFlag, rError_t *errmsg, Region *r ) {
@@ -225,7 +271,7 @@ int parseAndComputeRule( char *rule, Env *env, ruleExecInfo_t *rei, int reiSaveF
         return RE_BUFFER_OVERFLOW;
     }
     Node *node;
-    Pointer *e = newPointer2( rule );
+    Pointer *e = newPointer2( rule, r );
     if ( e == NULL ) {
         addRErrorMsg( errmsg, RE_POINTER_ERROR, "error: can not create a Pointer." );
         return RE_POINTER_ERROR;
@@ -261,6 +307,12 @@ int parseAndComputeRule( char *rule, Env *env, ruleExecInfo_t *rei, int reiSaveF
     for ( i = tempLen; i < ruleEngineConfig.extRuleSet->len; i++ ) {
         if ( ruleEngineConfig.extRuleSet->rules[i]->ruleType == RK_FUNC || ruleEngineConfig.extRuleSet->rules[i]->ruleType == RK_REL ) {
             Hashtable *varTypes = newHashTable2( 10, r );
+            if ( varTypes == NULL ) {
+                rodsLog( LOG_ERROR, "parseAndComputeRule: Failed to allocate variable types table" );
+                addRErrorMsg( errmsg, SYS_MALLOC_ERR, "error: out of memory allocating type environment." );
+                rescode = SYS_MALLOC_ERR;
+                RETURN;
+            }
 
             List *typingConstraints = newList( r );
             Node *errnode;
@@ -337,8 +389,21 @@ Res *computeExpressionWithParams( const char *actionName, const char **params, i
     }
 
     Node *node = createFunctionNode( actionName, paramNodes, paramsCount, NULL, r );
-    Env *global = newEnv( newHashTable2( 10, r ), NULL, NULL, r );
-    Env *env = newEnv( newHashTable2( 10, r ), global, NULL, r );
+    Hashtable *globalTable = newHashTable2( 10, r );
+    if ( globalTable == NULL ) {
+        rodsLog( LOG_ERROR, "computeExpressionWithParams: Failed to allocate global environment table" );
+        addRErrorMsg( errmsg, SYS_MALLOC_ERR, "error: out of memory allocating global environment." );
+        return newErrorRes( r, SYS_MALLOC_ERR );
+    }
+    Env *global = newEnv( globalTable, NULL, NULL, r );
+    
+    Hashtable *envTable = newHashTable2( 10, r );
+    if ( envTable == NULL ) {
+        rodsLog( LOG_ERROR, "computeExpressionWithParams: Failed to allocate local environment table" );
+        addRErrorMsg( errmsg, SYS_MALLOC_ERR, "error: out of memory allocating local environment." );
+        return newErrorRes( r, SYS_MALLOC_ERR );
+    }
+    Env *env = newEnv( envTable, global, NULL, r );
     if ( msParamArray != NULL ) {
         convertMsParamArrayToEnv( msParamArray, global, r );
         deleteFromHashTable(global->current, "ruleExecOut");
@@ -352,43 +417,55 @@ Res *computeExpressionWithParams( const char *actionName, const char **params, i
     return res;
 }
 ExprType *typeRule( RuleDesc *rule, Env *funcDesc, Hashtable *varTypes, List *typingConstraints, rError_t *errmsg, Node **errnode, Region *r ) {
-    /* printf("%s\n", node->subtrees[0]->text); */
-    addRErrorMsg( errmsg, -1, ERR_MSG_SEP );
-    char buf[ERR_MSG_LEN];
-    Node *node = rule->node;
-    int dynamictyping = rule->dynamictyping;
-
-    ExprType *resType = typeExpression3( node->subtrees[1], dynamictyping, funcDesc, varTypes, typingConstraints, errmsg, errnode, r );
-    /*printf("Type %d\n",resType->t); */
-    RE_ERROR( getNodeType( resType ) == T_ERROR );
-    if ( getNodeType( resType ) != T_BOOL && getNodeType( resType ) != T_VAR && getNodeType( resType ) != T_DYNAMIC ) {
-        char buf2[1024], buf3[ERR_MSG_LEN];
-        typeToString( resType, varTypes, buf2, 1024 );
-        snprintf( buf3, ERR_MSG_LEN, "error: the type %s of the rule condition is not supported", buf2 );
-        generateErrMsg( buf3, NODE_EXPR_POS( node->subtrees[1] ), node->subtrees[1]->base, buf );
-        addRErrorMsg( errmsg, RE_TYPE_ERROR, buf );
-        RE_ERROR( 1 );
-    }
-    resType = typeExpression3( node->subtrees[2], dynamictyping, funcDesc, varTypes, typingConstraints, errmsg, errnode, r );
-    RE_ERROR( getNodeType( resType ) == T_ERROR );
-    resType = typeExpression3( node->subtrees[3], dynamictyping, funcDesc, varTypes, typingConstraints, errmsg, errnode, r );
-    RE_ERROR( getNodeType( resType ) == T_ERROR );
-    /* printVarTypeEnvToStdOut(varTypes); */
-    RE_ERROR( solveConstraints( typingConstraints, varTypes, errmsg, errnode, r ) == ABSURDITY );
-    int i;
-    for ( i = 1; i <= 3; i++ ) { // 1 = cond, 2 = actions, 3 = recovery
-        postProcessCoercion( node->subtrees[i], varTypes, errmsg, errnode, r );
-        postProcessActions( node->subtrees[i], funcDesc, errmsg, errnode, r );
-    }
-    /*printTree(node, 0); */
-    return newSimpType( T_INT, r );
-
-error:
-    snprintf( buf, ERR_MSG_LEN, "type error: in rule %s", node->subtrees[0]->text );
-    addRErrorMsg( errmsg, RE_TYPE_ERROR, buf );
-    return resType;
-
-}
+     /* printf("%s\n", node->subtrees[0]->text); */
+     addRErrorMsg( errmsg, -1, ERR_MSG_SEP );
+     char buf[ERR_MSG_LEN];
+     Node *node = rule->node;
+     int dynamictyping = rule->dynamictyping;
+ 
+     ExprType *resType = typeExpression3( node->subtrees[1], dynamictyping, funcDesc, varTypes, typingConstraints, errmsg, errnode, r );
+     /*printf("Type %d\n",resType->t); */
+     if ( getNodeType( resType ) == T_ERROR ) {
+         snprintf( buf, ERR_MSG_LEN, "type error: in rule %s", node->subtrees[0]->text );
+         addRErrorMsg( errmsg, RE_TYPE_ERROR, buf );
+         return resType;
+     }
+     if ( getNodeType( resType ) != T_BOOL && getNodeType( resType ) != T_VAR && getNodeType( resType ) != T_DYNAMIC ) {
+         char buf2[1024], buf3[ERR_MSG_LEN];
+         typeToString( resType, varTypes, buf2, 1024 );
+         snprintf( buf3, ERR_MSG_LEN, "error: the type %s of the rule condition is not supported", buf2 );
+         generateErrMsg( buf3, NODE_EXPR_POS( node->subtrees[1] ), node->subtrees[1]->base, buf );
+         addRErrorMsg( errmsg, RE_TYPE_ERROR, buf );
+         snprintf( buf, ERR_MSG_LEN, "type error: in rule %s", node->subtrees[0]->text );
+         addRErrorMsg( errmsg, RE_TYPE_ERROR, buf );
+         return newSimpType( T_ERROR, r );
+     }
+     resType = typeExpression3( node->subtrees[2], dynamictyping, funcDesc, varTypes, typingConstraints, errmsg, errnode, r );
+     if ( getNodeType( resType ) == T_ERROR ) {
+         snprintf( buf, ERR_MSG_LEN, "type error: in rule %s", node->subtrees[0]->text );
+         addRErrorMsg( errmsg, RE_TYPE_ERROR, buf );
+         return resType;
+     }
+     resType = typeExpression3( node->subtrees[3], dynamictyping, funcDesc, varTypes, typingConstraints, errmsg, errnode, r );
+     if ( getNodeType( resType ) == T_ERROR ) {
+         snprintf( buf, ERR_MSG_LEN, "type error: in rule %s", node->subtrees[0]->text );
+         addRErrorMsg( errmsg, RE_TYPE_ERROR, buf );
+         return resType;
+     }
+     /* printVarTypeEnvToStdOut(varTypes); */
+     if ( solveConstraints( typingConstraints, varTypes, errmsg, errnode, r ) == ABSURDITY ) {
+         snprintf( buf, ERR_MSG_LEN, "type error: in rule %s", node->subtrees[0]->text );
+         addRErrorMsg( errmsg, RE_TYPE_ERROR, buf );
+         return newSimpType( T_ERROR, r );
+     }
+     int i;
+     for ( i = 1; i <= 3; i++ ) { // 1 = cond, 2 = actions, 3 = recovery
+         postProcessCoercion( node->subtrees[i], varTypes, errmsg, errnode, r );
+         postProcessActions( node->subtrees[i], funcDesc, errmsg, errnode, r );
+     }
+     /*printTree(node, 0); */
+     return newSimpType( T_INT, r );
+ }
 
 ExprType *typeRuleSet( RuleSet *ruleset, rError_t *errmsg, Node **errnode, Region *r ) {
     Env *funcDesc = ruleEngineConfig.extFuncDescIndex;
@@ -406,14 +483,18 @@ ExprType *typeRuleSet( RuleSet *ruleset, rError_t *errmsg, Node **errnode, Regio
             /*printf("rule %s, typing constraints: %s\n", ruleset->rules[i]->subtrees[0]->text, buf); */
             if ( getNodeType( restype ) == T_ERROR ) {
                 res = restype;
-                char *errbuf = ( char * ) malloc( ERR_MSG_LEN * 1024 * sizeof( char ) );
+                char *errbuf = ( char * ) region_alloc( r, ERR_MSG_LEN * 1024 * sizeof( char ) );
+                if ( errbuf == NULL ) {
+                    rodsLog( LOG_ERROR, "Cannot allocate error message buffer" );
+                    RETURN;
+                }
                 errMsgToString( errmsg, errbuf, ERR_MSG_LEN * 1024 );
-#ifdef DEBUG
+            #ifdef DEBUG
                 writeToTmp( "ruleerr.log", errbuf );
                 writeToTmp( "ruleerr.log", "\n" );
-#endif
+            #endif
                 rodsLog( LOG_ERROR, "%s", errbuf );
-                free( errbuf );
+                /* no free - region will handle cleanup */
                 freeRErrorContent( errmsg );
                 RETURN;
             }
@@ -543,7 +624,7 @@ Res *parseAndComputeExpression( char *expr, Env *env, ruleExecInfo_t *rei, int r
         addRErrorMsg( errmsg, RE_BUFFER_OVERFLOW, "error: potential buffer overflow" );
         return newErrorRes( r, RE_BUFFER_OVERFLOW );
     }
-    Pointer *e = newPointer2( expr );
+    Pointer *e = newPointer2( expr, r );
     ParserContext *pc = newParserContext( errmsg, r );
     if ( e == NULL ) {
         addRErrorMsg( errmsg, RE_POINTER_ERROR, "error: can not create pointer." );
@@ -556,7 +637,7 @@ Res *parseAndComputeExpression( char *expr, Env *env, ruleExecInfo_t *rei, int r
         node = parseTermRuleGen( e, rulegen, pc );
     }
     else {
-        node = parseActionsRuleGen( e, rulegen, 1, pc );
+        node = parseActionsRuleGen( e, rulegen, pc );
     }
     if ( node == NULL ) {
         addRErrorMsg( errmsg, RE_OUT_OF_MEMORY, "error: out of memory." );
@@ -573,7 +654,7 @@ Res *parseAndComputeExpression( char *expr, Env *env, ruleExecInfo_t *rei, int r
         Token *token;
         token = nextTokenRuleGen( e, pc, 0, 0 );
         if ( strcmp( token->text, "|" ) == 0 ) {
-            recoNode = parseActionsRuleGen( e, rulegen, 1, pc );
+            recoNode = parseActionsRuleGen( e, rulegen, pc );
             if ( recoNode == NULL ) {
                 addRErrorMsg( errmsg, RE_OUT_OF_MEMORY, "error: out of memory." );
                 res = newErrorRes( r, RE_OUT_OF_MEMORY );
@@ -652,8 +733,12 @@ Res *parseAndComputeExpressionAdapter( char *inAction, msParamArray_t *inMsParam
     int freeRei = 0;
 
     if ( rei == NULL ) {
-        rei = ( ruleExecInfo_t * ) malloc( sizeof( ruleExecInfo_t ) );
-        memset( rei, 0, sizeof( ruleExecInfo_t ) );
+        rei = ( ruleExecInfo_t * ) region_alloc( r, sizeof( ruleExecInfo_t ) );
+        if ( rei == NULL ) {
+            rodsLog( LOG_ERROR, "Cannot allocate ruleExecInfo_t" );
+            return newErrorRes( r, SYS_MALLOC_ERR );
+        }
+        /* region_alloc returns zeroed memory, no need for memset */
         freeRei = 1;
     }
 
@@ -687,9 +772,8 @@ Res *parseAndComputeExpressionAdapter( char *inAction, msParamArray_t *inMsParam
 
     freeRErrorContent( &errmsgBuf );
 
-    if ( freeRei ) {
-        free( rei );
-    }
+    /* if ( freeRei ) is still true since we allocated rei from region,
+       but region will handle cleanup automatically */
 
     if ( recclearDelayed ) {
         clearDelayed();

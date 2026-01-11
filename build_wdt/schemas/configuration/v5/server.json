@@ -1,0 +1,57 @@
+{
+    "$id": "https://irods.org/configuration_schemas/v5/server.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+        "configuration_directory": {
+            "$ref": "configuration_directory.json"
+        },
+        "host_system_information": {
+            "type": "object",
+            "properties": {
+                "hostname": {"type": "string"},
+                "os_distribution_name": {"type": "string"},
+                "os_distribution_version": {"type": "string"},
+                "service_account_user_name": {"type": "string"},
+                "service_account_group_name": {"type": "string"},
+                "uname": {"type": "string"}
+            },
+            "required": [
+                "os_distribution_name",
+                "os_distribution_version",
+                "uname",
+                "hostname"
+            ]
+        },
+        "plugins": {
+            "type": "array",
+            "items": {
+                "$ref": "plugin.json"
+            }
+        },
+        "resources": {
+            "type": "array",
+            "items": {
+                "$ref": "resource.json"
+            }
+        },
+        "server_config": {
+            "$ref": "server_config.json"
+        },
+        "service_account_environment": {
+            "$ref": "service_account_environment.json"
+        },
+        "version": {
+            "$ref": "version.json"
+        }
+    },
+    "required": [
+        "configuration_directory",
+        "host_system_information",
+        "plugins",
+        "resources",
+        "server_config",
+        "service_account_environment",
+        "version"
+    ]
+}

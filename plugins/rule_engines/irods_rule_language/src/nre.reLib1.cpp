@@ -140,13 +140,23 @@ applyRuleBase( char *inAction, msParamArray_t *inMsParamArray, int updateInMsPar
     int ret;
     Res *res;
     if ( inAction[strlen( inAction ) - 1] == '|' ) {
-        char *inActionCopy = strdup( inAction );
+        // Migrate to region allocation (scoped to this function)
+        char *inActionCopy = (char *)region_alloc(r, strlen(inAction) + 1);
+        if ( inActionCopy == NULL ) {
+            rodsLog( LOG_ERROR, "Cannot allocate action copy" );
+            region_free( r );
+            return SYS_MALLOC_ERR;
+        }
+        strcpy(inActionCopy, inAction);
         inActionCopy[strlen( inAction ) - 1] = '\0';
-        char *action = ( char * ) malloc( sizeof( char ) * strlen( inAction ) + 3 );
+        char *action = (char *)region_alloc(r, strlen( inAction ) + 3);
+        if ( action == NULL ) {
+            rodsLog( LOG_ERROR, "Cannot allocate action string" );
+            region_free( r );
+            return SYS_MALLOC_ERR;
+        }
         sprintf( action, "{%s}", inActionCopy );
         res = parseAndComputeExpressionAdapter( action, inMsParamArray, updateInMsParam, rei, reiSaveFlag, r );
-        free( action );
-        free( inActionCopy );
     }
     else {
         res = parseAndComputeExpressionAdapter( inAction, inMsParamArray, updateInMsParam, rei, reiSaveFlag, r );
@@ -268,19 +278,36 @@ void appendOutputToInput(MsParamArray* inpParamArray, char** outParamNames, int 
     }
 }
 
-int extractVarNames( char **varNames, const char *outBuf ) {
+int extractVarNames( char **varNames, const char *outBuf, Region *r ) {
     int n = 0;
     const char *p = outBuf;
     const char *psrc = p;
 
     while (n < MAX_PARAMS_LEN) {
         if ( *psrc == '%' ) {
-            varNames[n++] = strndup( p, psrc - p );
+            // Migrate to region allocation (scoped to caller's Region)
+            size_t len = psrc - p;
+            char *str = (char *)region_alloc(r, len + 1);
+            if (str == NULL) {
+                rodsLog( LOG_ERROR, "Cannot allocate variable name" );
+                return -1;
+            }
+            strncpy(str, p, len);
+            str[len] = '\0';
+            varNames[n++] = str;
             p = psrc + 1;
         }
         else if ( *psrc == '\0' ) {
             if ( strlen( p ) != 0 ) {
-                varNames[n++] = strdup( p );
+                // Migrate to region allocation (scoped to caller's Region)
+                size_t len = strlen(p);
+                char *str = (char *)region_alloc(r, len + 1);
+                if (str == NULL) {
+                    rodsLog( LOG_ERROR, "Cannot allocate variable name" );
+                    return -1;
+                }
+                strcpy(str, p);
+                varNames[n++] = str;
             }
             break;
         }
@@ -301,16 +328,15 @@ execMyRuleWithSaveFlag( char * ruleDef, msParamArray_t *inMsParamArray, const ch
         reDebug( EXEC_MY_RULE_BEGIN, -1, &param, NULL, NULL, rei );
     }
 
-    char *outParamNames[MAX_PARAMS_LEN];
-    int n = extractVarNames( outParamNames, outParamsDesc );
-    appendOutputToInput( inMsParamArray, outParamNames, n );
-
-    int i;
-    for ( i = 0; i < n; i++ ) {
-        free( outParamNames[i] );
-    }
-
     Region *r = make_region( 0, NULL );
+    char *outParamNames[MAX_PARAMS_LEN];
+    int n = extractVarNames( outParamNames, outParamsDesc, r );
+    if ( n < 0 ) {
+        region_free( r );
+        return SYS_MALLOC_ERR;
+    }
+    appendOutputToInput( inMsParamArray, outParamNames, n );
+    // Note: outParamNames are freed with region_free() below (scoped region allocation)
     status =
         parseAndComputeRuleAdapter( ruleDef, inMsParamArray, rei, reiSaveFlag, r );
     region_free( r );
@@ -472,7 +498,7 @@ readRuleSetFromDB( char *ruleBaseName, char *versionStr, RuleSet *ruleSet, ruleE
             else {
                 snprintf( ruleStr, MAX_RULE_LEN * 4, "%s|%s|%s|%s", ruleHead, ruleCondition, ruleAction, ruleRecovery );
             }
-            Pointer *p = newPointer2( ruleStr );
+            Pointer *p = newPointer2( ruleStr, region );
             int errloc;
             int errcode = parseRuleSet( p, ruleSet, env, &errloc, errmsg, region );
             deletePointer( p );
@@ -539,6 +565,9 @@ readRuleStructFromDB( char *ruleBaseName, char *versionStr, ruleStruct_t *inRule
         r[5] = getSqlResultByInx( genQueryOut, COL_RULE_RECOVERY );
         r[6] = getSqlResultByInx( genQueryOut, COL_RULE_ID );
         for ( int i = 0; i < genQueryOut->rowCnt; i++ ) {
+            // Note: Using malloc for these allocations (not region_alloc) because strings are
+            // stored in static ruleStruct_t that persists beyond rule scope and are freed
+            // in clearRuleStruct(). This is plugin-lifetime allocation.
             inRuleStrct->ruleBase[inRuleStrct->MaxNumOfRules] = strdup( &r[0]->value[r[0]->len * i] );
             inRuleStrct->action[inRuleStrct->MaxNumOfRules]   = strdup( &r[1]->value[r[1]->len * i] );
             inRuleStrct->ruleHead[inRuleStrct->MaxNumOfRules] = strdup( &r[2]->value[r[2]->len * i] );
@@ -585,6 +614,8 @@ readDVMapStructFromDB( char *dvmBaseName, char *versionStr, rulevardef_t *inDvmS
         r[2] = getSqlResultByInx( genQueryOut, COL_DVM_INT_MAP_PATH );
         r[3] = getSqlResultByInx( genQueryOut, COL_DVM_ID );
         for ( i = 0; i < genQueryOut->rowCnt; i++ ) {
+            // Note: Using malloc for these allocations (not region_alloc) because strings are
+            // stored in static rulevardef_t that persists and are freed in clearDVarStruct().
             inDvmStrct->varName[l]   = strdup( &r[0]->value[r[0]->len * i] );
             inDvmStrct->action[l] = strdup( &r[1]->value[r[1]->len * i] );
             inDvmStrct->var2CMap[l] = strdup( &r[2]->value[r[2]->len * i] );
@@ -636,6 +667,8 @@ readFNMapStructFromDB( char *fnmBaseName, char *versionStr, fnmapStruct_t *inFnm
         r[1] = getSqlResultByInx( genQueryOut, COL_FNM_INT_FUNC_NAME );
         r[2] = getSqlResultByInx( genQueryOut, COL_FNM_ID );
         for ( i = 0; i < genQueryOut->rowCnt; i++ ) {
+            // Note: Using malloc for these allocations (not region_alloc) because strings are
+            // stored in static fnmapStruct_t that persists and are freed in clearFuncMapStruct().
             inFnmStrct->funcName[l]   = strdup( &r[0]->value[r[0]->len * i] );
             inFnmStrct->func2CMap[l] = strdup( &r[1]->value[r[1]->len * i] );
             inFnmStrct->fmapId[l] = atol( &r[2]->value[r[2]->len * i] );
@@ -697,6 +730,9 @@ readMsrvcStructFromDB( int inStatus, msrvcStruct_t *inMsrvcStrct, ruleExecInfo_t
         r[8] = getSqlResultByInx( genQueryOut, COL_MSRVC_STATUS );
         r[9] = getSqlResultByInx( genQueryOut, COL_MSRVC_ID );
         for ( i = 0; i < genQueryOut->rowCnt; i++ ) {
+            // Note: Using malloc for these allocations (not region_alloc) because strings are
+            // stored in static msrvcStruct_t that persists across the plugin lifetime.
+            // These are freed in the plugin cleanup phase, not per-rule.
             inMsrvcStrct->moduleName[l] = strdup( &r[0]->value[r[0]->len * i] );
             inMsrvcStrct->msrvcName[l]   = strdup( &r[1]->value[r[1]->len * i] );
             inMsrvcStrct->msrvcSignature[l] = strdup( &r[2]->value[r[2]->len * i] );
@@ -846,11 +882,13 @@ readDVarStructFromFile( char *dvarBaseName, rulevardef_t *inRuleVarDef ) {
             continue;
         }
         rSplitStr( buf, l1, MAX_DVAR_LENGTH, l0, MAX_DVAR_LENGTH, '|' );
-        inRuleVarDef->varName[i] = strdup( l1 ); /** varName **/
-        rSplitStr( l0, l1, MAX_DVAR_LENGTH, l3, MAX_DVAR_LENGTH, '|' );
-        inRuleVarDef->action[i] = strdup( l1 ); /** action **/
-        rSplitStr( l3, l1, MAX_DVAR_LENGTH, l2, MAX_DVAR_LENGTH, '|' );
-        inRuleVarDef->var2CMap[i] = strdup( l1 ); /** var2CMap **/
+         // Note: Using malloc for these allocations (not region_alloc) because strings are
+         // stored in static rulevardef_t that persists and are freed in clearDVarStruct().
+         inRuleVarDef->varName[i] = strdup( l1 ); /** varName **/
+         rSplitStr( l0, l1, MAX_DVAR_LENGTH, l3, MAX_DVAR_LENGTH, '|' );
+         inRuleVarDef->action[i] = strdup( l1 ); /** action **/
+         rSplitStr( l3, l1, MAX_DVAR_LENGTH, l2, MAX_DVAR_LENGTH, '|' );
+         inRuleVarDef->var2CMap[i] = strdup( l1 ); /** var2CMap **/
         if ( strlen( l2 ) > 0 ) {
             inRuleVarDef->varId[i] = atoll( l2 );    /** varId **/
         }
@@ -908,6 +946,8 @@ readFuncMapStructFromFile( char *fmapBaseName, rulefmapdef_t* inRuleFuncMapDef )
             continue;
         }
         rSplitStr( buf, l1, MAX_FMAP_LENGTH, l0, MAX_FMAP_LENGTH, '|' );
+        // Note: Using malloc for these allocations (not region_alloc) because strings are
+        // stored in static rulefmapdef_t that persists and are freed in clearFuncMapStruct().
         inRuleFuncMapDef->funcName[i] = strdup( l1 ); /** funcName **/
         rSplitStr( l0, l1, MAX_FMAP_LENGTH, l2, MAX_FMAP_LENGTH, '|' );
         inRuleFuncMapDef->func2CMap[i] = strdup( l1 ); /** func2CMap **/

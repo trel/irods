@@ -17,6 +17,9 @@ ExprType * typeExpression3( Node *expr, int notyping, Env *funcDesc, Hashtable *
 int typeFuncParam( Node *param, Node *paramType, Node *formalParamType, Hashtable *var_type_table, List *typingConstraints, rError_t *errmsg, Region *r );
 void postProcessActions( Node *expr, Env *systemFunctionTables, rError_t *errmsg, Node **errnode, Region *r );
 void postProcessCoercion( Node *expr, Hashtable *varTypes, rError_t* errmsg, Node **errnode, Region *r );
+List *extractColumnNamesFromQuery( Node *queryNode, Region *r );
+ExprType *getColumnTypeFromSchema( const char *columnName, Region *r );
+ExprType *createTupleTypeFromColumns( List *columnNames, Region *r );
 int isBaseType( ExprType *t );
 int tautologyLtBase( ExprType *a, ExprType *b );
 int tautologyLt( ExprType *type, ExprType *expected );
@@ -35,4 +38,10 @@ Satisfiability simplifyLocally( ExprType *a, ExprType *b, int flex, Node *node, 
 Satisfiability simplify( List *typingConstraints, Hashtable *typingEnv, rError_t* errmsg, Node **errnode, Region *r );
 Satisfiability solveConstraints( List *typingConstraints, Hashtable *typingEnv, rError_t* errmsg, Node **errnode, Region *r );
 ExprType *replaceDynamicWithNewTVar( ExprType *type, Region *r );
+
+/* Type constraint annotation validation */
+int validateOptionalTypeConstraint( ExprType *valueType, ExprType *expectedType, Node *exprNode, rError_t *errmsg, Region *r );
+int validateNonnullTypeConstraint( ExprType *valueType, ExprType *expectedType, Node *exprNode, rError_t *errmsg, Region *r );
+int validateTypeConstraints( ExprType *exprType, ExprType *expectedType, Node *exprNode, rError_t *errmsg, Region *r );
+
 #endif /* TYPING_H */

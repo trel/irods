@@ -63,6 +63,8 @@ struct Cache
     int clearDelayed;
     time_type timestamp;
     int logging;
+    int strictTypeChecking;  /* 1 = strict mode (no T_DYNAMIC for rules), 0 = permissive (default) */
+    int disableLegacySyntax;  /* 1 = reject legacy syntax, 0 = accept legacy syntax (default) */
     char ruleBase[RULE_SET_DEF_LENGTH];
     char hash[CHKSUM_LEN];
 };
@@ -155,6 +157,8 @@ void prependAppRule( RuleDesc *rd, Region *r );
 void popExtRuleSet( int checkPoint );
 void clearDelayed();
 int generateFunctionDescriptionTables();
+void setStrictTypeCheckingMode( int enabled );
+void setDisableLegacySyntaxMode( int enabled );
 int readICatUserInfo( char *userName, char *attr, char userInfo[MAX_NAME_LEN], rsComm_t *rsComm );
 int writeICatUserInfo( char *userName, char *attr, char *userInfo, rsComm_t *rsComm );
 int readICatUserLogging( char *userName, int *logging, rsComm_t *rsComm );

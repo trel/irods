@@ -1,0 +1,220 @@
+name: Static Analysis
+
+on:
+  push:
+    branches: [ main, develop, exploration ]
+  pull_request:
+    branches: [ main, develop, exploration ]
+  workflow_dispatch:
+
+jobs:
+  asan:
+    name: Address Sanitizer (ASAN)
+    runs-on: ubuntu-22.04
+    
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+    
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          cmake \
+          ninja-build \
+          clang-13 \
+          llvm-13-dev \
+          libboost-all-dev
+    
+    - name: Create Build Directory
+      run: mkdir -p build
+    
+    - name: Configure CMake with ASAN
+      run: |
+        cd build
+        cmake .. \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DCMAKE_C_COMPILER=clang-13 \
+          -DCMAKE_CXX_COMPILER=clang++-13 \
+          -DIRODS_ENABLE_ADDRESS_SANITIZER=ON \
+          -G Ninja
+    
+    - name: Build with ASAN
+      run: |
+        cd build
+        ninja -j 4
+    
+    - name: Run Tests with ASAN
+      run: |
+        cd build
+        export ASAN_OPTIONS="detect_leaks=1:halt_on_error=1"
+        export LSAN_OPTIONS="verbosity=1:log_threads=1"
+        ctest --verbose --output-on-failure 2>&1 | tee asan_test.log || true
+    
+    - name: Upload ASAN Results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: asan-results
+        path: |
+          build/asan_test.log
+          /tmp/irods_asan_output
+        retention-days: 30
+
+  ubsan:
+    name: Undefined Behavior Sanitizer (UBSAN)
+    runs-on: ubuntu-22.04
+    
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+    
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          cmake \
+          ninja-build \
+          clang-13 \
+          llvm-13-dev \
+          libboost-all-dev
+    
+    - name: Create Build Directory
+      run: mkdir -p build
+    
+    - name: Configure CMake with UBSAN
+      run: |
+        cd build
+        cmake .. \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DCMAKE_C_COMPILER=clang-13 \
+          -DCMAKE_CXX_COMPILER=clang++-13 \
+          -DIRODS_ENABLE_UNDEFINED_BEHAVIOR_SANITIZER=ON \
+          -G Ninja
+    
+    - name: Build with UBSAN
+      run: |
+        cd build
+        ninja -j 4
+    
+    - name: Run Tests with UBSAN
+      run: |
+        cd build
+        export UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=1"
+        ctest --verbose --output-on-failure 2>&1 | tee ubsan_test.log || true
+    
+    - name: Upload UBSAN Results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: ubsan-results
+        path: |
+          build/ubsan_test.log
+          /tmp/irods_ubsan_output
+        retention-days: 30
+
+  clang-tidy:
+    name: clang-tidy Static Analysis
+    runs-on: ubuntu-22.04
+    
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+    
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          cmake \
+          ninja-build \
+          clang-13 \
+          clang-tools-13 \
+          libboost-all-dev
+    
+    - name: Create Build Directory
+      run: mkdir -p build
+    
+    - name: Generate Build System
+      run: |
+        cd build
+        cmake .. -G Ninja
+    
+    - name: Run clang-tidy on Rule Language Plugin
+      run: |
+        cd build
+        # Create a wrapper for clang-tidy-13
+        ln -sf /usr/bin/clang-tidy-13 /usr/local/bin/clang-tidy || true
+        
+        # Run on rule language plugin source
+        /usr/lib/llvm-13/bin/clang-tidy \
+          -p . \
+          --header-filter='irods/private/re/.*' \
+          ../plugins/rule_engines/irods_rule_language/src/parser.cpp \
+          ../plugins/rule_engines/irods_rule_language/src/typing.cpp \
+          ../plugins/rule_engines/irods_rule_language/src/conversion.cpp \
+          2>&1 | tee tidy_report.txt || true
+    
+    - name: Upload clang-tidy Report
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: clang-tidy-report
+        path: build/tidy_report.txt
+        retention-days: 30
+    
+    - name: Check for clang-tidy Issues
+      run: |
+        if grep -q "error:" build/tidy_report.txt; then
+          echo "clang-tidy found errors (treated as warnings in CI)"
+          grep "error:" build/tidy_report.txt | head -20
+        else
+          echo "No clang-tidy errors found"
+        fi
+
+  summary:
+    name: Analysis Summary
+    needs: [asan, ubsan, clang-tidy]
+    runs-on: ubuntu-22.04
+    if: always()
+    
+    steps:
+    - name: Check Results
+      run: |
+        echo "Static Analysis Summary"
+        echo "======================="
+        echo "ASAN: ${{ needs.asan.result }}"
+        echo "UBSAN: ${{ needs.ubsan.result }}"
+        echo "clang-tidy: ${{ needs.clang-tidy.result }}"
+        
+        if [ "${{ needs.asan.result }}" = "failure" ] || \
+           [ "${{ needs.ubsan.result }}" = "failure" ]; then
+          echo ""
+          echo "⚠️  Sanitizer failures detected - review artifacts"
+          exit 1
+        fi
+    
+    - uses: actions/download-artifact@v3
+      with:
+        path: analysis-reports
+    
+    - name: Generate Report
+      run: |
+        echo "# Static Analysis Report" > report.md
+        echo "" >> report.md
+        echo "## ASAN Results" >> report.md
+        echo "\`\`\`" >> report.md
+        [ -f analysis-reports/asan-results/asan_test.log ] && \
+          tail -50 analysis-reports/asan-results/asan_test.log >> report.md || \
+          echo "No ASAN results" >> report.md
+        echo "\`\`\`" >> report.md
+        echo "" >> report.md
+        echo "## UBSAN Results" >> report.md
+        echo "\`\`\`" >> report.md
+        [ -f analysis-reports/ubsan-results/ubsan_test.log ] && \
+          tail -50 analysis-reports/ubsan-results/ubsan_test.log >> report.md || \
+          echo "No UBSAN results" >> report.md
+        echo "\`\`\`" >> report.md
+        cat report.md

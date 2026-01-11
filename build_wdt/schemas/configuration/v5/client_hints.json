@@ -1,0 +1,22 @@
+{
+    "$id": "https://irods.org/configuration_schemas/v5/client_hints.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+        "hash_scheme": {"type": "string", "enum": ["md5", "sha256"]},
+        "match_hash_policy": {"type": "string", "enum": ["strict", "compatible"]},
+        "specific_queries": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "strict_acls": {"type": "string", "enum": ["on", "off"]}
+    },
+    "required": [
+        "hash_scheme",
+        "match_hash_policy",
+        "specific_queries",
+        "strict_acls"
+    ]
+}

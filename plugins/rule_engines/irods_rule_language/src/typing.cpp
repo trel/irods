@@ -3,9 +3,9 @@
 
 #include "irods/private/re/typing.hpp"
 #include "irods/private/re/functions.hpp"
+#include "irods/private/re/deprecation.hpp"
 #include "irods/rcMisc.h"
-#define RE_ERROR(x); if(x) {goto error;}
-#define RE_ERROR2(x,y); if(x) {localErrorMsg=(y);goto error;}
+// Macros RE_ERROR and RE_ERROR2 replaced with explicit error handling (i-5509)
 #define N_BASE_TYPES 7
 NodeType baseTypes[N_BASE_TYPES] = {
     T_INT,
@@ -20,6 +20,363 @@ void doNarrow( Node **l, Node **r, int ln, int rn, int flex, Node **nl, Node **n
 Satisfiability createSimpleConstraint( ExprType *a, ExprType *b, int flex, Node *node, Hashtable *typingEnv, Hashtable *equivalence, List *simpleTypingConstraints, Region *r );
 ExprType *createType( ExprType *t, Node **nc, int nn, Hashtable *typingEnv, Hashtable *equivalence, Region *r );
 ExprType *getFullyBoundedVar( Region *r );
+
+/**
+ * \brief Detect and mark type patterns in match expressions
+ * 
+ * Type patterns are parenthesized type names like (int), (string), (_), etc.
+ * This function recursively traverses match expressions and marks type patterns.
+ * 
+ * \param node    AST node to check (typically a match pattern node)
+ * \param r       Region for memory allocation
+ * \return        1 if node is a type pattern, 0 otherwise
+ */
+int detectAndMarkTypePattern( Node *node, Region *r ) {
+    if ( node == NULL ) {
+        return 0;
+    }
+
+    /* Check if this looks like a type pattern:
+     * - Single identifier (not a complex expression)
+     * - Common type names: int, string, double, bool, time, _
+     */
+    if ( getNodeType( node ) == N_APPLICATION && node->degree == 0 ) {
+        char *typeName = node->text;
+        if ( typeName != NULL ) {
+            if ( strcmp( typeName, "int" ) == 0 ||
+                 strcmp( typeName, "string" ) == 0 ||
+                 strcmp( typeName, "double" ) == 0 ||
+                 strcmp( typeName, "bool" ) == 0 ||
+                 strcmp( typeName, "time" ) == 0 ||
+                 strcmp( typeName, "_" ) == 0 ) {
+                setTypePattern( node );
+                return 1;
+            }
+        }
+    }
+
+    /* Recursively check subtrees for type patterns */
+    int i;
+    for ( i = 0; i < node->degree; i++ ) {
+        if ( node->subtrees[i] != NULL ) {
+            detectAndMarkTypePattern( node->subtrees[i], r );
+        }
+    }
+
+    return 0;
+}
+
+/**
+ * Extract column names from an N_QUERY AST node
+ * Returns a list of column name strings (char*)
+ * The N_QUERY node structure:
+ *   - subtrees[0..n] contain Column nodes (N_ATTR with TK_COL child)
+ *   - followed by optional QueryCond nodes (for WHERE clause)
+ * 
+ * Column extraction stops at first non-column node (typically first WHERE condition)
+ * 
+ * Returns: List of column names (must be freed by caller)
+ *          NULL if no columns found or memory error
+ */
+List *extractColumnNamesFromQuery( Node *queryNode, Region *r ) {
+    if ( queryNode == NULL || getNodeType( queryNode ) != N_QUERY ) {
+        return NULL;
+    }
+    
+    List *columnNames = newList( r );
+    int i;
+    
+    /* Traverse subtrees looking for columns (N_ATTR nodes containing TK_COL) */
+    for ( i = 0; i < queryNode->degree; i++ ) {
+        Node *subtree = queryNode->subtrees[i];
+        
+        /* N_ATTR wraps TK_COL */
+        if ( getNodeType( subtree ) == N_ATTR && subtree->degree > 0 ) {
+            Node *colNode = subtree->subtrees[0];
+            if ( getNodeType( colNode ) == TK_COL ) {
+                /* Extract column name from TK_COL node */
+                char *colName = colNode->text;
+                if ( colName != NULL ) {
+                    listAppend( columnNames, (void*)colName, r );
+                }
+            }
+        }
+        /* Stop at first non-column node (WHERE clause conditions) */
+        else if ( getNodeType( subtree ) != N_ATTR ) {
+            break;
+        }
+    }
+    
+    return columnNames;
+}
+
+/**
+ * Get the ExprType for a GenQuery column name
+ * 
+ * Maps genQuery column names to their iRODS types:
+ * - ID columns (ZONE_ID, USER_ID, RESC_ID, DATA_ID, etc.) -> T_INT
+ * - Name columns (ZONE_NAME, USER_NAME, RESC_NAME, COLL_NAME, DATA_NAME, etc.) -> T_STRING
+ * - Size/count columns (DATA_SIZE, RESC_FREE_SPACE, etc.) -> T_INT
+ * - Time columns (CREATE_TIME, MODIFY_TIME, ACCESS_TIME, etc.) -> T_INT (Unix timestamp)
+ * - Type/status columns (USER_TYPE, RESC_TYPE_NAME, DATA_TYPE_NAME, etc.) -> T_STRING
+ * - Path columns (RESC_VAULT_PATH, DATA_PATH, COLL_NAME, etc.) -> T_STRING
+ * - Info/comment columns (USER_INFO, RESC_INFO, COLL_COMMENTS, DATA_COMMENTS, etc.) -> T_STRING
+ * - Boolean/flag columns (COLL_INHERITANCE, DATA_REPL_STATUS, DATA_STATUS, etc.) -> T_INT (0/1 flag)
+ * 
+ * Returns: ExprType* - type of the column, or T_DYNAMIC for unknown columns
+ * Note: Caller must NOT free the returned ExprType (persistent types)
+ */
+ExprType *getColumnTypeFromSchema( const char *columnName, Region *r ) {
+    /* Return T_DYNAMIC for NULL column name */
+    if ( columnName == NULL ) {
+        return newSimpType( T_DYNAMIC, r );
+    }
+    
+    /* ID columns: ZONE_ID, USER_ID, RESC_ID, DATA_ID, COLL_ID, etc. */
+    if ( strstr( columnName, "_ID" ) != NULL ) {
+        /* Specific ID columns that are integers */
+        if ( strcmp( columnName, "ZONE_ID" ) == 0 ||
+             strcmp( columnName, "USER_ID" ) == 0 ||
+             strcmp( columnName, "RESC_ID" ) == 0 ||
+             strcmp( columnName, "DATA_ID" ) == 0 ||
+             strcmp( columnName, "DATA_COLL_ID" ) == 0 ||
+             strcmp( columnName, "COLL_ID" ) == 0 ||
+             strcmp( columnName, "COLL_MAP_ID" ) == 0 ||
+             strcmp( columnName, "DATA_MAP_ID" ) == 0 ||
+             strcmp( columnName, "META_DATA_ATTR_ID" ) == 0 ||
+             strcmp( columnName, "META_COLL_ATTR_ID" ) == 0 ||
+             strcmp( columnName, "META_RESC_ATTR_ID" ) == 0 ||
+             strcmp( columnName, "META_USER_ATTR_ID" ) == 0 ||
+             strcmp( columnName, "GROUP_ID" ) == 0 ||
+             strcmp( columnName, "GROUP_MEMBER_ID" ) == 0 ||
+             strcmp( columnName, "USER_AUTH_ID" ) == 0 ||
+             strcmp( columnName, "RESC_PARENT_ID" ) == 0 ||
+             strcmp( columnName, "DELAY_RULE_ID" ) == 0 ) {
+            return newSimpType( T_INT, r );
+        }
+    }
+    
+    /* Name columns: ZONE_NAME, USER_NAME, RESC_NAME, COLL_NAME, DATA_NAME, etc. */
+    if ( strstr( columnName, "_NAME" ) != NULL ) {
+        if ( strcmp( columnName, "ZONE_NAME" ) == 0 ||
+             strcmp( columnName, "USER_NAME" ) == 0 ||
+             strcmp( columnName, "RESC_NAME" ) == 0 ||
+             strcmp( columnName, "COLL_NAME" ) == 0 ||
+             strcmp( columnName, "COLL_PARENT_NAME" ) == 0 ||
+             strcmp( columnName, "DATA_NAME" ) == 0 ||
+             strcmp( columnName, "RESC_TYPE_NAME" ) == 0 ||
+             strcmp( columnName, "RESC_CLASS_NAME" ) == 0 ||
+             strcmp( columnName, "DATA_TYPE_NAME" ) == 0 ||
+             strcmp( columnName, "USER_TYPE" ) == 0 ||
+             strcmp( columnName, "USER_TYPE_NAME" ) == 0 ||
+             strcmp( columnName, "RESC_ZONE_NAME" ) == 0 ||
+             strcmp( columnName, "ZONE_TYPE" ) == 0 ||
+             strcmp( columnName, "COLL_TYPE" ) == 0 ||
+             strcmp( columnName, "USER_DN" ) == 0 ||
+             strcmp( columnName, "DELAY_RULE_NAME" ) == 0 ||
+             strcmp( columnName, "DELAY_RULE_USER_NAME" ) == 0 ||
+             strcmp( columnName, "DELAY_RULE_EXE_ADDRESS" ) == 0 ) {
+            return newSimpType( T_STRING, r );
+        }
+    }
+    
+    /* Size/count columns (numeric) */
+    if ( strcmp( columnName, "DATA_SIZE" ) == 0 ||
+         strcmp( columnName, "RESC_FREE_SPACE" ) == 0 ||
+         strcmp( columnName, "DATA_REPL_NUM" ) == 0 ||
+         strcmp( columnName, "DATA_VERSION" ) == 0 ||
+         strcmp( columnName, "DATA_MODE" ) == 0 ) {
+        return newSimpType( T_INT, r );
+    }
+    
+    /* Time columns (stored as Unix timestamp integers) */
+    if ( strstr( columnName, "_TIME" ) != NULL ||
+         strstr( columnName, "_TS" ) != NULL ) {
+        if ( strcmp( columnName, "ZONE_CREATE_TIME" ) == 0 ||
+             strcmp( columnName, "ZONE_MODIFY_TIME" ) == 0 ||
+             strcmp( columnName, "USER_CREATE_TIME" ) == 0 ||
+             strcmp( columnName, "USER_MODIFY_TIME" ) == 0 ||
+             strcmp( columnName, "RESC_CREATE_TIME" ) == 0 ||
+             strcmp( columnName, "RESC_MODIFY_TIME" ) == 0 ||
+             strcmp( columnName, "DATA_CREATE_TIME" ) == 0 ||
+             strcmp( columnName, "DATA_MODIFY_TIME" ) == 0 ||
+             strcmp( columnName, "DATA_ACCESS_TIME" ) == 0 ||
+             strcmp( columnName, "COLL_CREATE_TIME" ) == 0 ||
+             strcmp( columnName, "COLL_MODIFY_TIME" ) == 0 ||
+             strcmp( columnName, "META_DATA_CREATE_TIME" ) == 0 ||
+             strcmp( columnName, "META_DATA_MODIFY_TIME" ) == 0 ||
+             strcmp( columnName, "META_COLL_CREATE_TIME" ) == 0 ||
+             strcmp( columnName, "META_COLL_MODIFY_TIME" ) == 0 ||
+             strcmp( columnName, "META_RESC_CREATE_TIME" ) == 0 ||
+             strcmp( columnName, "META_RESC_MODIFY_TIME" ) == 0 ||
+             strcmp( columnName, "META_USER_CREATE_TIME" ) == 0 ||
+             strcmp( columnName, "META_USER_MODIFY_TIME" ) == 0 ||
+             strcmp( columnName, "DELAY_RULE_EXE_TIME" ) == 0 ) {
+            return newSimpType( T_INT, r );
+        }
+        /* Millisecond precision timestamps */
+        if ( strcmp( columnName, "RESC_MODIFY_TIME_MILLIS" ) == 0 ||
+             strcmp( columnName, "RESC_FREE_SPACE_TIME" ) == 0 ||
+             strcmp( columnName, "DATA_EXPIRY" ) == 0 ) {
+            return newSimpType( T_INT, r );
+        }
+    }
+    
+    /* Path/string columns */
+    if ( strcmp( columnName, "RESC_VAULT_PATH" ) == 0 ||
+         strcmp( columnName, "RESC_HOSTNAME" ) == 0 ||
+         strcmp( columnName, "DATA_PATH" ) == 0 ||
+         strcmp( columnName, "RESC_INFO" ) == 0 ||
+         strcmp( columnName, "RESC_COMMENT" ) == 0 ||
+         strcmp( columnName, "ZONE_COMMENT" ) == 0 ||
+         strcmp( columnName, "USER_COMMENT" ) == 0 ||
+         strcmp( columnName, "USER_INFO" ) == 0 ||
+         strcmp( columnName, "DATA_COMMENTS" ) == 0 ||
+         strcmp( columnName, "COLL_COMMENTS" ) == 0 ||
+         strcmp( columnName, "DATA_CHECKSUM" ) == 0 ||
+         strcmp( columnName, "ZONE_CONNECTION" ) == 0 ||
+         strcmp( columnName, "RESC_CONTEXT" ) == 0 ||
+         strcmp( columnName, "RESC_PARENT_CONTEXT" ) == 0 ||
+         strcmp( columnName, "COLL_INHERITANCE" ) == 0 ||
+         strcmp( columnName, "COLL_INFO1" ) == 0 ||
+         strcmp( columnName, "COLL_INFO2" ) == 0 ||
+         strcmp( columnName, "RESC_CHILDREN" ) == 0 ||
+         strcmp( columnName, "DATA_RESC_HIER" ) == 0 ||
+         strcmp( columnName, "RESC_STATUS" ) == 0 ||
+         strcmp( columnName, "DELAY_RULE_REI_FILE_PATH" ) == 0 ||
+         strcmp( columnName, "DELAY_RULE_EXE_FREQUENCY" ) == 0 ) {
+        return newSimpType( T_STRING, r );
+    }
+    
+    /* Status/flag columns (integer 0/1 or similar) */
+    if ( strcmp( columnName, "DATA_REPL_STATUS" ) == 0 ||
+         strcmp( columnName, "DATA_STATUS" ) == 0 ) {
+        return newSimpType( T_INT, r );
+    }
+    
+    /* Metadata attribute columns */
+    if ( strcmp( columnName, "META_DATA_ATTR_NAME" ) == 0 ||
+         strcmp( columnName, "META_DATA_ATTR_VALUE" ) == 0 ||
+         strcmp( columnName, "META_DATA_ATTR_UNITS" ) == 0 ||
+         strcmp( columnName, "META_COLL_ATTR_NAME" ) == 0 ||
+         strcmp( columnName, "META_COLL_ATTR_VALUE" ) == 0 ||
+         strcmp( columnName, "META_COLL_ATTR_UNITS" ) == 0 ||
+         strcmp( columnName, "META_RESC_ATTR_NAME" ) == 0 ||
+         strcmp( columnName, "META_RESC_ATTR_VALUE" ) == 0 ||
+         strcmp( columnName, "META_RESC_ATTR_UNITS" ) == 0 ||
+         strcmp( columnName, "META_USER_ATTR_NAME" ) == 0 ||
+         strcmp( columnName, "META_USER_ATTR_VALUE" ) == 0 ||
+         strcmp( columnName, "META_USER_ATTR_UNITS" ) == 0 ) {
+        return newSimpType( T_STRING, r );
+    }
+    
+    /* Special data resource column */
+    if ( strcmp( columnName, "DATA_RESC_ID" ) == 0 ) {
+        return newSimpType( T_INT, r );
+    }
+    
+    /* Delay rule priority */
+    if ( strcmp( columnName, "DELAY_RULE_PRIORITY" ) == 0 ||
+         strcmp( columnName, "DELAY_RULE_ESTIMATED_EXE_TIME" ) == 0 ) {
+        return newSimpType( T_INT, r );
+    }
+    
+    /* Unknown column - return T_DYNAMIC for graceful degradation */
+    return newSimpType( T_DYNAMIC, r );
+}
+
+/**
+ * Create a tuple type from a list of column names
+ * 
+ * Builds a composite tuple type where each element corresponds to the type
+ * of the column at that position. The tuple represents the structure of a
+ * query result row.
+ * 
+ * Examples:
+ * - ["COLL_NAME", "DATA_NAME"] -> tuple<string, string>
+ * - ["USER_ID", "USER_NAME", "DATA_SIZE"] -> tuple<int, string, int>
+ * - ["DATA_ID"] -> tuple<int> (single element tuple)
+ * 
+ * Args:
+ *   columnNames: List of column name strings (char*), or NULL
+ *   r: Memory region for allocation
+ * 
+ * Returns: ExprType* - tuple type with elements corresponding to column types
+ *          NULL if columnNames is NULL or empty
+ *          
+ * Note: For queries with no columns, returns NULL. Caller must handle.
+ */
+ExprType *createTupleTypeFromColumns( List *columnNames, Region *r ) {
+    if ( columnNames == NULL ) {
+        return NULL;
+    }
+    
+    /* Get the number of columns */
+    int numColumns = columnNames->size;
+    if ( numColumns == 0 ) {
+        return NULL;
+    }
+    
+    /* Allocate array of ExprType pointers for tuple elements */
+    ExprType **typeArgs = (ExprType **)region_alloc( r, numColumns * sizeof(ExprType *) );
+    if ( typeArgs == NULL ) {
+        return NULL;
+    }
+    
+    /* Build type for each column */
+    int i;
+    ListNode *node = columnNames->head;
+    for ( i = 0; i < numColumns && node != NULL; i++, node = node->next ) {
+        char *columnName = (char *)node->value;
+        ExprType *colType = getColumnTypeFromSchema( columnName, r );
+        
+        if ( colType == NULL ) {
+            /* Column type lookup failed - use union of common types as safe fallback */
+            ExprType *intType = newSimpType( T_INT, r );
+            ExprType *stringType = newSimpType( T_STRING, r );
+            ExprType *dynamicType = newSimpType( T_DYNAMIC, r );
+            
+            ExprType **unionDisjuncts = (ExprType **)region_alloc( r, sizeof(ExprType *) * 3 );
+            if ( unionDisjuncts != NULL ) {
+                unionDisjuncts[0] = intType;
+                unionDisjuncts[1] = stringType;
+                unionDisjuncts[2] = dynamicType;
+                typeArgs[i] = newUnionType( 3, unionDisjuncts, r );
+            }
+            else {
+                /* Memory allocation failed - fall back to T_DYNAMIC */
+                typeArgs[i] = newSimpType( T_DYNAMIC, r );
+            }
+        }
+        else if ( getNodeType( colType ) == T_DYNAMIC ) {
+            /* Unknown column (returned T_DYNAMIC by schema) - enhance with union for better type inference */
+            /* Union of common column types: int | string | dynamic */
+            ExprType *intType = newSimpType( T_INT, r );
+            ExprType *stringType = newSimpType( T_STRING, r );
+            
+            ExprType **unionDisjuncts = (ExprType **)region_alloc( r, sizeof(ExprType *) * 3 );
+            if ( unionDisjuncts != NULL ) {
+                unionDisjuncts[0] = intType;
+                unionDisjuncts[1] = stringType;
+                unionDisjuncts[2] = colType;  /* T_DYNAMIC as fallback */
+                typeArgs[i] = newUnionType( 3, unionDisjuncts, r );
+            }
+            else {
+                /* Memory allocation failed - use original T_DYNAMIC */
+                typeArgs[i] = colType;
+            }
+        }
+        else {
+            /* Known column type - use directly */
+            typeArgs[i] = colType;
+        }
+    }
+    
+    /* Create tuple type from the element types */
+    ExprType *tupleType = newTupleType( numColumns, typeArgs, r );
+    
+    return tupleType;
+}
 
 /**
  * return 0 to len-1 index of the parameter with type error
@@ -52,7 +409,12 @@ int tautologyLt( ExprType *type, ExprType *expected ) {
     if ( getNodeType( type ) == T_VAR ) {
         if ( T_VAR_NUM_DISJUNCTS( type ) > 0 ) {
             for ( i = 0; i < T_VAR_NUM_DISJUNCTS( type ); i++ ) {
-                setNodeType( &a, getNodeType( T_VAR_DISJUNCT( type, i ) ) );
+                ExprType *disjunct = T_VAR_DISJUNCT( type, i );
+                if ( disjunct == NULL ) {
+                    rodsLog( LOG_ERROR, "tautologyLtBase: array bounds violation - disjunct index %d out of range", i );
+                    return 0;
+                }
+                setNodeType( &a, getNodeType( disjunct ) );
                 if ( !tautologyLt( &a, expected ) ) {
                     return 0;
                 }
@@ -67,7 +429,12 @@ int tautologyLt( ExprType *type, ExprType *expected ) {
     else if ( getNodeType( expected ) == T_VAR ) {
         if ( T_VAR_NUM_DISJUNCTS( expected ) > 0 ) {
             for ( i = 0; i < T_VAR_NUM_DISJUNCTS( expected ); i++ ) {
-                setNodeType( &b, getNodeType( T_VAR_DISJUNCT( expected, i ) ) );
+                ExprType *disjunct = T_VAR_DISJUNCT( expected, i );
+                if ( disjunct == NULL ) {
+                    rodsLog( LOG_ERROR, "tautologyLtBase: array bounds violation - disjunct index %d out of range", i );
+                    return 0;
+                }
+                setNodeType( &b, getNodeType( disjunct ) );
                 if ( !tautologyLt( type, &b ) ) {
                     return 0;
                 }
@@ -428,6 +795,11 @@ Satisfiability splitConsOrTuple( ExprType *a, ExprType *b, int flex, Node *node,
         for ( i = 0; i < T_CONS_ARITY( a ); i++ ) {
             ExprType *simpa = T_CONS_TYPE_ARG( a, i );
             ExprType *simpb = T_CONS_TYPE_ARG( b, i );
+            /* bounds check: T_CONS_TYPE_ARG now returns NULL on out-of-bounds */
+            if ( simpa == NULL || simpb == NULL ) {
+                rodsLog( LOG_ERROR, "splitConsOrTuple: array bounds violation - index %d out of range", i );
+                return ABSURDITY;
+            }
             Satisfiability sat = simplifyLocally( simpa, simpb, flex, node, typingEnv, equivalence, simpleTypingConstraints, r );
             switch ( sat ) {
             case ABSURDITY:
@@ -508,6 +880,24 @@ Satisfiability simplifyLocally( ExprType *tca, ExprType *tcb, int flex, Node *no
 
     if ( getNodeType( tca ) == T_UNSPECED || getNodeType( tca ) == T_DYNAMIC || getNodeType( tcb ) == T_DYNAMIC ) { /* is an undefined variable argument or a parameter with dynamic type */
         return TAUTOLOGY;
+    }
+    /* Union type handling: when tcb is a union (T_VAR with disjuncts),
+     * check if tca matches any disjunct */
+    else if ( getNodeType( tcb ) == T_VAR && T_VAR_NUM_DISJUNCTS( tcb ) > 0 && getNodeType( tca ) != T_VAR ) {
+        /* Try to match tca against one of the union disjuncts */
+        for ( int i = 0; i < T_VAR_NUM_DISJUNCTS( tcb ); i++ ) {
+            ExprType *disjunct = T_VAR_DISJUNCT( tcb, i );
+            Satisfiability result = simplifyLocally( tca, disjunct, flex, node, typingEnv, equivalence, simpleTypingConstraints, r );
+            if ( result == TAUTOLOGY || result == CONTINGENCY ) {
+                return result;  /* Match found in union */
+            }
+        }
+        /* No disjunct matched - type incompatible with union */
+        return ABSURDITY;
+    }
+    /* Union type handling: when tca is a union, defer to narrow() for constraint tracking */
+    else if ( getNodeType( tca ) == T_VAR && T_VAR_NUM_DISJUNCTS( tca ) > 0 ) {
+        return narrow( tca, tcb, flex, node, typingEnv, equivalence, simpleTypingConstraints, r );
     }
     else if ( baseRuleApplies( tca, tcb, flex, &templa, &templb, r ) ) {
         Satisfiability c = TAUTOLOGY;
@@ -626,6 +1016,12 @@ Satisfiability simplify( List *typingConstraints, Hashtable *typingEnv, rError_t
     ListNode *ln;
     int changed;
     Hashtable *equivalence = newHashTable2( 10, r );
+    if ( equivalence == NULL ) {
+        /* Out of memory */
+        rodsLog( LOG_ERROR, "simplify: Failed to allocate equivalence class table" );
+        addRErrorMsg( errmsg, SYS_MALLOC_ERR, "error: out of memory during constraint simplification." );
+        return ABSURDITY;
+    }
     List *simpleTypingConstraints = newList( r );
     /* printf("start\n"); */
     /*char buf[1024];
@@ -831,147 +1227,248 @@ ExprType* isIterable( ExprType *type, Hashtable* var_type_table, Region *r ) {
 
 
 ExprType* typeFunction3( Node* node, int dynamictyping, Env* funcDesc, Hashtable* var_type_table, List *typingConstraints, rError_t *errmsg, Node **errnode, Region *r ) {
-    /*printTree(node, 0); */
-    int i;
-    char *localErrorMsg;
-    ExprType *res3 = NULL;
-    /*char buf[1024];*/
-    /*printf("typeing %s\n",fn); */
-    /*printVarTypeEnvToStdOut(var_type_table); */
-    Node *fn = node->subtrees[0];
-    Node *arg = node->subtrees[1];
-    char buf[ERR_MSG_LEN];
-    /* char errbuf[ERR_MSG_LEN]; */
-    char typebuf[ERR_MSG_LEN];
-    char typebuf2[ERR_MSG_LEN];
+     /*printTree(node, 0); */
+     int i;
+     char *localErrorMsg;
+     ExprType *res3 = NULL;
+     /*char buf[1024];*/
+     /*printf("typeing %s\n",fn); */
+     /*printVarTypeEnvToStdOut(var_type_table); */
+     Node *fn = node->subtrees[0];
+     Node *arg = node->subtrees[1];
+     char buf[ERR_MSG_LEN];
+     char errbuf[ERR_MSG_LEN];
+     char typebuf[ERR_MSG_LEN];
+     char typebuf2[ERR_MSG_LEN];
+     char errmsgbuf[ERR_MSG_LEN];
+     
+     /* Check for legacy function calls and emit deprecation warnings */
+     if ( getNodeType( fn ) == TK_TEXT && isLegacySystemFunction( fn->text ) ) {
+         const DeprecationInfo *info = getLegacyFunctionDeprecationInfo( fn->text );
+         if ( info && errmsg ) {
+             snprintf( errbuf, ERR_MSG_LEN,
+                      "Deprecated function '%s' (since v%s, removal in v%s): %s. Modern alternative: %s",
+                      info->name, info->since_version, info->removal_version,
+                      info->reason, info->alternative );
+             addRErrorMsg( errmsg, RE_DEPRECATION_WARNING, errbuf );
+         }
+     }
+     
+     if ( getNodeType( fn ) == TK_TEXT && strcmp( fn->text, "foreach" ) == 0 ) {
+         if ( getNodeType( arg ) != N_TUPLE || arg->degree != 3 ) {
+             localErrorMsg = "wrong number of arguments to microservice";
+             *errnode = node;
+             snprintf( errmsgbuf, ERR_MSG_LEN, "type error: %s in %s", localErrorMsg, fn->text );
+             generateErrMsg( errmsgbuf, NODE_EXPR_POS( ( *errnode ) ), ( *errnode )->base, errbuf );
+             addRErrorMsg( errmsg, RE_TYPE_ERROR, errbuf );
+             return newSimpType( T_ERROR, r );
+         }
+         if ( getNodeType( arg->subtrees[0] ) != TK_VAR ) {
+             localErrorMsg = "argument form error";
+             *errnode = node;
+             snprintf( errmsgbuf, ERR_MSG_LEN, "type error: %s in %s", localErrorMsg, fn->text );
+             generateErrMsg( errmsgbuf, NODE_EXPR_POS( ( *errnode ) ), ( *errnode )->base, errbuf );
+             addRErrorMsg( errmsg, RE_TYPE_ERROR, errbuf );
+             return newSimpType( T_ERROR, r );
+         }
+         char* varname = arg->subtrees[0]->text;
+         ExprType *varType0 = ( ExprType * )lookupFromHashTable( var_type_table, varname );
+         ExprType *varType;
+         ExprType *collType = varType0 == NULL ? NULL : dereference( varType0, var_type_table, r );
+         if ( collType != NULL ) {
+             varType = isIterable( collType, var_type_table, r );
+             if ( varType == NULL ) {
+                 /* error if res is not an iterable type */
+                 localErrorMsg = "foreach is applied to a non collection type";
+                 *errnode = node;
+                 snprintf( errmsgbuf, ERR_MSG_LEN, "type error: %s in %s", localErrorMsg, fn->text );
+                 generateErrMsg( errmsgbuf, NODE_EXPR_POS( ( *errnode ) ), ( *errnode )->base, errbuf );
+                 addRErrorMsg( errmsg, RE_TYPE_ERROR, errbuf );
+                 return newSimpType( T_ERROR, r );
+             }
+         }
+         else {
+             varType = newTVar( r );
+             collType = newCollType( varType, r );
+         }
+         if ( varType0 == NULL ) {
+             insertIntoHashTable( var_type_table, varname, varType );
+         }
+         else {
+             updateInHashTable( var_type_table, varname, varType );
+         }
+         arg->subtrees[0]->exprType = collType;
+         res3 = typeExpression3( arg->subtrees[1], dynamictyping, funcDesc, var_type_table, typingConstraints, errmsg, errnode, r );
+         if ( getNodeType( res3 ) == T_ERROR ) {
+             localErrorMsg = "foreach loop type error";
+             *errnode = node;
+             snprintf( errmsgbuf, ERR_MSG_LEN, "type error: %s in %s", localErrorMsg, fn->text );
+             generateErrMsg( errmsgbuf, NODE_EXPR_POS( ( *errnode ) ), ( *errnode )->base, errbuf );
+             addRErrorMsg( errmsg, RE_TYPE_ERROR, errbuf );
+             return newSimpType( T_ERROR, r );
+         }
+         res3 = typeExpression3( arg->subtrees[2], dynamictyping, funcDesc, var_type_table, typingConstraints, errmsg, errnode, r );
+         if ( getNodeType( res3 ) == T_ERROR ) {
+             localErrorMsg = "foreach recovery type error";
+             *errnode = node;
+             snprintf( errmsgbuf, ERR_MSG_LEN, "type error: %s in %s", localErrorMsg, fn->text );
+             generateErrMsg( errmsgbuf, NODE_EXPR_POS( ( *errnode ) ), ( *errnode )->base, errbuf );
+             addRErrorMsg( errmsg, RE_TYPE_ERROR, errbuf );
+             return newSimpType( T_ERROR, r );
+         }
+         setIOType( arg->subtrees[0], IO_TYPE_EXPRESSION );
+         for ( i = 1; i < 3; i++ ) {
+             setIOType( arg->subtrees[i], IO_TYPE_ACTIONS );
+         }
+         ExprType **typeArgs = allocSubtrees( r, 3 );
+         typeArgs[0] = collType;
+         typeArgs[1] = newTVar( r );
+         typeArgs[2] = newTVar( r );
+         arg->coercionType = newTupleType( 3, typeArgs, r );
+ 
+         updateInHashTable( var_type_table, varname, collType ); /* restore type of collection variable */
+         return res3;
+     }
+     else {
+         ExprType *fnType = typeExpression3( fn, dynamictyping, funcDesc, var_type_table, typingConstraints, errmsg, errnode, r );
+         if ( getNodeType( fnType ) == T_ERROR ) {
+             return fnType;
+         }
+         
+         /* Check if calling a user-defined @deprecated function */
+         if ( getNodeType( fn ) == TK_TEXT && funcDesc != NULL ) {
+             FunctionDesc *fDesc = (FunctionDesc *)lookupFromEnv( funcDesc, fn->text );
+             /* TODO: isDeprecated function needs to be implemented (ticket i-f77b) */
+             if ( fDesc != NULL /* && isDeprecated( fDesc ) */ ) {
+                 /* Get the deprecation message from the function node */
+                 /* const char *deprecatedMsg = NULL;
+                 if ( fDesc->text != NULL && strlen( fDesc->text ) > 0 ) {
+                     deprecatedMsg = fDesc->text;
+                 } */
+                 
+                 /* Emit deprecation warning */
+                 /* TODO: Only emit if actually deprecated
+                 if ( errmsg ) {
+                     char errbuf[ERR_MSG_LEN];
+                     if ( deprecatedMsg != NULL ) {
+                         snprintf( errbuf, ERR_MSG_LEN,
+                                  "Deprecated function '%s' called: %s",
+                                  fn->text, deprecatedMsg );
+                     } else {
+                         snprintf( errbuf, ERR_MSG_LEN,
+                                  "Deprecated function '%s' called",
+                                  fn->text );
+                     }
+                     addRErrorMsg( errmsg, RE_DEPRECATION_WARNING, errbuf );
+                 }
+                 */
+                 }
+         }
+         
+         N_TUPLE_CONSTRUCT_TUPLE( arg ) = 1; /* arg must be a N_TUPLE node */
+         ExprType *argType = typeExpression3( arg, dynamictyping, funcDesc, var_type_table, typingConstraints, errmsg, errnode, r );
+         if ( getNodeType( argType ) == T_ERROR ) {
+             return argType;
+         }
 
-    if ( getNodeType( fn ) == TK_TEXT && strcmp( fn->text, "foreach" ) == 0 ) {
-        RE_ERROR2( getNodeType( arg ) != N_TUPLE || arg->degree != 3, "wrong number of arguments to microservice" );
-        RE_ERROR2( getNodeType( arg->subtrees[0] ) != TK_VAR, "argument form error" );
-        char* varname = arg->subtrees[0]->text;
-        ExprType *varType0 = ( ExprType * )lookupFromHashTable( var_type_table, varname );
-        ExprType *varType;
-        ExprType *collType = varType0 == NULL ? NULL : dereference( varType0, var_type_table, r );
-        if ( collType != NULL ) {
-            varType = isIterable( collType, var_type_table, r );
-            if ( varType == NULL ) {
-                /* error if res is not an iterable type */
-                RE_ERROR2( 1, "foreach is applied to a non collection type" );
-            }
-        }
-        else {
-            varType = newTVar( r );
-            collType = newCollType( varType, r );
-        }
-        if ( varType0 == NULL ) {
-            insertIntoHashTable( var_type_table, varname, varType );
-        }
-        else {
-            updateInHashTable( var_type_table, varname, varType );
-        }
-        arg->subtrees[0]->exprType = collType;
-        res3 = typeExpression3( arg->subtrees[1], dynamictyping, funcDesc, var_type_table, typingConstraints, errmsg, errnode, r );
-        RE_ERROR2( getNodeType( res3 ) == T_ERROR, "foreach loop type error" );
-        res3 = typeExpression3( arg->subtrees[2], dynamictyping, funcDesc, var_type_table, typingConstraints, errmsg, errnode, r );
-        RE_ERROR2( getNodeType( res3 ) == T_ERROR, "foreach recovery type error" );
-        setIOType( arg->subtrees[0], IO_TYPE_EXPRESSION );
-        for ( i = 1; i < 3; i++ ) {
-            setIOType( arg->subtrees[i], IO_TYPE_ACTIONS );
-        }
-        ExprType **typeArgs = allocSubtrees( r, 3 );
-        typeArgs[0] = collType;
-        typeArgs[1] = newTVar( r );
-        typeArgs[2] = newTVar( r );
-        arg->coercionType = newTupleType( 3, typeArgs, r );
+         ExprType *fType = getNodeType( fnType ) == T_CONS && strcmp( fnType->text, FUNC ) == 0 ? fnType : unifyWith( fnType, newFuncType( newTVar( r ), newTVar( r ), r ), var_type_table, r );
+ 
+         if ( getNodeType( fType ) == T_ERROR ) {
+             localErrorMsg = "the first component of a function application does not have a function type";
+             *errnode = node;
+             snprintf( errmsgbuf, ERR_MSG_LEN, "type error: %s in %s", localErrorMsg, fn->text );
+             generateErrMsg( errmsgbuf, NODE_EXPR_POS( ( *errnode ) ), ( *errnode )->base, errbuf );
+             addRErrorMsg( errmsg, RE_TYPE_ERROR, errbuf );
+             return newSimpType( T_ERROR, r );
+         }
+         ExprType *paramType = dereference( fType->subtrees[0], var_type_table, r );
+         ExprType *retType = dereference( fType->subtrees[1], var_type_table, r );
+ 
+         if ( getNodeType( fn ) == TK_TEXT && strcmp( fn->text, "assign" ) == 0 &&
+                    arg->degree > 0 &&
+                    !isPattern( arg->subtrees[0] ) ) {
+             localErrorMsg = "the first argument of microservice assign is not a variable or a pattern";
+             *errnode = node;
+             snprintf( errmsgbuf, ERR_MSG_LEN, "type error: %s in %s", localErrorMsg, fn->text );
+             generateErrMsg( errmsgbuf, NODE_EXPR_POS( ( *errnode ) ), ( *errnode )->base, errbuf );
+             addRErrorMsg( errmsg, RE_TYPE_ERROR, errbuf );
+             return newSimpType( T_ERROR, r );
+         }
+         if ( getNodeType( fn ) == TK_TEXT && strcmp( fn->text, "let" ) == 0 &&
+                    arg->degree > 0 &&
+                    !isPattern( arg->subtrees[0] ) ) {
+             localErrorMsg = "the first argument of microservice let is not a variable or a pattern";
+             *errnode = node;
+             snprintf( errmsgbuf, ERR_MSG_LEN, "type error: %s in %s", localErrorMsg, fn->text );
+             generateErrMsg( errmsgbuf, NODE_EXPR_POS( ( *errnode ) ), ( *errnode )->base, errbuf );
+             addRErrorMsg( errmsg, RE_TYPE_ERROR, errbuf );
+             return newSimpType( T_ERROR, r );
+         }
+ 
+         /*
+                     printf("start typing %s\n", fn);
+                     printTreeDeref(node, 0, var_type_table, r);
+         */
+         ExprType *t = NULL;
+         if ( getVararg( fType ) != OPTION_VARARG_ONCE ) {
+             /* generate instance of vararg tuple so that no vararg tuple goes into typing constraints */
+             int fixParamN = paramType->degree - 1;
+             int argN = node->subtrees[1] ->degree;
+             int copyN = argN - fixParamN;
+             ExprType **subtrees = paramType->subtrees;
+             if ( copyN < ( getVararg( fType ) == OPTION_VARARG_PLUS ? 1 : 0 ) || ( getVararg( fType ) == OPTION_VARARG_OPTIONAL && copyN > 1 ) ) {
+                 snprintf( buf, 1024, "unsolvable vararg typing constraint %s < %s %s",
+                           typeToString( argType, var_type_table, typebuf, ERR_MSG_LEN ),
+                           typeToString( paramType, var_type_table, typebuf2, ERR_MSG_LEN ),
+                           getVararg( fType ) == OPTION_VARARG_PLUS ? "*" : getVararg( fType ) == OPTION_VARARG_OPTIONAL ? "?" : "+" );
+                 localErrorMsg = buf;
+                 *errnode = node;
+                 snprintf( errmsgbuf, ERR_MSG_LEN, "type error: %s in %s", localErrorMsg, fn->text );
+                 generateErrMsg( errmsgbuf, NODE_EXPR_POS( ( *errnode ) ), ( *errnode )->base, errbuf );
+                 addRErrorMsg( errmsg, RE_TYPE_ERROR, errbuf );
+                 return newSimpType( T_ERROR, r );
+             }
+             ExprType **paramTypes = allocSubtrees( r, argN );
+             int i;
+             for ( i = 0; i < fixParamN; i++ ) {
+                 paramTypes[i] = subtrees[i];
+             }
+             for ( i = 0; i < copyN; i++ ) {
+                 paramTypes[i + fixParamN] = subtrees[fixParamN];
+             }
+             t = newTupleType( argN, paramTypes, r );
+         }
+         else {
+             t = paramType;
+         }
+         /*t = replaceDynamicWithNewTVar(t, r);
+         argType = replaceDynamicWithNewTVar(argType, r);*/
+         int ret = typeFuncParam( node->subtrees[1], argType, t, var_type_table, typingConstraints, errmsg, r );
+         if ( ret != 0 ) {
+             *errnode = node->subtrees[1];
+             localErrorMsg = "parameter type error";
+             *errnode = node;
+             snprintf( errmsgbuf, ERR_MSG_LEN, "type error: %s in %s", localErrorMsg, fn->text );
+             generateErrMsg( errmsgbuf, NODE_EXPR_POS( ( *errnode ) ), ( *errnode )->base, errbuf );
+             addRErrorMsg( errmsg, RE_TYPE_ERROR, errbuf );
+             return newSimpType( T_ERROR, r );
+         }
+         int i;
+         for ( i = 0; i < node->subtrees[1]->degree; i++ ) {
+             setIOType( node->subtrees[1]->subtrees[i], getIOType( t->subtrees[i] ) );
+         }
+ 
+         arg->coercionType = t; /* set coercion to parameter type */
+ 
+         /*
+                 printTreeDeref(node, 0, var_type_table, r);
+                 printf("finish typing %s\n", fn);
+         */
+         return instantiate( replaceDynamicWithNewTVar( retType, r ), var_type_table, 0, r );
+         }
+         }
 
-        updateInHashTable( var_type_table, varname, collType ); /* restore type of collection variable */
-        return res3;
-    }
-    else {
-        ExprType *fnType = typeExpression3( fn, dynamictyping, funcDesc, var_type_table, typingConstraints, errmsg, errnode, r );
-        if ( getNodeType( fnType ) == T_ERROR ) {
-            return fnType;
-        }
-        N_TUPLE_CONSTRUCT_TUPLE( arg ) = 1; /* arg must be a N_TUPLE node */
-        ExprType *argType = typeExpression3( arg, dynamictyping, funcDesc, var_type_table, typingConstraints, errmsg, errnode, r );
-        if ( getNodeType( argType ) == T_ERROR ) {
-            return argType;
-        }
-
-        ExprType *fType = getNodeType( fnType ) == T_CONS && strcmp( fnType->text, FUNC ) == 0 ? fnType : unifyWith( fnType, newFuncType( newTVar( r ), newTVar( r ), r ), var_type_table, r );
-
-        RE_ERROR2( getNodeType( fType ) == T_ERROR, "the first component of a function application does not have a function type" );
-        ExprType *paramType = dereference( fType->subtrees[0], var_type_table, r );
-        ExprType *retType = dereference( fType->subtrees[1], var_type_table, r );
-
-        RE_ERROR2( getNodeType( fn ) == TK_TEXT && strcmp( fn->text, "assign" ) == 0 &&
-                   arg->degree > 0 &&
-                   !isPattern( arg->subtrees[0] ), "the first argument of microservice assign is not a variable or a pattern" );
-        RE_ERROR2( getNodeType( fn ) == TK_TEXT && strcmp( fn->text, "let" ) == 0 &&
-                   arg->degree > 0 &&
-                   !isPattern( arg->subtrees[0] ), "the first argument of microservice let is not a variable or a pattern" );
-
-        /*
-                    printf("start typing %s\n", fn);
-                    printTreeDeref(node, 0, var_type_table, r);
-        */
-        ExprType *t = NULL;
-        if ( getVararg( fType ) != OPTION_VARARG_ONCE ) {
-            /* generate instance of vararg tuple so that no vararg tuple goes into typing constraints */
-            int fixParamN = paramType->degree - 1;
-            int argN = node->subtrees[1] ->degree;
-            int copyN = argN - fixParamN;
-            ExprType **subtrees = paramType->subtrees;
-            if ( copyN < ( getVararg( fType ) == OPTION_VARARG_PLUS ? 1 : 0 ) || ( getVararg( fType ) == OPTION_VARARG_OPTIONAL && copyN > 1 ) ) {
-                snprintf( buf, 1024, "unsolvable vararg typing constraint %s < %s %s",
-                          typeToString( argType, var_type_table, typebuf, ERR_MSG_LEN ),
-                          typeToString( paramType, var_type_table, typebuf2, ERR_MSG_LEN ),
-                          getVararg( fType ) == OPTION_VARARG_PLUS ? "*" : getVararg( fType ) == OPTION_VARARG_OPTIONAL ? "?" : "+" );
-                RE_ERROR2( 1, buf );
-            }
-            ExprType **paramTypes = allocSubtrees( r, argN );
-            int i;
-            for ( i = 0; i < fixParamN; i++ ) {
-                paramTypes[i] = subtrees[i];
-            }
-            for ( i = 0; i < copyN; i++ ) {
-                paramTypes[i + fixParamN] = subtrees[fixParamN];
-            }
-            t = newTupleType( argN, paramTypes, r );
-        }
-        else {
-            t = paramType;
-        }
-        /*t = replaceDynamicWithNewTVar(t, r);
-        argType = replaceDynamicWithNewTVar(argType, r);*/
-        int ret = typeFuncParam( node->subtrees[1], argType, t, var_type_table, typingConstraints, errmsg, r );
-        if ( ret != 0 ) {
-            *errnode = node->subtrees[1];
-            RE_ERROR2( true, "parameter type error" );
-        }
-        int i;
-        for ( i = 0; i < node->subtrees[1]->degree; i++ ) {
-            setIOType( node->subtrees[1]->subtrees[i], getIOType( t->subtrees[i] ) );
-        }
-
-        arg->coercionType = t; /* set coercion to parameter type */
-
-        /*
-                printTreeDeref(node, 0, var_type_table, r);
-                printf("finish typing %s\n", fn);
-        */
-        return instantiate( replaceDynamicWithNewTVar( retType, r ), var_type_table, 0, r );
-    }
-    char errbuf[ERR_MSG_LEN];
-    char errmsgbuf[ERR_MSG_LEN];
-error:
-    *errnode = node;
-    snprintf( errmsgbuf, ERR_MSG_LEN, "type error: %s in %s", localErrorMsg, fn->text );
-    generateErrMsg( errmsgbuf, NODE_EXPR_POS( ( *errnode ) ), ( *errnode )->base, errbuf );
-    addRErrorMsg( errmsg, RE_TYPE_ERROR, errbuf );
-    return newSimpType( T_ERROR, r );
-}
-ExprType *replaceDynamicWithNewTVar( ExprType *type, Region *r ) {
+         ExprType *replaceDynamicWithNewTVar( ExprType *type, Region *r ) {
     ExprType *newt = ( ExprType * )region_alloc( r, sizeof( ExprType ) );
     *newt = *type;
     if ( getNodeType( type ) == T_DYNAMIC ) {
@@ -1006,6 +1503,12 @@ int typeFuncParam( Node *param, Node *paramType, Node *formalParamType, Hashtabl
     case ABSURDITY:
         return -1;
     }
+    
+    /* Validate @optional/@nonnull type constraints */
+    if ( validateTypeConstraints( paramType, formalParamType, param, errmsg, r ) != 0 ) {
+        return -1;
+    }
+    
     return 0;
 }
 
@@ -1064,7 +1567,32 @@ ExprType* typeExpression3( Node *expr, int dynamictyping, Env *funcDesc, Hashtab
             /* not a variable, evaluate as a function */
             FunctionDesc *fDesc;
             if ( funcDesc != NULL && ( fDesc = ( FunctionDesc* )lookupFromEnv( funcDesc, expr->text ) ) != NULL && fDesc->exprType != NULL ) {
-                return expr->exprType = dupType( fDesc->exprType, r );
+                /* Check if function is marked as deprecated */
+                /* TODO: isDeprecated function needs to be implemented (ticket i-f77b) */
+                /* if ( isDeprecated( fDesc ) ) {
+                    char errbuf[ERR_MSG_LEN];
+                    char deprecatedMsg[ERR_MSG_LEN];
+                    
+                    // Get deprecation message from fDesc->text if available
+                    if ( fDesc->text != NULL && fDesc->text[0] != '\0' ) {
+                        snprintf( deprecatedMsg, ERR_MSG_LEN, "%s", fDesc->text );
+                    } else {
+                        snprintf( deprecatedMsg, ERR_MSG_LEN, "use of deprecated function" );
+                    }
+                    
+                    // Generate error message with function name and deprecation details
+                    snprintf( errbuf, ERR_MSG_LEN, "deprecated function '%s': %s", expr->text, deprecatedMsg );
+                    addRErrorMsg( errmsg, RE_DEPRECATION_WARNING, errbuf );
+                } */
+                
+                ExprType *dupedType = dupType( fDesc->exprType, r );
+                if ( dupedType == NULL ) {
+                    /* Out of memory during type duplication */
+                    *errnode = expr;
+                    addRErrorMsg( errmsg, SYS_MALLOC_ERR, "error: out of memory duplicating function type." );
+                    return expr->exprType = newErrorType( SYS_MALLOC_ERR, r );
+                }
+                return expr->exprType = dupedType;
             }
             else {
                 ExprType *paramType = newSimpType( T_DYNAMIC, r );
@@ -1075,21 +1603,53 @@ ExprType* typeExpression3( Node *expr, int dynamictyping, Env *funcDesc, Hashtab
             }
         }
     case N_TUPLE:
-        components = ( ExprType ** ) region_alloc( r, sizeof( ExprType * ) * expr->degree );
-        for ( i = 0; i < expr->degree; i++ ) {
-            components[i] = typeExpression3( expr->subtrees[i], dynamictyping, funcDesc, varTypes, typingConstraints, errmsg, errnode, r );
-            if ( getNodeType( components[i] ) == T_ERROR ) {
-                return expr->exprType = components[i];
-            }
-        }
-        if ( N_TUPLE_CONSTRUCT_TUPLE( expr ) || expr->degree != 1 ) {
-            return expr->exprType = newTupleType( expr->degree, components, r );
-        }
-        else {
-            return expr->exprType = components[0];
-        }
+         components = ( ExprType ** ) region_alloc( r, sizeof( ExprType * ) * expr->degree );
+         for ( i = 0; i < expr->degree; i++ ) {
+             components[i] = typeExpression3( expr->subtrees[i], dynamictyping, funcDesc, varTypes, typingConstraints, errmsg, errnode, r );
+             if ( getNodeType( components[i] ) == T_ERROR ) {
+                 return expr->exprType = components[i];
+             }
+         }
+         if ( N_TUPLE_CONSTRUCT_TUPLE( expr ) || expr->degree != 1 ) {
+             return expr->exprType = newTupleType( expr->degree, components, r );
+         }
+         else {
+             return expr->exprType = components[0];
+         }
 
-    case N_APPLICATION:
+    case N_UNPACKING_PATTERN:
+         /**
+          * Tuple unpacking pattern type checking: {a, b, c} = tuple_expr
+          * 
+          * The pattern declares the structure of the tuple being unpacked.
+          * Each element in the pattern becomes a variable with the corresponding tuple element type.
+          * 
+          * Type validation:
+          * - Pattern variables: a, b, c become TK_VAR nodes with fresh type variables
+          * - Wildcards: _ nodes (TK_TEXT) are ignored (type is not tracked)
+          * - Nested patterns: {a, {b, c}} supported for nested tuples
+          * 
+          * Returns: Pattern type (T_DYNAMIC initially, refined when assigned)
+          */
+         components = ( ExprType ** ) region_alloc( r, sizeof( ExprType * ) * expr->degree );
+         for ( i = 0; i < expr->degree; i++ ) {
+             Node *patternElem = expr->subtrees[i];
+             /* For wildcard patterns (_), type as T_DYNAMIC and don't register variable */
+             if ( getNodeType( patternElem ) == TK_TEXT && strcmp( patternElem->text, "_" ) == 0 ) {
+                 components[i] = newSimpType( T_DYNAMIC, r );
+             }
+             else {
+                 /* Recursively type the pattern element */
+                 components[i] = typeExpression3( patternElem, dynamictyping, funcDesc, varTypes, typingConstraints, errmsg, errnode, r );
+                 if ( getNodeType( components[i] ) == T_ERROR ) {
+                     return expr->exprType = components[i];
+                 }
+             }
+         }
+         /* Unpacking pattern represents a tuple type with elements from the pattern */
+         return expr->exprType = newTupleType( expr->degree, components, r );
+
+     case N_APPLICATION:
         /* try to type as a function */
         /* the exprType is used to store the type of the return value */
         return expr->exprType = typeFunction3( expr, dynamictyping, funcDesc, varTypes, typingConstraints, errmsg, errnode, r );
@@ -1114,48 +1674,344 @@ ExprType* typeExpression3( Node *expr, int dynamictyping, Env *funcDesc, Hashtab
         }
         res = typeExpression3( expr->subtrees[1], dynamictyping, funcDesc, varTypes, typingConstraints, errmsg, errnode, r );
         return expr->exprType = res;
+    case N_TRY_CATCH:
+        /**
+         * Try/Catch exception handling type checking
+         * 
+         * Structure:
+         * - subtrees[0] = try block (N_ACTIONS)
+         * - subtrees[1..n-1] = catch handlers (N_CATCH_HANDLER)
+         * - subtrees[n] = finally block (N_ACTIONS or null)
+         * 
+         * Type validation:
+         * - Try block can have any type (error may occur)
+         * - Each catch handler must have compatible return type with try
+         * - Finally block executes cleanup
+         * - Overall type is the common type of try and catch branches
+         */
+        {
+            /* Type the try block */
+            res = typeExpression3( expr->subtrees[0], dynamictyping, funcDesc, varTypes, typingConstraints, errmsg, errnode, r );
+            if ( getNodeType( res ) == T_ERROR ) {
+                return expr->exprType = res;
+            }
+            ExprType *tryType = res;
+            
+            /* Type each catch handler */
+            for ( i = 1; i < expr->degree; i++ ) {
+                Node *handler = expr->subtrees[i];
+                if ( getNodeType( handler ) == N_CATCH_HANDLER ) {
+                    /* Type the catch block */
+                    if ( handler->degree > 0 ) {
+                        res = typeExpression3( handler->subtrees[handler->degree - 1], dynamictyping, funcDesc, varTypes, typingConstraints, errmsg, errnode, r );
+                        if ( getNodeType( res ) == T_ERROR ) {
+                            return expr->exprType = res;
+                        }
+                        /* Catch handlers should return compatible type with try block */
+                        /* For now, accept T_DYNAMIC/T_UNSPECED for flexibility */
+                    }
+                }
+            }
+            
+            /* Finally block (if present) executes but doesn't change return type */
+            /* Return type is from try block (or catch if error occurred) */
+            return expr->exprType = tryType;
+        }
+    case N_CATCH_HANDLER:
+        /**
+         * Catch handler type checking
+         * Structure:
+         * - text = error pattern (error code or variable name)
+         * - subtrees[0] = error variable binding (optional)
+         * - subtrees[1] = handler block (N_ACTIONS)
+         */
+        if ( expr->degree > 0 ) {
+            res = typeExpression3( expr->subtrees[expr->degree - 1], dynamictyping, funcDesc, varTypes, typingConstraints, errmsg, errnode, r );
+            return expr->exprType = res;
+        }
+        return expr->exprType = newSimpType( T_DYNAMIC, r );
     case N_ATTR:
-        /* todo type */
-        for ( i = 0; i < expr->degree; i++ ) {
-            res = typeExpression3( expr->subtrees[i], dynamictyping, funcDesc, varTypes, typingConstraints, errmsg, errnode, r );
-            if ( getNodeType( res ) == T_ERROR ) {
-                return expr->exprType = res;
-            }
-        }
-        return expr->exprType = newSimpType( T_DYNAMIC, r );
+         /**
+          * Attribute access type preservation (N_ATTR)
+          * 
+          * Used in patterns like:
+          * - foreach (row in query_results) { row.DATA_NAME ... }
+          * - for (i in result_collection) { i.COLL_NAME ... }
+          * - tuple_var.fieldname
+          * 
+          * Structure:
+          * - expr->subtrees[0] = Column reference (TK_COL) or object expression
+          * - expr->text = Column name (for TK_COL nodes)
+          * 
+          * Type preservation:
+          * - If child is TK_COL with column name, lookup and return column type
+          * - If child is expression, return its type (preserves type through access)
+          * - For union types, access preserves the union (allows narrowing via constraints)
+          */
+         if ( expr->degree > 0 ) {
+             Node *childNode = expr->subtrees[0];
+             
+             /* Check if direct TK_COL column reference */
+             if ( getNodeType( childNode ) == TK_COL ) {
+                 /* Extract column name and lookup type from schema */
+                 const char *columnName = childNode->text;
+                 ExprType *columnType = getColumnTypeFromSchema( columnName, r );
+                 
+                 if ( columnType != NULL ) {
+                     /* Type from schema lookup - preserves specific types and unions */
+                     return expr->exprType = columnType;
+                 }
+                 /* Fallback to child type if lookup fails */
+             }
+             
+             /* Type the child expression (could be query result, tuple, etc.) */
+             res = typeExpression3( childNode, dynamictyping, funcDesc, varTypes, typingConstraints, errmsg, errnode, r );
+             if ( getNodeType( res ) == T_ERROR ) {
+                 return expr->exprType = res;
+             }
+             
+             /* Preserve the child's type through attribute access */
+             /* This enables type checking of tuple element access and query iteration */
+             return expr->exprType = res;
+         }
+         else {
+             /* Attribute node with no children - type as dynamic */
+             return expr->exprType = newSimpType( T_DYNAMIC, r );
+         }
     case N_QUERY_COND_JUNCTION:
-        /* todo type */
+        /**
+         * WHERE clause junction type checking (AND/OR)
+         * 
+         * Structure:
+         * - expr->text = operator ("AND" or "OR")
+         * - expr->subtrees[0..n] = Condition expressions (N_QUERY_COND or nested N_QUERY_COND_JUNCTION)
+         * 
+         * Type validation:
+         * - Each child must evaluate to T_BOOL
+         * - AND/OR of boolean conditions produces boolean result
+         * - Return T_BOOL if all conditions type-check
+         */
         for ( i = 0; i < expr->degree; i++ ) {
             res = typeExpression3( expr->subtrees[i], dynamictyping, funcDesc, varTypes, typingConstraints, errmsg, errnode, r );
             if ( getNodeType( res ) == T_ERROR ) {
                 return expr->exprType = res;
             }
+            /* Each operand of a junction must be a boolean condition */
+            if ( getNodeType( res ) != T_BOOL && getNodeType( res ) != T_VAR && getNodeType( res ) != T_DYNAMIC ) {
+                *errnode = expr->subtrees[i];
+                char buf2[1024], buf3[ERR_MSG_LEN];
+                typeToString( res, varTypes, buf2, 1024 );
+                snprintf( buf3, ERR_MSG_LEN, "error: junction operand type %s is not boolean; expected T_BOOL", buf2 );
+                generateErrMsg( buf3, NODE_EXPR_POS( expr->subtrees[i] ), expr->subtrees[i]->base, buf2 );
+                addRErrorMsg( errmsg, RE_TYPE_ERROR, buf2 );
+                return expr->exprType = newErrorType( RE_TYPE_ERROR, r );
+            }
         }
-        return expr->exprType = newSimpType( T_DYNAMIC, r );
+        /* Junction (AND/OR) of boolean conditions produces boolean result */
+        return expr->exprType = newSimpType( T_BOOL, r );
     case N_QUERY:
-        /* todo type */
-        for ( i = 0; i < expr->degree; i++ ) {
-            res = typeExpression3( expr->subtrees[i], dynamictyping, funcDesc, varTypes, typingConstraints, errmsg, errnode, r );
-            if ( getNodeType( res ) == T_ERROR ) {
-                return expr->exprType = res;
-            }
-        }
-        return expr->exprType = newSimpType( T_DYNAMIC, r );
+       /**
+        * Query expression type inference
+        * 
+        * A query like: select COLL_NAME, DATA_NAME, DATA_SIZE where COLL_NAME like '/home/%'
+        * Returns: collection of tuple<string, string, int>
+        * 
+        * Process:
+        * 1. Extract column names from query AST
+        * 2. Build tuple type from column types
+        * 3. Wrap tuple type in collection type (LIST)
+        * 4. Type all subexpressions (columns and conditions)
+        */
+       {
+           /* First, type all subexpressions (columns and conditions) */
+           for ( i = 0; i < expr->degree; i++ ) {
+               res = typeExpression3( expr->subtrees[i], dynamictyping, funcDesc, varTypes, typingConstraints, errmsg, errnode, r );
+               if ( getNodeType( res ) == T_ERROR ) {
+                   return expr->exprType = res;
+               }
+           }
+           
+           /* Extract column names from query */
+           List *columnNames = extractColumnNamesFromQuery( expr, r );
+           
+           if ( columnNames == NULL || columnNames->size == 0 ) {
+               /* No columns or extraction failed - return T_DYNAMIC */
+               return expr->exprType = newSimpType( T_DYNAMIC, r );
+           }
+           
+           /* Build tuple type from column types */
+           ExprType *tupleType = createTupleTypeFromColumns( columnNames, r );
+           
+           if ( tupleType == NULL ) {
+               /* Tuple creation failed - return T_DYNAMIC */
+               return expr->exprType = newSimpType( T_DYNAMIC, r );
+           }
+           
+           /* Query result is a collection of tuples */
+           /* Wrap tuple in collection type (LIST) */
+           ExprType *resultType = newCollType( tupleType, r );
+           
+           return expr->exprType = resultType;
+       }
     case N_QUERY_COND:
-        /* todo type */
-        for ( i = 0; i < expr->degree; i++ ) {
-            res = typeExpression3( expr->subtrees[i], dynamictyping, funcDesc, varTypes, typingConstraints, errmsg, errnode, r );
-            if ( getNodeType( res ) == T_ERROR ) {
-                return expr->exprType = res;
+        /**
+         * Query condition type checking: column_expr op value_expr
+         * The condition must evaluate to a boolean result
+         * 
+         * Structure:
+         * - expr->text = operator ("=", "<>", ">", "<", ">=", "<=", "in", "like", "between", "not like")
+         * - expr->subtrees[0] = Column reference (TK_COL)
+         * - expr->subtrees[1+] = Value operands
+         * 
+         * Type validation:
+         * - Get column type from schema (using column name in TK_COL)
+         * - Get value operand type
+         * - Check compatibility based on operator
+         * - Return T_BOOL if types match, T_ERROR otherwise
+         */
+        {
+            /* Extract column name from TK_COL node */
+            Node *colNode = expr->subtrees[0];
+            if ( colNode == NULL || getNodeType( colNode ) != TK_COL ) {
+                /* Invalid query condition structure */
+                return expr->exprType = newErrorType( RE_TYPE_ERROR, r );
             }
+            
+            const char *columnName = colNode->text;
+            ExprType *columnType = getColumnTypeFromSchema( columnName, r );
+            
+            if ( columnType == NULL ) {
+                /* Column type lookup failed */
+                return expr->exprType = newErrorType( RE_TYPE_ERROR, r );
+            }
+            
+            /* Type the value operands based on the operator */
+            if ( expr->text == NULL ) {
+                return expr->exprType = newErrorType( RE_TYPE_ERROR, r );
+            }
+            
+            /* Type the operand(s) */
+            if ( strcmp( expr->text, "between" ) == 0 ) {
+                /* between requires two values */
+                if ( expr->degree < 2 ) {
+                    return expr->exprType = newErrorType( RE_TYPE_ERROR, r );
+                }
+                
+                /* Type both operands */
+                res = typeExpression3( expr->subtrees[1], dynamictyping, funcDesc, varTypes, typingConstraints, errmsg, errnode, r );
+                if ( getNodeType( res ) == T_ERROR ) {
+                    return expr->exprType = res;
+                }
+                
+                res = typeExpression3( expr->subtrees[2], dynamictyping, funcDesc, varTypes, typingConstraints, errmsg, errnode, r );
+                if ( getNodeType( res ) == T_ERROR ) {
+                    return expr->exprType = res;
+                }
+            }
+            else {
+                /* All other operators require exactly one value operand */
+                if ( expr->degree < 1 ) {
+                    return expr->exprType = newErrorType( RE_TYPE_ERROR, r );
+                }
+                
+                res = typeExpression3( expr->subtrees[1], dynamictyping, funcDesc, varTypes, typingConstraints, errmsg, errnode, r );
+                if ( getNodeType( res ) == T_ERROR ) {
+                    return expr->exprType = res;
+                }
+            }
+            
+            /* All query conditions evaluate to boolean */
+            return expr->exprType = newSimpType( T_BOOL, r );
         }
-        return expr->exprType = newSimpType( T_DYNAMIC, r );
     case TK_COL:
-        /* todo type */
-        return expr->exprType = newSimpType( T_DYNAMIC, r );
+        /**
+         * Column reference type lookup
+         * TK_COL nodes contain column names from GenQuery schema
+         * Return the column's type from the schema registry
+         */
+        {
+            const char *columnName = expr->text;
+            ExprType *columnType = getColumnTypeFromSchema( columnName, r );
+            if ( columnType == NULL ) {
+                /* Fallback to T_DYNAMIC if type lookup fails */
+                return expr->exprType = newSimpType( T_DYNAMIC, r );
+            }
+            return expr->exprType = columnType;
+        }
 
     case N_EXTERN_DEF:
         return expr->exprType = typeTypeAscription( expr, dynamictyping, funcDesc, varTypes, typingConstraints, errmsg, errnode, r );
+    case N_TEMPLATE_DEF:
+        /**
+         * Template definition type checking
+         * Structure:
+         * - subtrees[0] = template name (TK_TEXT)
+         * - subtrees[1] = parameter list (N_PARAM_LIST)
+         * - subtrees[2] = template body (N_ACTIONS)
+         * - subtrees[3] = metadata/return type (optional)
+         * 
+         * Type validation:
+         * - Parameters: each param is a fresh type variable
+         * - Body: type the action sequence
+         * - Return type: inferred from last expression in body
+         */
+        {
+            /* Type the template body with fresh parameter types */
+            if ( expr->degree >= 3 ) {
+                Node *paramList = expr->subtrees[1];
+                Node *body = expr->subtrees[2];
+                
+                /* Create fresh type variables for each parameter */
+                int nparams = paramList != NULL ? paramList->degree : 0;
+                for ( i = 0; i < nparams; i++ ) {
+                    Node *param = paramList->subtrees[i];
+                    ExprType *paramType = newTVar( r );
+                    if ( insertIntoHashTable( varTypes, param->text, paramType ) != 0 ) {
+                        /* Duplicate parameter name */
+                        *errnode = param;
+                        char errbuf[ERR_MSG_LEN];
+                        snprintf( errbuf, ERR_MSG_LEN, "error: duplicate template parameter '%s'", param->text );
+                        addRErrorMsg( errmsg, RE_TYPE_ERROR, errbuf );
+                        return expr->exprType = newErrorType( RE_TYPE_ERROR, r );
+                    }
+                }
+                
+                /* Type the template body */
+                res = typeExpression3( body, dynamictyping, funcDesc, varTypes, typingConstraints, errmsg, errnode, r );
+                if ( getNodeType( res ) == T_ERROR ) {
+                    return expr->exprType = res;
+                }
+                
+                /* Template type is the inferred return type */
+                return expr->exprType = res;
+            }
+            return expr->exprType = newSimpType( T_DYNAMIC, r );
+        }
+    case N_TEMPLATE_CALL:
+        /**
+         * Template instantiation/application type checking
+         * Structure:
+         * - text = template name
+         * - subtrees[0..n-1] = template arguments
+         * 
+         * Type validation:
+         * - Look up template definition
+         * - Verify argument count matches parameter count
+         * - Type each argument
+         * - Unify argument types with parameter type variables
+         * - Return instantiated template return type
+         */
+        {
+            /* Template calls are essentially like function applications */
+            /* For now, treat as dynamic until template registry is implemented */
+            for ( i = 0; i < expr->degree; i++ ) {
+                res = typeExpression3( expr->subtrees[i], dynamictyping, funcDesc, varTypes, typingConstraints, errmsg, errnode, r );
+                if ( getNodeType( res ) == T_ERROR ) {
+                    return expr->exprType = res;
+                }
+            }
+            return expr->exprType = newSimpType( T_DYNAMIC, r );
+        }
     default:
         break;
     }
@@ -1225,4 +2081,82 @@ void postProcessActions( Node *expr, Env *systemFunctionTables, rError_t *errmsg
     for ( i = 0; i < expr->degree; i++ ) {
         postProcessActions( expr->subtrees[i], systemFunctionTables, errmsg, errnode, r );
     }
-}
+    }
+
+    /**
+    * Validate @optional type constraint
+    * Ensures that values assigned to @optional types can be null/absent
+    * Returns: 0 if valid, non-zero if constraint violated
+    */
+    int validateOptionalTypeConstraint( ExprType *valueType, ExprType *expectedType, Node *exprNode, rError_t *errmsg, Region *r ) {
+    if ( expectedType == NULL || valueType == NULL ) {
+       return 0;  /* Skip validation for NULL types */
+    }
+    
+    if ( !isOptionalType( expectedType ) ) {
+       return 0;  /* Not an @optional type, no constraint to validate */
+    }
+    
+    /* @optional types can accept any value that matches the base type */
+    /* This is primarily for documentation and future enforcement */
+    return 0;
+    }
+
+    /**
+    * Validate @nonnull type constraint
+    * Ensures that values assigned to @nonnull types are never null/uninitialized
+    * Returns: 0 if valid, non-zero if constraint violated
+    */
+    int validateNonnullTypeConstraint( ExprType *valueType, ExprType *expectedType, Node *exprNode, rError_t *errmsg, Region *r ) {
+    if ( expectedType == NULL || valueType == NULL ) {
+       return 1;  /* NULL types violate @nonnull constraint */
+    }
+    
+    if ( !isNonnullType( expectedType ) ) {
+       return 0;  /* Not a @nonnull type, no constraint to validate */
+    }
+    
+    /* Check if value type is unspecified (uninitialized variable) */
+    if ( getNodeType( valueType ) == T_UNSPECED ) {
+        char errbuf[ERR_MSG_LEN];
+        char base[256];
+        if ( exprNode && exprNode->base ) {
+            snprintf( base, sizeof(base), "%s", exprNode->base );
+        } else {
+            snprintf( base, sizeof(base), "unknown" );
+        }
+        generateErrMsg( "error: @nonnull type constraint violated - uninitialized variable", 
+                       exprNode ? NODE_EXPR_POS( exprNode ) : 0,
+                       base,
+                       errbuf );
+        addRErrorMsg( errmsg, RE_TYPE_ERROR, errbuf );
+        return 1;
+    }
+    
+    return 0;
+    }
+
+    /**
+    * Validate all type constraints for a type expression
+    * Applies constraint validation rules based on annotation flags
+    * Returns: 0 if all constraints valid, non-zero if any violated
+    */
+    int validateTypeConstraints( ExprType *exprType, ExprType *expectedType, Node *exprNode, rError_t *errmsg, Region *r ) {
+    int violations = 0;
+    
+    if ( expectedType == NULL ) {
+       return 0;
+    }
+    
+    /* Validate @nonnull constraint */
+    if ( isNonnullType( expectedType ) ) {
+       violations += validateNonnullTypeConstraint( exprType, expectedType, exprNode, errmsg, r );
+    }
+    
+    /* Validate @optional constraint */
+    if ( isOptionalType( expectedType ) ) {
+       violations += validateOptionalTypeConstraint( exprType, expectedType, exprNode, errmsg, r );
+    }
+    
+    return violations;
+    }

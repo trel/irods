@@ -1,0 +1,28 @@
+
+# Consider dependencies only in project.
+set(CMAKE_DEPENDS_IN_PROJECT_ONLY OFF)
+
+# The set of languages for which implicit dependencies are needed:
+set(CMAKE_DEPENDS_LANGUAGES
+  )
+
+# The set of dependency files which are needed:
+set(CMAKE_DEPENDS_DEPENDENCY_FILES
+  "/src/irods/plugins/rule_engines/irods_rule_language/src/parser.cpp" "unit_tests/CMakeFiles/irods_attr_typing.dir/__/plugins/rule_engines/irods_rule_language/src/parser.cpp.o" "gcc" "unit_tests/CMakeFiles/irods_attr_typing.dir/__/plugins/rule_engines/irods_rule_language/src/parser.cpp.o.d"
+  "/src/irods/plugins/rule_engines/irods_rule_language/src/restructs.cpp" "unit_tests/CMakeFiles/irods_attr_typing.dir/__/plugins/rule_engines/irods_rule_language/src/restructs.cpp.o" "gcc" "unit_tests/CMakeFiles/irods_attr_typing.dir/__/plugins/rule_engines/irods_rule_language/src/restructs.cpp.o.d"
+  "/src/irods/plugins/rule_engines/irods_rule_language/src/typing.cpp" "unit_tests/CMakeFiles/irods_attr_typing.dir/__/plugins/rule_engines/irods_rule_language/src/typing.cpp.o" "gcc" "unit_tests/CMakeFiles/irods_attr_typing.dir/__/plugins/rule_engines/irods_rule_language/src/typing.cpp.o.d"
+  "/src/irods/plugins/rule_engines/irods_rule_language/src/utils.cpp" "unit_tests/CMakeFiles/irods_attr_typing.dir/__/plugins/rule_engines/irods_rule_language/src/utils.cpp.o" "gcc" "unit_tests/CMakeFiles/irods_attr_typing.dir/__/plugins/rule_engines/irods_rule_language/src/utils.cpp.o.d"
+  "/src/irods/unit_tests/src/test_attr_typing.cpp" "unit_tests/CMakeFiles/irods_attr_typing.dir/src/test_attr_typing.cpp.o" "gcc" "unit_tests/CMakeFiles/irods_attr_typing.dir/src/test_attr_typing.cpp.o.d"
+  "/src/irods/unit_tests/src/test_attr_typing_stubs.cpp" "unit_tests/CMakeFiles/irods_attr_typing.dir/src/test_attr_typing_stubs.cpp.o" "gcc" "unit_tests/CMakeFiles/irods_attr_typing.dir/src/test_attr_typing_stubs.cpp.o.d"
+  )
+
+# Targets to which this target links which contain Fortran sources.
+set(CMAKE_Fortran_TARGET_LINKED_INFO_FILES
+  )
+
+# Targets to which this target links which contain Fortran sources.
+set(CMAKE_Fortran_TARGET_FORWARD_LINKED_INFO_FILES
+  )
+
+# Fortran module output directory.
+set(CMAKE_Fortran_TARGET_MODULE_DIR "")

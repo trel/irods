@@ -821,7 +821,16 @@ msiStrCat( msParam_t *targParam, msParam_t *srcParam, ruleExecInfo_t *rei ) {
 
     targLen = strlen( targ );
     srcLen = strlen( src );
+    /* Allocate string buffer with malloc (not region_alloc).
+     * Rationale: MSI functions don't have Region context, and the allocated
+     * string is returned via msParam_t->inOutStruct to the caller who is
+     * responsible for freeing it. The allocation lifetime extends beyond
+     * rule execution scope, making region allocation unsuitable. */
     newTarg = ( char * ) calloc( 1, targLen + srcLen + 10 );
+    if ( newTarg == NULL ) {
+        rodsLog( LOG_ERROR, "Cannot allocate string buffer of size %d", targLen + srcLen + 10 );
+        return SYS_MALLOC_ERR;
+    }
     if ( targLen > 0 ) {
         rstrcpy( newTarg, targ, targLen + 1 );
     }

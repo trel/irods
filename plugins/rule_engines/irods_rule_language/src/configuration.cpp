@@ -7,6 +7,7 @@
 #include "irods/private/re/rules.hpp"
 #include "irods/private/re/index.hpp"
 #include "irods/private/re/cache.hpp"
+#include "irods/private/re/msi_functions.hpp"
 #include "irods/locks.hpp"
 #include "irods/region.h"
 #include "irods/private/re/functions.hpp"
@@ -28,6 +29,7 @@
 #include <boost/filesystem.hpp>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
+#include <fstream>
 #include <memory>
 #include <sstream>
 #include <unordered_map>
@@ -53,6 +55,16 @@ void clearRuleEngineConfig() {
   clearRegion (EXT, ext);
   free(ruleEngineConfig.address);
   memset (&ruleEngineConfig, 0, sizeof(Cache));
+}
+
+void setStrictTypeCheckingMode( int enabled ) {
+  ruleEngineConfig.strictTypeChecking = enabled ? 1 : 0;
+  rodsLog( LOG_NOTICE, "Strict type checking mode: %s", enabled ? "ENABLED" : "DISABLED" );
+}
+
+void setDisableLegacySyntaxMode( int enabled ) {
+  ruleEngineConfig.disableLegacySyntax = enabled ? 1 : 0;
+  rodsLog( LOG_NOTICE, "Legacy syntax mode: %s", enabled ? "DISABLED" : "ENABLED" );
 }
 
 void removeRuleFromExtIndex( char *ruleName, int i ) {
@@ -87,7 +99,7 @@ void appendRuleIntoExtIndex( RuleDesc *rule, int i, Region *r ) {
             updateInHashTable( ruleEngineConfig.extFuncDescIndex->current, RULE_NAME( rule->node ), newRuleIndexListFD( newRuleIndexList( RULE_NAME( rule->node ), i, r ), fd->exprType, r ) );
         }
         else {
-            /* todo error handling */
+            rodsLog( LOG_ERROR, "appendRuleIntoAppIndex: unexpected function descriptor type %d for rule %s", getNodeType( fd ), RULE_NAME( rule->node ) );
         }
     }
 }
@@ -231,11 +243,17 @@ void setCacheAddress( unsigned char *addr, RuleEngineStatus status, long size ) 
 }
 
 int generateLocalCache() {
-    unsigned char *buf = NULL;
-    if ( ruleEngineConfig.cacheStatus == INITIALIZED ) {
-        free( ruleEngineConfig.address );
-    }
-    buf = ( unsigned char * )malloc( SHMMAX );
+     unsigned char *buf = NULL;
+     if ( ruleEngineConfig.cacheStatus == INITIALIZED ) {
+         free( ruleEngineConfig.address );
+     }
+     /* Allocate buf with malloc (not region_alloc).
+      * Rationale: This cache buffer is allocated at rule engine initialization time
+      * and persists for the entire plugin lifetime. It is not bound to individual rule
+      * execution scope and stores the compiled rule set that multiple rules may reference.
+      * Cleanup occurs in clearRuleEngineConfig() during plugin shutdown. Region allocation
+      * is unsuitable for plugin-lifetime resource management. */
+     buf = ( unsigned char * )malloc( SHMMAX );
     if ( buf == NULL ) {
         return RE_OUT_OF_MEMORY;
     }
@@ -482,6 +500,7 @@ int load_rules(const char* irbSet, const std::vector<std::string> &irbs, const i
                 generateFunctionDescriptionTables();
                 if ( ruleEngineConfig.ruleEngineStatus == UNINITIALIZED ) {
                     getSystemFunctions( ruleEngineConfig.sysFuncDescIndex->current, ruleEngineConfig.sysRegion );
+                    getMSIFunctionDescriptors( ruleEngineConfig.sysFuncDescIndex->current, ruleEngineConfig.sysRegion );
                 }
 
                 try {
@@ -647,12 +666,17 @@ int loadRuleFromCacheOrFile( const char* inst_name, const char *irbSet ) {
     return res;
 }
 int readRuleStructAndRuleSetFromFile( const char *ruleBaseName, const char *rulesBaseFile ) {
-    int errloc = 0;
-    rError_t errmsgBuf;
-    errmsgBuf.errMsg = NULL;
-    errmsgBuf.len = 0;
+     int errloc = 0;
+     rError_t errmsgBuf;
+     errmsgBuf.errMsg = NULL;
+     errmsgBuf.len = 0;
 
-    char *buf = ( char * ) malloc( ERR_MSG_LEN * 1024 * sizeof( char ) );
+     /* Allocate buf with malloc (not region_alloc).
+      * Rationale: This temporary error message buffer is allocated during initialization
+      * (rule loading phase, not rule execution). It is short-lived within this function
+      * and freed immediately after use. Region allocation would be wasteful for
+      * initialization-time temporary buffers. */
+     char *buf = ( char * ) malloc( ERR_MSG_LEN * 1024 * sizeof( char ) );
     int res = 0;
         if ( ( res = readRuleSetFromLocalFile( ruleBaseName, rulesBaseFile, ruleEngineConfig.coreRuleSet, ruleEngineConfig.coreFuncDescIndex, &errloc, &errmsgBuf, ruleEngineConfig.coreRegion ) ) == 0 ) {
         }
@@ -749,7 +773,8 @@ int readICatUserLogging( char *userName, int *logging, rsComm_t *rsComm ) {
         *logging = 0;
     }
     else {
-        return RE_RUNTIME_ERROR; /* todo change this to a more specific error code */
+        rodsLog( LOG_ERROR, "writeICatUserLogging: invalid logging value '%s'; expected 'true' or 'false'", userInfo );
+        return SYS_INVALID_INPUT_PARAM;
     }
     return 0;
 }

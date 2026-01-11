@@ -763,6 +763,9 @@ NEW_ERROR(RE_FUNCTION_REDEFINITION,                    -1231000)
 NEW_ERROR(RE_DYNAMIC_TYPE_ERROR,                       -1232000)
 NEW_ERROR(RE_DYNAMIC_COERCION_ERROR,                   -1233000)
 NEW_ERROR(RE_PACKING_ERROR,                            -1234000)
+/* deprecation warnings -1235000 to -1236000 */
+NEW_ERROR(RE_DEPRECATION_WARNING,                      -1235000)
+NEW_ERROR(RE_DEPRECATED_SYNTAX_DISALLOWED,             -1236000)
 #endif
 /** @} */
 

@@ -28,7 +28,7 @@ typedef struct op {
     int prec;
 } Op;
 
-#define num_ops 31
+#define num_ops 32
 extern Op new_ops[];
 
 typedef struct pointer {
@@ -54,7 +54,6 @@ typedef struct {
     int stackTopStackTop;
     int error;
     int prec;
-    int backwardCompatible;
     Node *errnode;
     Label errloc;
     char errmsgbuf[ERR_MSG_LEN];
@@ -69,6 +68,8 @@ typedef struct {
 
 #define PUSH(n) (context->nodeStack[(context->nodeStackTop)++] = n)
 #define POP (context->nodeStack[--(context->nodeStackTop)])
+#define PEEK (context->nodeStackTop > 0 ? context->nodeStack[context->nodeStackTop - 1] : NULL)
+#define peekNode(ctx) ((ctx)->nodeStackTop > 0 ? (ctx)->nodeStack[(ctx)->nodeStackTop - 1] : NULL)
 #define NEXT_TOKEN_BASIC NEXT_TOKEN(0)
 #define NEXT_TOKEN_EXT NEXT_TOKEN(1)
 #define NEXT_TOKEN(ext) \
@@ -340,6 +341,7 @@ LOOP_END(l)
 /** utility functions */
 ParserContext *newParserContext( rError_t *errmsg, Region *r );
 void deleteParserContext( ParserContext *t );
+void recoverToSyncPoint( Pointer *e, ParserContext *context );
 
 Token *nextTokenRuleGen( Pointer* expr, ParserContext* pc, int rulegen, int ext );
 int nextString( Pointer *e, char *value, int vars[] );
@@ -365,14 +367,14 @@ int parseRuleSet( Pointer *e, RuleSet *ruleSet, Env *funcDesc, int *errloc, rErr
  * Parse a rule, create a rule pack.
  * If error, either ret==NULL or ret->type=N_ERROR.
  */
-Node *parseRuleRuleGen( Pointer *expr, int backwardCompatible, ParserContext *pc );
+Node *parseRuleRuleGen( Pointer *expr, ParserContext *pc );
 Node *parseTermRuleGen( Pointer *expr, int rulegn, ParserContext *pc );
-Node *parseActionsRuleGen( Pointer *expr, int rulegn, int backwardCompatible, ParserContext *pc );
+Node *parseActionsRuleGen( Pointer *expr, int rulegn, ParserContext *pc );
 void pushback( Token *token, ParserContext *pc );
-void initPointer( Pointer *p, FILE* fp, const char* ruleBaseName );
-void initPointer2( Pointer *p, char* buf );
-Pointer *newPointer( FILE* buf, const char *ruleBaseName );
-Pointer *newPointer2( char* buf );
+void initPointer( Pointer *p, FILE* fp, const char* ruleBaseName, Region *r );
+void initPointer2( Pointer *p, char* buf, Region *r );
+Pointer *newPointer( FILE* buf, const char *ruleBaseName, Region *r );
+Pointer *newPointer2( char* buf, Region *r );
 void deletePointer( Pointer* buf );
 
 void skipComments( Pointer *e );
@@ -426,8 +428,8 @@ char* typeName_Parser( NodeType s );
 void printTree( Node *n, int indent );
 void printIndent( int indent );
 
-void generateErrMsgFromFile( char *msg, long errloc, char *ruleBaseName, char* ruleBasePath, char errbuf[ERR_MSG_LEN] );
-void generateErrMsgFromSource( char *msg, long errloc, char *src, char errbuf[ERR_MSG_LEN] );
+void generateErrMsgFromFile( char *msg, long errloc, char *ruleBaseName, char* ruleBasePath, char errbuf[ERR_MSG_LEN], Region *r );
+void generateErrMsgFromSource( char *msg, long errloc, char *src, char errbuf[ERR_MSG_LEN], Region *r );
 void generateErrMsgFromPointer( char *msg, Label *l, Pointer *e, char errbuf[ERR_MSG_LEN] );
 char *generateErrMsg( char *msg, long errloc, char* ruleBaseName, char errbuf[ERR_MSG_LEN] );
 void generateAndAddErrMsg( char *msg, Node *node, int errcode, rError_t *errmsg );

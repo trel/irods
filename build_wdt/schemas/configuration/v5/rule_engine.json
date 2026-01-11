@@ -1,0 +1,25 @@
+{
+    "$id": "https://irods.org/configuration_schemas/v5/rule_engine.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+        "instance_name": {
+            "type": "string",
+            "minLength": 1
+        },
+        "plugin_name": {
+            "type": "string",
+            "minLength": 1
+        },
+        "plugin_specific_configuration": {
+            "type": "object",
+            "properties": {}
+        },
+        "shared_memory_instance": {"type": "string"}
+    },
+    "required": [
+        "instance_name",
+        "plugin_name",
+        "plugin_specific_configuration"
+    ]
+}

@@ -1,0 +1,27 @@
+{
+    "$id": "https://irods.org/configuration_schemas/v5/database_config.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+        "technology": {"type": "string"},
+        "host": {"type": "string"},
+        "name": {"type": "string"},
+        "odbc_driver": {"type": "string"},
+        "password": {"type": "string"},
+        "port": {"type": "integer"},
+        "username": {"type": "string"},
+        "tlsmode": {"type": "string"},
+        "tlsrootcert": {"type": "string"},
+        "tlscert": {"type": "string"},
+        "tlskey": {"type": "string"}
+    },
+    "required": [
+        "technology",
+        "host",
+        "name",
+        "odbc_driver",
+        "password",
+        "port",
+        "username"
+    ]
+}

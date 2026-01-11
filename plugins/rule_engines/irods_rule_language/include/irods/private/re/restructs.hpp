@@ -23,7 +23,7 @@
 #define TYPE(x) ((x)->exprType->nodeType)
 
 #define T_CONS_TYPE_ARGS(x) ((x)->subtrees)
-#define T_CONS_TYPE_ARG(x, n) ((x)->subtrees[n])
+#define T_CONS_TYPE_ARG(x, n) (((n) < (x)->degree) ? (x)->subtrees[n] : NULL)
 #define T_CONS_TYPE_NAME(x) ((x)->text)
 #define T_CONS_ARITY(x) ((x)->degree)
 #define T_FUNC_PARAM_TYPE(x, n) (T_CONS_TYPE_ARG((x)->subtrees[0], n))
@@ -32,7 +32,7 @@
 #define T_FUNC_ARITY(x) ((x)->subtrees[0]->degree)
 #define T_FUNC_VARARG(x) ((x)->vararg)
 #define T_VAR_ID(x) ((x)->ival)
-#define T_VAR_DISJUNCT(x, n) ((x)->subtrees[n])
+#define T_VAR_DISJUNCT(x, n) (((n) < (x)->degree) ? (x)->subtrees[n] : NULL)
 #define T_VAR_DISJUNCTS(x) ((x)->subtrees)
 #define T_VAR_NUM_DISJUNCTS(x) ((x)->degree)
 #define TC_A(tc) ((tc)->subtrees[0])
@@ -76,6 +76,13 @@
 #define OPTION_VARARG_MASK 0xf
 #define OPTION_COERCE 0x10
 #define OPTION_TYPED 0x20
+#define OPTION_TYPE_PATTERN 0x200   /* node is a type pattern in match case */
+#define OPTION_PATTERN_NARROWING 0x400 /* pattern narrows variable type */
+
+#define OPTION_TYPE_MASK 0xf0
+#define OPTION_OPTIONAL_TYPE 0x40   /* @optional annotation - value may be absent/null */
+#define OPTION_NONNULL_TYPE 0x80    /* @nonnull annotation - value must not be null */
+#define OPTION_DEPRECATED 0x1000    /* @deprecated annotation - function is deprecated */
 
 #define OPTION_IO_TYPE_MASK 0xff00
 #define IO_TYPE_INPUT 0x100
@@ -86,8 +93,19 @@
 
 #define getVararg(n) ((n)->option & OPTION_VARARG_MASK)
 #define setVararg(n, v) (n)->option ^= ((n)->option & OPTION_VARARG_MASK) ^ (v);
+#define getTypeAnnotation(n) ((n)->option & OPTION_TYPE_MASK)
+#define setTypeAnnotation(n, v) (n)->option = ((n)->option & ~OPTION_TYPE_MASK) | (v);
+#define isOptionalType(n) (((n)->option & OPTION_OPTIONAL_TYPE) != 0)
+#define isNonnullType(n) (((n)->option & OPTION_NONNULL_TYPE) != 0)
+#define isDeprecated(n) (((n)->option & OPTION_DEPRECATED) != 0)
+#define setDeprecated(n) ((n)->option |= OPTION_DEPRECATED)
 #define getIOType(n) ((n)->option & OPTION_IO_TYPE_MASK)
 #define setIOType(n, v) (n)->option ^= ((n)->option & OPTION_IO_TYPE_MASK) ^ (v);
+
+#define isTypePattern(n) (((n)->option & OPTION_TYPE_PATTERN) != 0)
+#define setTypePattern(n) ((n)->option |= OPTION_TYPE_PATTERN)
+#define isPatternNarrowing(n) (((n)->option & OPTION_PATTERN_NARROWING) != 0)
+#define setPatternNarrowing(n) ((n)->option |= OPTION_PATTERN_NARROWING)
 
 #define SYSTEM_SPACE_RULE 0x100
 #define DISCARD_EXPRESSION_RESULT 0x200
@@ -136,6 +154,12 @@ typedef enum node_type {
     N_RULE_NAME = 32,
     N_PARAM_LIST = 33,
     N_PARAM_TYPE_LIST = 34,
+    N_TRY_CATCH = 51,
+    N_CATCH_HANDLER = 52,
+    N_UNPACKING_PATTERN = 53,
+    N_MATCH_CASE = 54,
+    N_TYPE_PATTERN = 55,
+    N_PATTERN_GUARD = 56,
     N_AVU = 35,
     N_META_DATA = 36,
     N_RULE_PACK = 37,
@@ -152,6 +176,8 @@ typedef enum node_type {
     N_EXTERN_DEF = 62,
     N_DATA_DEF = 63,
     N_UNPARSED = 64,
+    N_TEMPLATE_DEF = 65,
+    N_TEMPLATE_CALL = 66,
     /* K_FLEX = 90, */
     T_UNSPECED = 100, /* indicates a variable which is not assigned a value is passed in to a microservice */
     T_ERROR = 101,
@@ -323,6 +349,7 @@ Node *newNode( NodeType type, const char* text, Label * exprloc, Region *r );
 Node *newExprType( NodeType t, int degree, Node **subtrees, Region *r );
 ExprType *newTVar( Region *r );
 ExprType *newTVar2( int numDisjuncts, Node **disjuncts, Region *r );
+ExprType *newUnionType( int arity, ExprType **types, Region *r );
 ExprType *newCollType( ExprType *elemType, Region *r );
 ExprType *newTupleType( int arity, ExprType **typeArgs, Region *r );
 ExprType *newUnaryType( NodeType nodeType, ExprType *typeArg, Region *r );
@@ -354,7 +381,7 @@ msParam_t *newMsParam( const char *typeName, void *ioStruct, bytesBuf_t *ioBuf, 
 
 Env *newEnv( Hashtable *current, Env *previous, Env *lower, Region *r );
 /* void deleteEnv(Env *env, int deleteCurrent); */
-msParamArray_t *newMsParamArray();
+msParamArray_t *newMsParamArray( Region *r );
 void deleteMsParamArray( msParamArray_t *msParamArray );
 
 TypingConstraint *newTypingConstraint( ExprType *a, ExprType *b, NodeType type, Node *node, Region *r );
@@ -375,6 +402,11 @@ Node *createActionsNode( Node **params, int paramsLen, Label * exprloc, Region *
 Node *createTextNode( char *t, Label * exprloc, Region *r );
 Node *createStringNode( char *t, Label * exprloc, Region *r );
 Node *createErrorNode( char *error, Label * exprloc, Region *r );
+
+/* Type annotation functions */
+void applyOptionalAnnotation( Node *typeNode );
+void applyNonnullAnnotation( Node *typeNode );
+const char *getTypeAnnotationString( Node *typeNode );
 
 RuleSet *newRuleSet( Region *r );
 RuleDesc *newRuleDesc( RuleType rk, Node *n, int dynamictyping, Region *r );

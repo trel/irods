@@ -8,7 +8,11 @@
 /* make a new type by substituting tvars with fresh tvars */
 ExprType *dupType( ExprType *ty, Region *r ) {
     Hashtable *varTable = newHashTable2( 100, r );
-    /* todo add oom handler here */
+    if ( varTable == NULL ) {
+        /* Out of memory - return NULL to signal error to caller */
+        rodsLog( LOG_ERROR, "dupType: Failed to allocate variable mapping table for type duplication" );
+        return NULL;
+    }
     ExprType *dup = dupTypeAux( ty, r, varTable );
     return dup;
 
@@ -306,6 +310,91 @@ char* getTVarNameRegion( int vid, Region *r ) {
 }
 char* getTVarNameRegionFromExprType( ExprType *tvar, Region *r ) {
     return getTVarNameRegion( T_VAR_ID( tvar ), r );
+}
+
+/**
+ * Format a union type as a human-readable string.
+ * Union types are represented as T_VAR nodes with disjuncts.
+ * 
+ * Format: "union<Type1|Type2|...|TypeN>"
+ * 
+ * @param type Union type (T_VAR with disjuncts)
+ * @param buf Output buffer (must be at least 512 bytes)
+ * @return Pointer to buf
+ */
+char* getUnionTypeName( ExprType *type, char buf[512] ) {
+    if ( type == NULL || getNodeType( type ) != T_VAR ) {
+        snprintf( buf, 512, "invalid_union" );
+        return buf;
+    }
+    
+    int numDisjuncts = T_VAR_NUM_DISJUNCTS( type );
+    if ( numDisjuncts <= 0 ) {
+        snprintf( buf, 512, "union<>" );
+        return buf;
+    }
+    
+    int offset = 0;
+    offset += snprintf( buf + offset, 512 - offset, "union<" );
+    
+    for ( int i = 0; i < numDisjuncts; i++ ) {
+        ExprType *disjunct = T_VAR_DISJUNCT( type, i );
+        if ( disjunct == NULL ) {
+            continue;
+        }
+        
+        if ( i > 0 ) {
+            offset += snprintf( buf + offset, 512 - offset, "|" );
+        }
+        
+        /* Format type name */
+        NodeType nodeType = getNodeType( disjunct );
+        switch ( nodeType ) {
+            case T_DYNAMIC:
+                offset += snprintf( buf + offset, 512 - offset, "dynamic" );
+                break;
+            case T_INT:
+                offset += snprintf( buf + offset, 512 - offset, "int" );
+                break;
+            case T_DOUBLE:
+                offset += snprintf( buf + offset, 512 - offset, "double" );
+                break;
+            case T_STRING:
+                offset += snprintf( buf + offset, 512 - offset, "string" );
+                break;
+            case T_BOOL:
+                offset += snprintf( buf + offset, 512 - offset, "bool" );
+                break;
+            case T_DATETIME:
+                offset += snprintf( buf + offset, 512 - offset, "datetime" );
+                break;
+            case T_PATH:
+                offset += snprintf( buf + offset, 512 - offset, "path" );
+                break;
+            case T_IRODS:
+                offset += snprintf( buf + offset, 512 - offset, "irods(%s)", 
+                    disjunct->text ? disjunct->text : "unknown" );
+                break;
+            case T_VAR:
+                {
+                    char tvarName[128];
+                    offset += snprintf( buf + offset, 512 - offset, "%s",
+                        getTVarName( T_VAR_ID( disjunct ), tvarName ) );
+                }
+                break;
+            default:
+                offset += snprintf( buf + offset, 512 - offset, "type(%d)", nodeType );
+                break;
+        }
+        
+        if ( offset >= 512 ) {
+            buf[511] = '\0';
+            return buf;
+        }
+    }
+    
+    snprintf( buf + offset, 512 - offset, ">" );
+    return buf;
 }
 
 
@@ -858,7 +947,7 @@ void freeEnvUninterpretedStructs( Env *e ) {
 }
 int isPattern( Node *pattern ) {
 
-    if ( getNodeType( pattern ) == N_APPLICATION || getNodeType( pattern ) == N_TUPLE ) {
+    if ( getNodeType( pattern ) == N_APPLICATION || getNodeType( pattern ) == N_TUPLE || getNodeType( pattern ) == N_UNPACKING_PATTERN ) {
         int i;
         for ( i = 0; i < pattern->degree; i++ ) {
             if ( !isPattern( pattern->subtrees[i] ) ) {

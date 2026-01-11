@@ -1,0 +1,17 @@
+{
+    "$id": "https://irods.org/configuration_schemas/v5/plugin.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+        "checksum_sha256": {"type": "string"},
+        "name": {"type": "string"},
+        "type": {"type": "string"},
+        "version": {"type": "string"}
+    },
+    "required": [
+        "checksum_sha256",
+        "name",
+        "type",
+        "version"
+    ]
+}

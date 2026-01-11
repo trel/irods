@@ -1,0 +1,7 @@
+{
+    "schema_name": "version",
+    "schema_version": "v5",
+    "irods_version": "5.0.90",
+    "catalog_schema_version": 13,
+    "commit_id": "714c61b9cbcf4382336a15a30b237c99a58c98fa"
+}

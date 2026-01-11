@@ -32,6 +32,7 @@ int newTVarId();
 char* getTVarName( int vid, char name[128] );
 char* getTVarNameRegion( int vid, Region *r );
 char* getTVarNameRegionFromExprType( ExprType *tvar, Region *r );
+char* getUnionTypeName( ExprType *type, char buf[512] );
 
 ExprType *dupType( ExprType *ty, Region *r );
 int typeEqSyntatic( ExprType *a, ExprType *b );

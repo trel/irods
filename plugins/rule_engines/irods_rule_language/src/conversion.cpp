@@ -18,17 +18,24 @@ char * getAttrNameFromAttrId( int id );
  * convert string value to Res
  */
 void convertStrValue( Res *res, char *val, Region *r ) {
-    if ( val == NULL ) {
-        res->text = NULL;
-    }
-    else {
-        int len = ( strlen( val ) + 1 ) * sizeof( char );
-        res->text = ( char* )region_alloc( r, len );
-        memcpy( res->text, val, len );
-        RES_STRING_STR_LEN( res ) = strlen( val );
-    }
-    res->exprType = newSimpType( T_STRING, r );
-}
+     if ( val == NULL ) {
+         res->text = NULL;
+     }
+     else {
+         int len = ( strlen( val ) + 1 ) * sizeof( char );
+         res->text = ( char* )region_alloc( r, len );
+         if ( res->text == NULL ) {
+             rodsLog( LOG_ERROR, "Cannot allocate string buffer for value conversion" );
+             res->text = NULL;
+             RES_STRING_STR_LEN( res ) = 0;
+             res->exprType = newSimpType( T_STRING, r );
+             return;
+         }
+         memcpy( res->text, val, len );
+         RES_STRING_STR_LEN( res ) = strlen( val );
+     }
+     res->exprType = newSimpType( T_STRING, r );
+ }
 /**
  * convert int value to Res
  */
@@ -92,7 +99,11 @@ Res* getValueFromCollection( char *typ, void *inPtr, int inx, Region *r ) {
         if ( g->rowCnt == 0 || inx >= g->rowCnt ) {
             return NULL;
         }
-        k = ( keyValPair_t * )malloc( sizeof( keyValPair_t ) );
+        k = ( keyValPair_t * )region_alloc( r, sizeof( keyValPair_t ) );
+        if ( k == NULL ) {
+            rodsLog( LOG_ERROR, "Cannot allocate keyValPair_t" );
+            return NULL;
+        }
         k->len = 0;
         k->keyWord = NULL;
         k->value = NULL;
@@ -347,7 +358,7 @@ void convertCollectionToRes(msParam_t *mP, Res* res) {
 */
 
 /************************ Res to Microservice parameter ***********************/
-int convertResToMsParam( msParam_t *var, Res *res, rError_t *errmsg ) {
+int convertResToMsParam( msParam_t *var, Res *res, rError_t *errmsg, Region *r ) {
     strArray_t *arr = NULL;
     intArray_t *arr2 = NULL;
     int i = 0;
@@ -356,17 +367,32 @@ int convertResToMsParam( msParam_t *var, Res *res, rError_t *errmsg ) {
     var->label = NULL;
     switch ( TYPE( res ) ) {
     case T_ERROR: /* error message */
-        var->inOutStruct = ( int * )malloc( sizeof( int ) );
+        var->inOutStruct = ( int * )region_alloc( r, sizeof( int ) );
+        if ( var->inOutStruct == NULL ) {
+            rodsLog( LOG_ERROR, "Cannot allocate int" );
+            addRErrorMsg( errmsg, SYS_MALLOC_ERR, "Cannot allocate int" );
+            return SYS_MALLOC_ERR;
+        }
         *( ( int * )var->inOutStruct ) = RES_ERR_CODE( res );
         var->type = strdup( INT_MS_T );
         break;
     case T_DOUBLE: /* number */
-        var->inOutStruct = ( double * )malloc( sizeof( double ) );
+        var->inOutStruct = ( double * )region_alloc( r, sizeof( double ) );
+        if ( var->inOutStruct == NULL ) {
+            rodsLog( LOG_ERROR, "Cannot allocate double" );
+            addRErrorMsg( errmsg, SYS_MALLOC_ERR, "Cannot allocate double" );
+            return SYS_MALLOC_ERR;
+        }
         *( ( double * )var->inOutStruct ) = RES_DOUBLE_VAL( res );
         var->type = strdup( DOUBLE_MS_T );
         break;
     case T_INT: /* number */
-        var->inOutStruct = ( int * )malloc( sizeof( int ) );
+        var->inOutStruct = ( int * )region_alloc( r, sizeof( int ) );
+        if ( var->inOutStruct == NULL ) {
+            rodsLog( LOG_ERROR, "Cannot allocate int" );
+            addRErrorMsg( errmsg, SYS_MALLOC_ERR, "Cannot allocate int" );
+            return SYS_MALLOC_ERR;
+        }
         *( ( int * )var->inOutStruct ) = RES_INT_VAL( res );
         var->type = strdup( INT_MS_T );
         break;
@@ -379,7 +405,12 @@ int convertResToMsParam( msParam_t *var, Res *res, rError_t *errmsg ) {
         var->type = strdup( STR_MS_T );
         break;
     case T_DATETIME: /* date time */
-        var->inOutStruct = ( int* )malloc( sizeof( int ) );
+        var->inOutStruct = ( int* )region_alloc( r, sizeof( int ) );
+        if ( var->inOutStruct == NULL ) {
+            rodsLog( LOG_ERROR, "Cannot allocate int" );
+            addRErrorMsg( errmsg, SYS_MALLOC_ERR, "Cannot allocate int" );
+            return SYS_MALLOC_ERR;
+        }
         *( ( int* )var->inOutStruct ) = ( int )RES_TIME_VAL( res );
         var->type = strdup( INT_MS_T );
         break;
@@ -387,7 +418,12 @@ int convertResToMsParam( msParam_t *var, Res *res, rError_t *errmsg ) {
         if ( strcmp( T_CONS_TYPE_NAME( res->exprType ), LIST ) == 0 ) {
             switch ( getNodeType( T_CONS_TYPE_ARG( res->exprType, 0 ) ) ) {
             case T_STRING:
-                arr = ( strArray_t * )malloc( sizeof( strArray_t ) );
+                arr = ( strArray_t * )region_alloc( r, sizeof( strArray_t ) );
+                if ( arr == NULL ) {
+                    rodsLog( LOG_ERROR, "Cannot allocate strArray_t" );
+                    addRErrorMsg( errmsg, SYS_MALLOC_ERR, "Cannot allocate strArray_t" );
+                    return SYS_MALLOC_ERR;
+                }
                 arr->len = res->degree;
                 maxlen = 0;
                 for ( i = 0; i < res->degree; i++ ) {
@@ -395,18 +431,50 @@ int convertResToMsParam( msParam_t *var, Res *res, rError_t *errmsg ) {
                     maxlen = maxlen < slen ? slen : maxlen;
                 }
                 arr->size = maxlen + 1;
-                arr->value = ( char * )malloc( sizeof( char ) * (arr->size) * ( arr->len ) );
+                arr->value = ( char * )region_alloc( r, sizeof( char ) * (arr->size) * ( arr->len ) );
+                if ( arr->value == NULL ) {
+                    rodsLog( LOG_ERROR, "Cannot allocate string array values" );
+                    addRErrorMsg( errmsg, SYS_MALLOC_ERR, "Cannot allocate string array values" );
+                    free( arr );
+                    return SYS_MALLOC_ERR;
+                }
                 for ( i = 0; i < res->degree; i++ ) {
+                    /* Validate array bounds before dereferencing */
+                    if ( res->subtrees == NULL || res->subtrees[i] == NULL || res->subtrees[i]->text == NULL ) {
+                        rodsLog( LOG_ERROR, "convertResToMsParam: array bounds violation at index %d", i );
+                        addRErrorMsg( errmsg, SYS_INTERNAL_ERR, "error: array bounds violation during type conversion." );
+                        free( arr->value );
+                        free( arr );
+                        return SYS_INTERNAL_ERR;
+                    }
                     strcpy( arr->value + arr->size * i, res->subtrees[i]->text );
                 }
                 var->inOutStruct = arr;
                 var->type = strdup( StrArray_MS_T );
                 break;
             case T_INT:
-                arr2 = ( intArray_t * )malloc( sizeof( intArray_t ) );
+                arr2 = ( intArray_t * )region_alloc( r, sizeof( intArray_t ) );
+                if ( arr2 == NULL ) {
+                    rodsLog( LOG_ERROR, "Cannot allocate intArray_t" );
+                    addRErrorMsg( errmsg, SYS_MALLOC_ERR, "Cannot allocate intArray_t" );
+                    return SYS_MALLOC_ERR;
+                }
                 arr2->len = res->degree;
-                arr2->value = ( int * )malloc( sizeof( int ) * ( arr2->len ) );
+                arr2->value = ( int * )region_alloc( r, sizeof( int ) * ( arr2->len ) );
+                if ( arr2->value == NULL ) {
+                    rodsLog( LOG_ERROR, "Cannot allocate int array values" );
+                    addRErrorMsg( errmsg, SYS_MALLOC_ERR, "Cannot allocate int array values" );
+                    return SYS_MALLOC_ERR;
+                }
                 for ( i = 0; i < res->degree; i++ ) {
+                    /* Validate array bounds before dereferencing */
+                    if ( res->subtrees == NULL || res->subtrees[i] == NULL ) {
+                        rodsLog( LOG_ERROR, "convertResToMsParam: array bounds violation at index %d", i );
+                        addRErrorMsg( errmsg, SYS_INTERNAL_ERR, "error: array bounds violation during type conversion." );
+                        free( arr2->value );
+                        free( arr2 );
+                        return SYS_INTERNAL_ERR;
+                    }
                     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
                     arr2->value[i] = RES_INT_VAL(res->subtrees[i]);
                 }
@@ -441,25 +509,25 @@ int convertResToMsParam( msParam_t *var, Res *res, rError_t *errmsg ) {
     }
     return 0;
 }
-int updateResToMsParam( msParam_t *var, Res *res, rError_t *errmsg ) {
+int updateResToMsParam( msParam_t *var, Res *res, rError_t *errmsg, Region *r ) {
     if ( var->type != NULL && ( strcmp( var->type, INT_MS_T ) == 0 ||
                                 strcmp( var->type, DOUBLE_MS_T ) == 0 ||
                                 strcmp( var->type, STR_MS_T ) == 0 ) ) {
-        /* do not free msParam_t if its inOutStruct and inOutBuf are shared */
-        if ( var->inOutStruct != NULL ) {
-            free( var->inOutStruct );
-            var->inOutStruct = nullptr;
-        }
-        if ( var->inpOutBuf != NULL ) {
-            free( var->inpOutBuf );
-            var->inpOutBuf = nullptr;
-        }
-    }
-    if ( var->label != NULL ) {
-        free( var->label );
-        var->label = nullptr;
-    }
-    return convertResToMsParam( var, res, errmsg );
+         /* do not free msParam_t if its inOutStruct and inOutBuf are shared */
+         if ( var->inOutStruct != NULL ) {
+             free( var->inOutStruct );
+             var->inOutStruct = nullptr;
+         }
+         if ( var->inpOutBuf != NULL ) {
+             free( var->inpOutBuf );
+             var->inpOutBuf = nullptr;
+         }
+     }
+     if ( var->label != NULL ) {
+         free( var->label );
+         var->label = nullptr;
+     }
+     return convertResToMsParam( var, res, errmsg, r );
 }
 int convertEnvToMsParamArray( msParamArray_t *var, Env *env, rError_t *errmsg, Region *r ) {
     int ret;
@@ -468,36 +536,34 @@ int convertEnvToMsParamArray( msParamArray_t *var, Env *env, rError_t *errmsg, R
             return ret;
         }
     }
-    return convertHashtableToMsParamArray( var, env->current, errmsg );
+    return convertHashtableToMsParamArray( var, env->current, errmsg, r );
 }
 
-int convertHashtableToMsParamArray( msParamArray_t *var, Hashtable *env, rError_t *errmsg ) {
+int convertHashtableToMsParamArray( msParamArray_t *var, Hashtable *env, rError_t *errmsg, Region *r ) {
     int i;
     for ( i = 0; i < env->size; i++ ) {
         struct bucket *b = env->buckets[i];
         while ( b != NULL && !IS_TVAR_NAME( b->key ) ) {
             Res *res = ( Res * )b->value;
             msParam_t *v = NULL;
-            int needToFree = 0;
             int varindex;
             int ret;
             for ( varindex = 0; varindex < var->len; varindex++ ) {
                 if ( var->msParam[varindex]->label != NULL && strcmp( var->msParam[varindex]->label, b->key ) == 0 ) {
                     v = var->msParam[varindex];
-                    ret = updateResToMsParam( v, res, errmsg );
+                    ret = updateResToMsParam( v, res, errmsg, r );
                     break;
                 }
             }
             if ( v == NULL ) {
-                v = ( msParam_t * ) malloc( sizeof( msParam_t ) );
-                needToFree = 1;
-                ret = convertResToMsParam( v, res, errmsg );
+                v = ( msParam_t * ) region_alloc( r, sizeof( msParam_t ) );
+                ret = convertResToMsParam( v, res, errmsg, r );
                 if ( var->msParam == NULL ) {
                     var->len = 0;
-                    var->msParam = ( msParam_t ** ) malloc( sizeof( msParam_t * ) * ( PTR_ARRAY_MALLOC_LEN ) );
+                    var->msParam = ( msParam_t ** ) region_alloc( r, sizeof( msParam_t * ) * ( PTR_ARRAY_MALLOC_LEN ) );
                 }
                 else if ( var->len % PTR_ARRAY_MALLOC_LEN == 0 ) {
-                    var->msParam = ( msParam_t ** ) realloc( var->msParam, sizeof( msParam_t * ) * ( PTR_ARRAY_MALLOC_LEN + var->len ) );
+                    var->msParam = ( msParam_t ** ) region_alloc( r, sizeof( msParam_t * ) * ( PTR_ARRAY_MALLOC_LEN + var->len ) );
                 }
 
                 var->msParam[var->len++] = v;
@@ -505,11 +571,9 @@ int convertHashtableToMsParamArray( msParamArray_t *var, Hashtable *env, rError_
             v->label = strdup( b->key );
 
             if ( ret != 0 ) {
-                /* error */
-                /* todo free msParamArray */
-                if ( needToFree ) {
-                    free( v );
-                }
+                /* error during conversion; clean up allocated parameter */
+                /* Note: msParamArray 'var' is caller-owned and freed by caller on error */
+                /* Region-allocated memory will be freed with region cleanup */
                 return ret;
             }
 
@@ -561,24 +625,25 @@ char* convertResToString( Res *res0 ) {
     char *res;
     char *type;
     int j;
+    /* Use stack buffer for temporary string conversion */
+    char tmpbuf[1024];
+    
     switch ( getNodeType( res0 ) ) {
 
     case N_ERROR:
-        res = ( char * )malloc( sizeof( char ) * 1024 );
-        snprintf( res, 1024, "error %d", RES_ERR_CODE( res0 ) );
-        return res;
+        snprintf( tmpbuf, 1024, "error %d", RES_ERR_CODE( res0 ) );
+        return strdup( tmpbuf );
     case N_VAL:
         switch ( TYPE( res0 ) ) {
         case T_INT:
         case T_DOUBLE:
-            res = ( char * )malloc( sizeof( char ) * 1024 );
             if ( res0->dval == ( int )res0->dval ) {
-                snprintf( res, 1024, "%d", ( int )res0->dval );
+                snprintf( tmpbuf, 1024, "%d", ( int )res0->dval );
             }
             else {
-                snprintf( res, 1024, "%f", res0->dval );
+                snprintf( tmpbuf, 1024, "%f", res0->dval );
             }
-            return res;
+            return strdup( tmpbuf );
         case T_STRING:
             if ( res0->text == NULL ) {
                 res = strdup( "<null>" );
@@ -596,8 +661,7 @@ char* convertResToString( Res *res0 ) {
             }
             return res;
         case T_IRODS:
-            res = ( char * )malloc( sizeof( char ) * 1024 );
-            res[0] = 0;
+            tmpbuf[0] = 0;
             type = res0->exprType->text;
             if ( strcmp( type, KeyValPair_MS_T ) == 0 ) {
                 int num_pairs = 0;
@@ -605,44 +669,44 @@ char* convertResToString( Res *res0 ) {
                 if ( kvp != NULL ) {
                     num_pairs = kvp->len;
                 }
-                snprintf( res, 1024, "KeyValue[%d]:", num_pairs );
+                snprintf( tmpbuf, 1024, "KeyValue[%d]:", num_pairs );
                 int i;
                 for ( i = 0; i < num_pairs; i++ ) {
-                    snprintf( res + strlen( res ), 1024 - strlen( res ), "%s=%s;", kvp->keyWord[i], kvp->value[i] );
+                    snprintf( tmpbuf + strlen( tmpbuf ), 1024 - strlen( tmpbuf ), "%s=%s;", kvp->keyWord[i], kvp->value[i] );
                 }
 
             }
             else if ( strcmp( type, BUF_LEN_MS_T ) == 0 ) {
-                snprintf( res + strlen( res ), 1024 - strlen( res ), "%d", *( int* )res0->param->inOutStruct );
+                snprintf( tmpbuf + strlen( tmpbuf ), 1024 - strlen( tmpbuf ), "%d", *( int* )res0->param->inOutStruct );
             }
             else if ( strcmp( type, DataObjInp_MS_T ) == 0 ) {
                 dataObjInp_t dataObjInp, *myDataObjInp;
                 j = parseMspForDataObjInp( res0->param, &dataObjInp, &myDataObjInp, 0 );
                 if ( j < 0 ) {
-                    snprintf( res + strlen( res ), 1024 - strlen( res ), "<error>" );
+                    snprintf( tmpbuf + strlen( tmpbuf ), 1024 - strlen( tmpbuf ), "<error>" );
                 }
                 else {
-                    snprintf( res + strlen( res ), 1024 - strlen( res ), "%s", ( char * ) myDataObjInp->objPath );
+                    snprintf( tmpbuf + strlen( tmpbuf ), 1024 - strlen( tmpbuf ), "%s", ( char * ) myDataObjInp->objPath );
                 }
             }
             else if ( strcmp( type, CollInp_MS_T ) == 0 ) {
                 collInp_t collCreateInp, *myCollCreateInp;
                 j = parseMspForCollInp( res0->param, &collCreateInp, &myCollCreateInp, 0 );
                 if ( j < 0 ) {
-                    snprintf( res + strlen( res ), 1024 - strlen( res ), "<error>" );
+                    snprintf( tmpbuf + strlen( tmpbuf ), 1024 - strlen( tmpbuf ), "<error>" );
                 }
                 else {
-                    snprintf( res + strlen( res ), 1024 - strlen( res ), "%s", myCollCreateInp->collName );
+                    snprintf( tmpbuf + strlen( tmpbuf ), 1024 - strlen( tmpbuf ), "%s", myCollCreateInp->collName );
                 }
             }
             else if ( strcmp( type,  DataObjCopyInp_MS_T ) == 0 ) {
                 dataObjCopyInp_t dataObjCopyInp, *myDataObjCopyInp;
                 j = parseMspForDataObjCopyInp( res0->param, &dataObjCopyInp, &myDataObjCopyInp );
                 if ( j < 0 ) {
-                    snprintf( res + strlen( res ), 1024 - strlen( res ), "<error>" );
+                    snprintf( tmpbuf + strlen( tmpbuf ), 1024 - strlen( tmpbuf ), "<error>" );
                 }
                 else
-                    snprintf( res + strlen( res ), 1024 - strlen( res ), "COPY(%s,%s)",
+                    snprintf( tmpbuf + strlen( tmpbuf ), 1024 - strlen( tmpbuf ), "COPY(%s,%s)",
                               myDataObjCopyInp->srcDataObjInp.objPath, myDataObjCopyInp->destDataObjInp.objPath );
             }
             else if ( strcmp( type,  DataObjReadInp_MS_T ) == 0
@@ -650,41 +714,44 @@ char* convertResToString( Res *res0 ) {
                       || strcmp( type, DataObjWriteInp_MS_T ) == 0 ) {
                 openedDataObjInp_t  *myDataObjReadInp;
                 myDataObjReadInp = ( openedDataObjInp_t  * ) res0->param->inOutStruct;
-                snprintf( res + strlen( res ), 1024 - strlen( res ), "OPEN(%d)", myDataObjReadInp->len );
+                snprintf( tmpbuf + strlen( tmpbuf ), 1024 - strlen( tmpbuf ), "OPEN(%d)", myDataObjReadInp->len );
             }
             else if ( strcmp( type, ExecCmd_MS_T ) == 0 ) {
                 execCmd_t *execCmd;
                 execCmd = ( execCmd_t * )  res0->param->inOutStruct;
-                snprintf( res + strlen( res ), 1024 - strlen( res ), "%s", execCmd->cmd );
+                snprintf( tmpbuf + strlen( tmpbuf ), 1024 - strlen( tmpbuf ), "%s", execCmd->cmd );
             }
             else {
-                snprintf( res, 1024, "<value>" );
+                snprintf( tmpbuf, 1024, "<value>" );
             }
-            return res;
+            return strdup( tmpbuf );
         case T_BOOL:
             res = strdup( RES_BOOL_VAL( res0 ) ? "true" : "false" );
             return res;
-        case T_CONS:
-            res = ( char * )malloc( sizeof( char ) * 1024 );
-            sprintf( res, "[" );
-            int i;
-            for ( i = 0; i < res0->degree; i++ ) {
-                char *resElem = convertResToString( res0->subtrees[i] );
-                if ( resElem == NULL ) {
-                    free( res );
-                    return NULL;
-                }
-                else {
-                    snprintf( res + strlen( res ), 1024 - strlen( res ), "%s%s", i == 0 ? "" : ",", resElem );
-                    free( resElem );
-                }
-            }
-            snprintf( res + strlen( res ), 1024 - strlen( res ), "]" );
-            return res;
-        case T_DATETIME:
-            res = ( char * )malloc( sizeof( char ) * 1024 );
-            ttimestr( res, 1024 - 1, "", &RES_TIME_VAL( res0 ) );
-            return res;
+        case T_CONS: {
+             sprintf( tmpbuf, "[" );
+             int i;
+             for ( i = 0; i < res0->degree; i++ ) {
+                 /* Validate array bounds before dereferencing */
+                 if ( res0->subtrees == NULL || res0->subtrees[i] == NULL ) {
+                     rodsLog( LOG_ERROR, "convertResToString: array bounds violation at index %d", i );
+                     return NULL;
+                 }
+                 char *resElem = convertResToString( res0->subtrees[i] );
+                 if ( resElem == NULL ) {
+                     return NULL;
+                 }
+                 else {
+                     snprintf( tmpbuf + strlen( tmpbuf ), 1024 - strlen( tmpbuf ), "%s%s", i == 0 ? "" : ",", resElem );
+                     free( resElem );
+                 }
+             }
+             snprintf( tmpbuf + strlen( tmpbuf ), 1024 - strlen( tmpbuf ), "]" );
+             return strdup( tmpbuf );
+         }
+         case T_DATETIME:
+             ttimestr( tmpbuf, 1024 - 1, "", &RES_TIME_VAL( res0 ) );
+             return strdup( tmpbuf );
         case T_UNSPECED:
             res = strdup( "<undefined>" );
             return res;
@@ -693,11 +760,12 @@ char* convertResToString( Res *res0 ) {
             return NULL;
         }
         break;
-    default:
-        res = ( char * )malloc( sizeof( char ) * 128 );
-        return typeToString( res0, NULL, res, 128 );
-    }
-}
+        default:
+        char defbuf[128];
+        char *res = typeToString( res0, NULL, defbuf, 128 );
+        return res == NULL ? NULL : strdup( res );
+        }
+        }
 
 /******************* print functions **********************/
 void printMsParamArray( msParamArray_t *msParamArray, char *buf2 ) {

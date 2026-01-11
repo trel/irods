@@ -1,0 +1,210 @@
+TEST DISABLED ANALYSIS REPORT
+Generated: 2026-01-18
+Build Configuration: CMake Release with -DIRODS_UNIT_TESTS_BUILD=YES
+
+SUMMARY
+=======
+Total Disabled Tests Found: 10
+Disabled due to:
+  - Missing rule engine headers: 5 tests
+  - GoogleTest framework not available: 2 tests  
+  - Linker errors: 1 test
+  - Verification needed: 2 tests
+
+DETAILED BREAKDOWN
+==================
+
+GROUP 1: MISSING RULE ENGINE HEADERS (5 tests)
+----------------------------------------------
+These tests include private rule engine headers but the include paths
+are not configured in the unit test build system.
+
+1. attr_typing
+   Ticket: wdt-c012
+   Error: fatal error: 'irods/private/re/restructs.hpp' file not found
+   Line: unit_tests/src/test_attr_typing.cpp:19
+   Reason: Test requires rule engine type definitions (Node, type system)
+   Fix: Add rule engine plugin include paths to CMakeLists.txt
+   Priority: HIGH - Core type system testing
+   Estimated Effort: 2-3 hours
+
+2. query_type_inference
+   Ticket: wdt-91e0
+   Error: fatal error: 'irods/private/re/restructs.hpp' file not found
+   Line: unit_tests/src/test_query_type_inference.cpp:22
+   Reason: Tests type inference for query results
+   Fix: Same as attr_typing - add include paths
+   Priority: HIGH - Type system validation
+   Estimated Effort: 2-3 hours
+
+3. union_constraint_solving
+   Ticket: wdt-5d86
+   Error: fatal error: 'irods/private/re/restructs.hpp' file not found
+   Line: unit_tests/src/test_union_constraint_solving.cpp:19
+   Reason: Tests constraint solving for union types
+   Fix: Same include path fix
+   Priority: HIGH - Type system validation
+   Estimated Effort: 2-3 hours
+
+4. union_types
+   Ticket: wdt-9eee
+   Error: fatal error: 'irods/private/re/restructs.hpp' file not found
+   Line: unit_tests/src/test_union_types.cpp:19
+   Reason: Tests union type expression handling
+   Fix: Same include path fix
+   Priority: HIGH - Type system validation
+   Estimated Effort: 2-3 hours
+
+5. optional_types
+   Ticket: wdt-2749
+   Error: unknown type name 'Node'; missing OPTION_OPTIONAL_TYPE constant
+   Line: unit_tests/src/test_optional_types.cpp:11+
+   Reason: Missing type definitions and constants from rule engine
+   Fix: Add include paths AND check for missing constants
+   Priority: HIGH - Type system validation
+   Estimated Effort: 3-4 hours (may need additional headers)
+
+GROUP 2: GOOGLETEST FRAMEWORK NOT AVAILABLE (2 tests)
+------------------------------------------------------
+These tests were written using GoogleTest framework, but the project
+standardized on Catch2. GTest is not in the dependency list.
+
+6. deprecation_warnings
+   Ticket: wdt-0115
+   Error: fatal error: 'gtest/gtest.h' file not found
+   Line: unit_tests/src/test_deprecation_warnings.cpp:1
+   Reason: Written with GoogleTest instead of Catch2
+   Fix: Migrate test framework from GoogleTest to Catch2
+   Details:
+     - Replace #include <gtest/gtest.h> with #include <catch2/catch_all.hpp>
+     - Convert TEST_F classes to TEST_CASE
+     - Convert EXPECT_ macros to CHECK macros
+     - Update CMakeLists.txt linking
+   Config File: unit_tests/cmake/test_config/irods_deprecation_warnings.cmake
+   Priority: HIGH - Tests deprecated construct detection
+   Estimated Effort: 4-6 hours
+
+7. legacy_construct_warnings
+   Ticket: wdt-243f
+   Error: fatal error: 'gtest/gtest.h' file not found
+   Line: unit_tests/src/test_legacy_construct_warnings.cpp:8
+   Reason: Written with GoogleTest instead of Catch2
+   Fix: Migrate test framework from GoogleTest to Catch2
+   Details: Same as deprecation_warnings
+   Config File: unit_tests/cmake/test_config/irods_legacy_construct_warnings.cmake
+   Priority: HIGH - Tests legacy syntax warnings
+   Estimated Effort: 4-6 hours
+
+GROUP 3: LINKER ERRORS (1 test)
+-------------------------------
+
+8. macros_templates
+   Ticket: wdt-0193
+   Error: clang: error: linker command failed with exit code 1
+   Line: Linking stage
+   Reason: Missing library dependencies or incorrect linker configuration
+   Recent Change: Commit a875e7ddc fixed source path from '../test_macros_templates.cpp' 
+                  to 'src/test_macros_templates.cpp'
+   Fix: Review and complete linker configuration
+   Details:
+     - Verify source file paths are correct
+     - Check for missing library links in CMakeLists.txt
+     - Verify all required object files are included
+     - Check for symbol resolution issues
+   Config File: unit_tests/cmake/test_config/irods_macros_templates.cmake
+   Priority: MEDIUM - Macro/template tests
+   Estimated Effort: 2-3 hours
+
+GROUP 4: VERIFICATION NEEDED (2 tests)
+--------------------------------------
+
+9. rerror_stack
+   Ticket: wdt-851a
+   Status: Builds individually but may fail in all-unit_tests target
+   Issue: Need to verify in full test suite context
+   Priority: MEDIUM - Verify behavior
+   Estimated Effort: 1 hour
+
+10. system_error
+    Ticket: wdt-95ce
+    Status: Builds individually but may fail in all-unit_tests target
+    Issue: Need to verify in full test suite context
+    Priority: MEDIUM - Verify behavior
+    Estimated Effort: 1 hour
+
+RECOMMENDED FIX PRIORITY
+========================
+
+Phase 1 (Critical - Block all-unit_tests): 
+  1. wdt-c012 (attr_typing) - Core typing system
+  2. wdt-0115 (deprecation_warnings) - Framework migration
+  3. wdt-243f (legacy_construct_warnings) - Framework migration
+  4. wdt-0193 (macros_templates) - Linker configuration
+
+Phase 2 (High - Type System):
+  1. wdt-91e0 (query_type_inference) - Type inference
+  2. wdt-5d86 (union_constraint_solving) - Type constraints
+  3. wdt-9eee (union_types) - Union type support
+  4. wdt-2749 (optional_types) - Optional types
+
+Phase 3 (Verify):
+  1. wdt-851a (rerror_stack) - Verify build
+  2. wdt-95ce (system_error) - Verify build
+
+ROOT CAUSES SUMMARY
+===================
+
+1. Missing Include Paths (5 tests)
+   - Rule engine plugin headers marked private
+   - Unit tests need to include rule engine types for testing
+   - Solution: Configure CMakeLists.txt to make headers accessible to tests
+     OR create public API wrapper headers
+
+2. Framework Mismatch (2 tests)
+   - Some tests use GoogleTest, others use Catch2
+   - Project standardized on Catch2 v3.4.0
+   - Solution: Migrate GoogleTest tests to Catch2
+
+3. Build Configuration Issues (1 test)
+   - Linker errors suggest missing library links
+   - Recent path fixes may not be complete
+   - Solution: Review and complete CMakeLists.txt configuration
+
+4. Integration Issues (2 tests)
+   - Tests build individually but may fail in all-unit_tests context
+   - Possible transitive dependency or link order issues
+   - Solution: Run full test suite and identify blocker
+
+IMPLEMENTATION NOTES
+====================
+
+Changes Required in:
+  - unit_tests/CMakeLists.txt (main test build configuration)
+  - unit_tests/cmake/test_config/irods_*.cmake (individual test configs)
+  - unit_tests/src/test_*.cpp (test source files - framework migration)
+
+Key Files to Modify:
+  - unit_tests/cmake/test_config/irods_attr_typing.cmake
+  - unit_tests/cmake/test_config/irods_deprecation_warnings.cmake
+  - unit_tests/cmake/test_config/irods_legacy_construct_warnings.cmake
+  - unit_tests/cmake/test_config/irods_macros_templates.cmake
+  - unit_tests/cmake/test_config/irods_optional_types.cmake
+  - unit_tests/cmake/test_config/irods_query_type_inference.cmake
+  - unit_tests/cmake/test_config/irods_union_constraint_solving.cmake
+  - unit_tests/cmake/test_config/irods_union_types.cmake
+
+Build Command to Verify All Fixes:
+  cd /tmp/worktree-disabled-tests/build
+  cmake --build . -j 30 --target all-unit_tests
+
+Individual Test Commands (for verification):
+  cmake --build . --target irods_attr_typing
+  cmake --build . --target irods_deprecation_warnings
+  cmake --build . --target irods_legacy_construct_warnings
+  cmake --build . --target irods_macros_templates
+  cmake --build . --target irods_optional_types
+  cmake --build . --target irods_query_type_inference
+  cmake --build . --target irods_union_constraint_solving
+  cmake --build . --target irods_union_types
+  cmake --build . --target irods_rerror_stack
+  cmake --build . --target irods_system_error
