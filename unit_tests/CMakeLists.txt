@@ -62,6 +62,7 @@ set(
   data_object_proxy
   delay_hints_parser
   delay_rule_locking_api
+  deprecation_warnings
   dns_cache
   dstream
   environment_variables
@@ -82,6 +83,7 @@ set(
   json_apis_from_client
   json_events
   key_value_proxy
+  legacy_construct_warnings
   lifetime_manager
   linked_list_iterator
   logical_locking
