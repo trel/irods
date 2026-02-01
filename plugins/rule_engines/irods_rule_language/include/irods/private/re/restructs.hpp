@@ -82,7 +82,6 @@
 #define OPTION_TYPE_MASK 0xf0
 #define OPTION_OPTIONAL_TYPE 0x40   /* @optional annotation - value may be absent/null */
 #define OPTION_NONNULL_TYPE 0x80    /* @nonnull annotation - value must not be null */
-#define OPTION_DEPRECATED 0x1000    /* @deprecated annotation - function is deprecated */
 
 #define OPTION_IO_TYPE_MASK 0xff00
 #define IO_TYPE_INPUT 0x100
@@ -90,6 +89,8 @@
 #define IO_TYPE_DYNAMIC 0x400
 #define IO_TYPE_EXPRESSION 0x800
 #define IO_TYPE_ACTIONS 0x1000
+
+#define OPTION_DEPRECATED 0x10000   /* @deprecated annotation - function is deprecated */
 
 #define getVararg(n) ((n)->option & OPTION_VARARG_MASK)
 #define setVararg(n, v) (n)->option ^= ((n)->option & OPTION_VARARG_MASK) ^ (v);

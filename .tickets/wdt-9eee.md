@@ -1,6 +1,6 @@
 ---
 id: wdt-9eee
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-01-18T14:44:11Z

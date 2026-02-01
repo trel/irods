@@ -1,0 +1,228 @@
+[  1%] [FLEX][irods_genquery1_lexer] Building scanner with flex 2.6.4
+[  1%] [BISON][irods_genquery1_parser] Building parser with bison 3.8.2
+[  1%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/escape_utilities.cpp.o
+[  1%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/dns_cache.cpp.o
+[  1%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/bunUtil.cpp.o
+[  1%] Building CXX object lib/administration/zone/CMakeFiles/irods_zone_administration_server.dir/src/zone_administration.cpp.o
+[  1%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/base64.cpp.o
+[  1%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/hashtable.cpp.o
+[  1%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/clientLogin.cpp.o
+[  1%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/authenticate.cpp.o
+[  1%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/chksumUtil.cpp.o
+[  1%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/getRodsEnv.cpp.o
+[  1%] Building CXX object lib/administration/ticket/CMakeFiles/irods_ticket_administration_client.dir/src/ticket_administration.cpp.o
+[  1%] Building CXX object lib/filesystem/CMakeFiles/irods_filesystem_server.dir/src/filesystem.cpp.o
+[  1%] Building CXX object lib/administration/ticket/CMakeFiles/irods_ticket_administration_server.dir/src/ticket_administration.cpp.o
+[  1%] Building CXX object lib/hasher/CMakeFiles/irods_hasher.dir/src/Hasher.cpp.o
+[  1%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/hostname_cache.cpp.o
+[  1%] Building CXX object lib/filesystem/CMakeFiles/irods_filesystem_client.dir/src/filesystem.cpp.o
+[  1%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/irods_buffer_encryption.cpp.o
+[  1%] Building CXX object lib/administration/resource/CMakeFiles/irods_resource_administration_client.dir/src/resource_administration.cpp.o
+[  2%] Building CXX object lib/filesystem/CMakeFiles/irods_filesystem_path.dir/src/path.cpp.o
+[  2%] Building CXX object lib/core/CMakeFiles/irods_lib_core_client.dir/src/authenticate.cpp.o
+[  2%] Building CXX object lib/administration/user/CMakeFiles/irods_user_administration_common.dir/src/common.cpp.o
+[  2%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcAuthCheck.cpp.o
+[  2%] Building CXX object lib/administration/zone/CMakeFiles/irods_zone_administration_client.dir/src/zone_administration.cpp.o
+[  3%] Building CXX object server/auth/CMakeFiles/irodsPamAuthCheck.dir/src/irodsPamAuthCheck.cpp.o
+[  3%] Generating icatSysTables_postgres.sql
+[  3%] Building CXX object lib/administration/resource/CMakeFiles/irods_resource_administration_server.dir/src/resource_administration.cpp.o
+[  3%] Generating icatSysTables_mysql.sql
+[  3%] Generating icatSysTables_oracle.sql
+[  3%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcAuthCheck.cpp.o
+[  3%] Built target IRODS_PHONY_TARGET_icatSysTables_postgres.sql
+[  3%] Built target IRODS_PHONY_TARGET_icatSysTables_mysql.sql
+[  3%] Built target IRODS_PHONY_TARGET_icatSysTables_oracle.sql
+[  3%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcAuthPluginRequest.cpp.o
+[  3%] Building CXX object lib/core/CMakeFiles/irods_lib_core_client.dir/src/bunUtil.cpp.o
+[  3%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/client_connection.cpp.o
+[  3%] Generating dsl/stack.hh
+[  3%] Generating dsl/location.hh
+[  3%] Generating dsl/position.hh
+[  3%] Building CXX object lib/core/CMakeFiles/irods_lib_core_client.dir/src/chksumUtil.cpp.o
+[  3%] Building CXX object lib/genquery1/CMakeFiles/irods_genquery1_parser.dir/src/genquery1_driver.cpp.o
+[  3%] Linking CXX executable irodsPamAuthCheck
+[  3%] Built target irodsPamAuthCheck
+[  3%] Building CXX object lib/filesystem/CMakeFiles/irods_filesystem_server.dir/src/collection_iterator.cpp.o
+[  4%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcAuthPluginRequest.cpp.o
+[  4%] Building CXX object lib/hasher/CMakeFiles/irods_hasher.dir/src/MD5Strategy.cpp.o
+[  4%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcAuthRequest.cpp.o
+[  4%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcAuthRequest.cpp.o
+[  4%] Building CXX object lib/administration/user/CMakeFiles/irods_user_administration_common.dir/src/group.cpp.o
+[  4%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/irods_children_parser.cpp.o
+[  4%] Building CXX object lib/administration/user/CMakeFiles/irods_user_administration_common.dir/src/user.cpp.o
+[  4%] Building CXX object lib/hasher/CMakeFiles/irods_hasher.dir/src/SHA256Strategy.cpp.o
+[  4%] Building CXX object lib/hasher/CMakeFiles/irods_hasher.dir/src/SHA512Strategy.cpp.o
+[  4%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/connection_pool.cpp.o
+[  4%] Built target irods_ticket_administration_server
+[  5%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/cpUtil.cpp.o
+[  5%] Building CXX object lib/core/CMakeFiles/irods_lib_core_client.dir/src/clientLogin.cpp.o
+[  5%] Built target irods_filesystem_path
+[  5%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/fsckUtil.cpp.o
+[  5%] Building CXX object lib/genquery1/CMakeFiles/irods_genquery1_parser.dir/dsl/lexer.cpp.o
+[  5%] Built target irods_ticket_administration_client
+[  5%] Building CXX object lib/genquery1/CMakeFiles/irods_genquery1_parser.dir/dsl/parser.cpp.o
+[  5%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/getUtil.cpp.o
+[  5%] Built target irods_zone_administration_client
+[  5%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/irods_c_api.cpp.o
+[  5%] Building CXX object lib/administration/user/CMakeFiles/irods_user_administration_common.dir/src/utilities.cpp.o
+[  5%] Built target irods_zone_administration_server
+[  6%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/irods_configuration_keywords.cpp.o
+[  6%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/irods_configuration_parser.cpp.o
+[  7%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcAuthResponse.cpp.o
+[  7%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcAuthResponse.cpp.o
+[  7%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/irods_default_paths.cpp.o
+[  7%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/irods_client_api_table.cpp.o
+[  7%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/irods_client_negotiation.cpp.o
+[  7%] Built target irods_resource_administration_client
+[  7%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/lsUtil.cpp.o
+[  7%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcBulkDataObjPut.cpp.o
+[  7%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcBulkDataObjReg.cpp.o
+[  7%] Built target irods_resource_administration_server
+[  7%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcChkNVPathPerm.cpp.o
+[  7%] Building CXX object lib/core/CMakeFiles/irods_lib_core_client.dir/src/client_connection.cpp.o
+[  8%] Building CXX object lib/hasher/CMakeFiles/irods_hasher.dir/src/ADLER32Strategy.cpp.o
+[  9%] Building CXX object lib/core/CMakeFiles/irods_lib_core_client.dir/src/connection_pool.cpp.o
+[  9%] Building CXX object lib/core/CMakeFiles/irods_lib_core_client.dir/src/cpUtil.cpp.o
+[  9%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/irods_environment_properties.cpp.o
+[  9%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcBulkDataObjPut.cpp.o
+[  9%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcBulkDataObjReg.cpp.o
+[  9%] Built target irods_user_administration_common
+[  9%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcChkNVPathPerm.cpp.o
+[  9%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcChkObjPermAndStat.cpp.o
+[  9%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcChkObjPermAndStat.cpp.o
+[  9%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcClientHints.cpp.o
+[  9%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcClientHints.cpp.o
+[  9%] Building CXX object lib/filesystem/CMakeFiles/irods_filesystem_server.dir/src/recursive_collection_iterator.cpp.o
+[  9%] Building CXX object lib/filesystem/CMakeFiles/irods_filesystem_client.dir/src/collection_iterator.cpp.o
+[  9%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/mcollUtil.cpp.o
+[  9%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/miscUtil.cpp.o
+[  9%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/irods_error.cpp.o
+[  9%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/irods_exception.cpp.o
+[  9%] Building CXX object lib/core/CMakeFiles/irods_lib_core_client.dir/src/fsckUtil.cpp.o
+[  9%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/mkdirUtil.cpp.o
+[  9%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/mvUtil.cpp.o
+[ 10%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/phymvUtil.cpp.o
+[ 10%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/procApiRequest.cpp.o
+[ 10%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/putUtil.cpp.o
+[ 10%] Building CXX object lib/hasher/CMakeFiles/irods_hasher.dir/src/SHA1Strategy.cpp.o
+[ 10%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcCloseCollection.cpp.o
+[ 10%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcCloseCollection.cpp.o
+/src/irods/build/lib/genquery1/dsl/parser.cpp:432:9: warning: variable 'yynerrs_' set but not used [-Wunused-but-set-variable]
+    int yynerrs_ = 0;
+        ^
+1 warning generated.
+[ 10%] Built target irods_genquery1_parser
+[ 10%] Building CXX object lib/hasher/CMakeFiles/irods_hasher.dir/src/CRC64NVMEStrategy.cpp.o
+[ 10%] Building CXX object lib/core/CMakeFiles/irods_lib_core_client.dir/src/getUtil.cpp.o
+[ 10%] Building CXX object lib/filesystem/CMakeFiles/irods_filesystem_client.dir/src/recursive_collection_iterator.cpp.o
+[ 10%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/rcConnect.cpp.o
+[ 10%] Building CXX object lib/core/CMakeFiles/irods_lib_core_client.dir/src/irods_c_api.cpp.o
+[ 10%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcCollCreate.cpp.o
+[ 10%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcCollCreate.cpp.o
+[ 10%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcCollRepl.cpp.o
+[ 10%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcDataCopy.cpp.o
+[ 10%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/rcPortalOpr.cpp.o
+[ 10%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcDataGet.cpp.o
+[ 10%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/regUtil.cpp.o
+[ 10%] Built target irods_filesystem_server
+[ 10%] Building CXX object lib/administration/user/CMakeFiles/irods_user_administration_client.dir/src/user_administration.cpp.o
+[ 10%] Building CXX object lib/hasher/CMakeFiles/irods_hasher.dir/src/checksum.cpp.o
+[ 10%] Building CXX object lib/hasher/CMakeFiles/irods_hasher.dir/src/irods_hasher_factory.cpp.o
+[ 10%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/irods_get_full_path_for_config_file.cpp.o
+[ 10%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/irods_hierarchy_parser.cpp.o
+[ 10%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/replUtil.cpp.o
+[ 10%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcCollRepl.cpp.o
+[ 10%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/rmUtil.cpp.o
+[ 10%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/rmdirUtil.cpp.o
+[ 11%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcDataObjChksum.cpp.o
+[ 11%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcDataObjClose.cpp.o
+[ 11%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcDataObjCopy.cpp.o
+[ 11%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcDataObjCreate.cpp.o
+[ 11%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcDataObjCreateAndStat.cpp.o
+[ 11%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcDataObjGet.cpp.o
+[ 11%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcDataObjLseek.cpp.o
+[ 12%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcDataCopy.cpp.o
+[ 12%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcDataGet.cpp.o
+[ 12%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcDataObjOpen.cpp.o
+[ 12%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/irods_hostname.cpp.o
+[ 12%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/irods_kvp_string_parser.cpp.o
+[ 12%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcDataObjChksum.cpp.o
+[ 12%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcDataObjOpenAndStat.cpp.o
+[ 12%] Building CXX object lib/core/CMakeFiles/irods_lib_core_client.dir/src/irods_client_api_table.cpp.o
+[ 12%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcDataObjClose.cpp.o
+[ 12%] Built target irods_filesystem_client
+[ 12%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcDataObjCopy.cpp.o
+[ 13%] Building CXX object lib/administration/user/CMakeFiles/irods_user_administration_server.dir/src/user_administration.cpp.o
+[ 13%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcDataObjCreate.cpp.o
+[ 13%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcDataObjCreateAndStat.cpp.o
+[ 13%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/irods_log.cpp.o
+[ 13%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/rmtrashUtil.cpp.o
+[ 13%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcDataObjGet.cpp.o
+[ 13%] Building CXX object lib/core/CMakeFiles/irods_lib_core_client.dir/src/irods_client_negotiation.cpp.o
+[ 13%] Building CXX object lib/core/CMakeFiles/irods_lib_core_client.dir/src/lsUtil.cpp.o
+[ 13%] Building CXX object lib/core/CMakeFiles/irods_lib_core_client.dir/src/mcollUtil.cpp.o
+[ 14%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/rsyncUtil.cpp.o
+[ 14%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/scanUtil.cpp.o
+[ 14%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/sockComm.cpp.o
+[ 14%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/sslSockComm.cpp.o
+[ 14%] Building CXX object lib/core/CMakeFiles/irods_lib_core_client.dir/src/miscUtil.cpp.o
+[ 14%] Building CXX object lib/core/CMakeFiles/irods_lib_core_client.dir/src/mkdirUtil.cpp.o
+[ 15%] Building CXX object lib/core/CMakeFiles/irods_lib_core_client.dir/src/mvUtil.cpp.o
+[ 15%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcDataObjPhymv.cpp.o
+[ 15%] Building CXX object lib/core/CMakeFiles/irods_lib_core_server.dir/src/trimUtil.cpp.o
+[ 16%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/irods_logger.cpp.o
+[ 16%] Building CXX object lib/core/CMakeFiles/irods_lib_core_client.dir/src/phymvUtil.cpp.o
+[ 16%] Building CXX object lib/core/CMakeFiles/irods_lib_core_client.dir/src/procApiRequest.cpp.o
+[ 16%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/irods_pack_table.cpp.o
+[ 16%] Building CXX object lib/core/CMakeFiles/irods_lib_core_client.dir/src/putUtil.cpp.o
+[ 16%] Building CXX object lib/core/CMakeFiles/irods_lib_core_client.dir/src/rcConnect.cpp.o
+[ 16%] Building CXX object lib/core/CMakeFiles/irods_lib_core_client.dir/src/rcPortalOpr.cpp.o
+[ 16%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcDataObjPut.cpp.o
+[ 17%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcDataObjRead.cpp.o
+[ 17%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcDataObjRename.cpp.o
+[ 17%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/irods_parse_command_line_options.cpp.o
+[ 17%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/irods_path_recursion.cpp.o
+[ 17%] Built target irods_user_administration_client
+[ 17%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/irods_pluggable_auth_scheme.cpp.o
+[ 17%] Building CXX object lib/core/CMakeFiles/irods_lib_core_client.dir/src/regUtil.cpp.o
+[ 17%] Building CXX object lib/core/CMakeFiles/irods_lib_core_client.dir/src/replUtil.cpp.o
+[ 17%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/irods_plugin_name_generator.cpp.o
+[ 17%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/irods_random.cpp.o
+[ 17%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/irods_serialization.cpp.o
+[ 17%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/irods_server_properties.cpp.o
+[ 17%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/irods_service_account.cpp.o
+[ 17%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcDataObjRepl.cpp.o
+[ 17%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcDataObjRsync.cpp.o
+[ 17%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcDataObjLseek.cpp.o
+[ 17%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/irods_socket_information.cpp.o
+[ 17%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcDataObjOpen.cpp.o
+[ 18%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/irods_stacktrace.cpp.o
+[ 18%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcDataObjOpenAndStat.cpp.o
+[ 19%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcDataObjPhymv.cpp.o
+[ 19%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcDataObjPut.cpp.o
+[ 19%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcDataObjRead.cpp.o
+[ 19%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcDataObjRename.cpp.o
+[ 19%] Building CXX object lib/core/CMakeFiles/irods_lib_core_client.dir/src/rmUtil.cpp.o
+[ 19%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcDataObjRepl.cpp.o
+[ 19%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcDataObjRsync.cpp.o
+[ 19%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcDataObjTrim.cpp.o
+[ 19%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcDataObjTrim.cpp.o
+[ 19%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/irods_string_tokenize.cpp.o
+[ 19%] Built target irods_user_administration_server
+[ 19%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/irods_virtual_path.cpp.o
+[ 19%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/json_events.cpp.o
+[ 19%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/key_value_proxy.cpp.o
+[ 19%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcDataObjTruncate.cpp.o
+[ 19%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcDataObjUnlink.cpp.o
+[ 19%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcDataObjTruncate.cpp.o
+[ 19%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/list.cpp.o
+[ 19%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcDataObjWrite.cpp.o
+[ 19%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/msParam.cpp.o
+[ 19%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcDataPut.cpp.o
+[ 19%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcEndTransaction.cpp.o
+[ 19%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/obf.cpp.o
+[ 19%] Building CXX object lib/api/CMakeFiles/irods_lib_api_client.dir/src/rcDataObjUnlink.cpp.o
+[ 19%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcExecCmd.cpp.o
+[ 20%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcExecMyRule.cpp.o
+[ 20%] Building CXX object lib/api/CMakeFiles/irods_lib_api_server.dir/src/rcExecRuleExpression.cpp.o
+[ 20%] Building CXX object lib/core/CMakeFiles/irods_common_core.dir/src/packStruct.cpp.o

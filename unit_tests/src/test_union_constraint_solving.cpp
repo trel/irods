@@ -80,7 +80,6 @@ TEST_CASE("union_constraint: query result with unknown columns")
     ExprType *intType = newSimpType(T_INT, r);
     
     // For unknown column, create a union as fallback
-    ExprType *dynamicType = newSimpType(T_DYNAMIC, r);
     ExprType **unionTypes = (ExprType **)region_alloc(r, sizeof(ExprType *) * 2);
     unionTypes[0] = intType;
     unionTypes[1] = stringType;

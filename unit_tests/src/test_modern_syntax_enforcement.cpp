@@ -52,7 +52,7 @@ struct ModernSyntaxTestCase {
 /**
  * @brief Modern syntax patterns that MUST be recognized
  */
-const char* modern_patterns[] = {
+[[maybe_unused]] const char* modern_patterns[] = {
     "declare int",
     "declare string",
     "declare float",
@@ -68,7 +68,7 @@ const char* modern_patterns[] = {
     "catch",
 };
 
-const char* modern_functions[] = {
+[[maybe_unused]] const char* modern_functions[] = {
     "writeLine",
     "str",
     "int",
@@ -79,7 +79,7 @@ const char* modern_functions[] = {
 /**
  * @brief Legacy constructs that MUST NOT be recognized in modern mode
  */
-const char* legacy_constructs[] = {
+[[maybe_unused]] const char* legacy_constructs[] = {
     "ifExec",
     "whileExec",
     "forExec",

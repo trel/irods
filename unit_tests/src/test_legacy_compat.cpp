@@ -41,7 +41,7 @@ namespace {
     /**
      * Legacy system functions that must be recognized
      */
-    const char* legacy_functions[] = {
+    [[maybe_unused]] const char* legacy_functions[] = {
         "forExec",
         "whileExec",
         "forEachExec",
@@ -50,17 +50,15 @@ namespace {
         "assign",
         "ifExec"
     };
-    const int num_legacy_functions = sizeof(legacy_functions) / sizeof(legacy_functions[0]);
 
     /**
      * Legacy operators that must be recognized
      */
-    const char* legacy_operators[] = {
+    [[maybe_unused]] const char* legacy_operators[] = {
         "++",      // string concatenation
         "like",    // pattern matching
         "not like" // negated pattern matching
     };
-    const int num_legacy_operators = sizeof(legacy_operators) / sizeof(legacy_operators[0]);
 }
 
 // ============================================================================

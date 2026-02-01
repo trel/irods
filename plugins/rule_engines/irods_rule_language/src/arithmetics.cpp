@@ -1472,7 +1472,6 @@ Res* execRuleFromCondIndex( char *ruleName, Res **args, int argc, CondIndexVal *
             RETURN;
         }
         /* Free old result and create new string result */
-        Res *oldRes = res;
         res = newStringRes( r, coercedStr );
         free( coercedStr );
     }

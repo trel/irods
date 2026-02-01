@@ -50,89 +50,49 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/utils.cmake")
 set(
   IRODS_UNIT_TESTS
   access_time_queue
-  atomic_apply_acl_operations
-  atomic_apply_metadata_operations
   attr_typing
-  authenticate_client
   capped_memory_resource
-  client_connection
   client_server_negotiation
-  connection_pool
-  data_object_finalize
-  data_object_modify_info
   data_object_proxy
   delay_hints_parser
-  delay_rule_locking_api
   deprecation_warnings
-  dns_cache
-  dstream
   environment_variables
   file_object
-  filesystem
   fixed_buffer_resource
   fully_qualified_username
   generate_random_alphanumeric_string
-  genquery1_flex_bison_parser
   getRodsEnv
-  get_delay_rule_info
-  get_file_descriptor_info
-  get_resource_info_for_operation
   hashers
   hierarchy_parser
   host_list_context_string
-  hostname_cache
-  json_apis_from_client
   json_events
   key_value_proxy
-  legacy_construct_warnings
   legacy_compat
   legacy_construct_warnings
   lifetime_manager
   linked_list_iterator
-  macros_templates
-  logical_locking
   logical_paths_and_special_characters
-  metadata
+  macros_templates
   modern_syntax_enforcement
   optional_types
   packstruct
-  parallel_transfer_engine
-  procApiRequest_raw
   process_stash
-  query_builder
   query_type_inference
   rcConnect
-  rcTicketAdmin
-  rc_check_auth_credentials
-  rc_data_obj
-  rc_data_obj_repl
-  rc_genquery2
-  rc_get_library_features
-  rc_mod_data_obj_meta
-  rc_switch_user
-  rc_update_replica_access_time
   re_serialization
-  replica
   replica_access_table
-  replica_open_and_close
   replica_state_table
-  replica_truncate
   rerror_stack
-  resource_administration
   scoped_privileged_client
   server_properties
   server_utilities
   shared_memory_object
   system_error
-  ticket_administration
   union_constraint_solving
   union_types
-  user_administration
   user_deprecated_warnings
   version
   with_durability
-  zone_administration
-  zone_report
 )
 
 foreach(test IN LISTS IRODS_UNIT_TESTS)

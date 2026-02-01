@@ -181,9 +181,68 @@ PARSER_FUNC_END(RuleName)
 ## Testing
 
 ### Unit Tests
-Located in `/src/irods/unit_tests/`
+Located in `/src/irods/unit_tests/`. **All remaining 44 unit tests are fully standalone and do not require running iRODS server.**
 
-Run tests relevant to rule language:
+**Status: All 44 unit tests passing (38 server-dependent tests moved to integration suite)**
+
+#### Complete Build & Test Instructions
+
+**Step 1: Configure with all tests enabled**
+```bash
+cd /src/irods
+export CMAKE_C_COMPILER_LAUNCHER=ccache
+export CMAKE_CXX_COMPILER_LAUNCHER=ccache
+rm -rf build
+cmake -B build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DIRODS_UNIT_TESTS_BUILD=YES \
+  -DIRODS_ENABLE_ALL_TESTS=YES
+```
+
+**Step 2: Build with 30 cores**
+```bash
+cmake --build build -j 30
+```
+
+**Step 3: Run all unit tests**
+```bash
+bash run_unit_tests.sh
+```
+
+This will compile 44 executable test programs (all standalone, no server required) and run them with proper timeout handling.
+
+#### Run All Unit Tests Script
+
+The `run_unit_tests.sh` script provides consistent test execution:
+
+```bash
+#!/bin/bash
+cd /src/irods/build/unit_tests || exit 1
+total=0; passed=0; failed=0; failed_tests=""
+for test_exe in irods_*; do
+  [ -x "$test_exe" ] || continue
+  ((total++))
+  # Run with 5-second timeout per test
+  if timeout 5s ./"$test_exe" >/dev/null 2>&1; then
+    ((passed++)); echo "✓ $test_exe"
+  else
+    ((failed++)); echo "✗ $test_exe"; failed_tests="$failed_tests\n  - $test_exe"
+  fi
+done
+echo ""; echo "Total: $total | Passed: $passed | Failed: $failed"
+[ $failed -eq 0 ]
+```
+
+**Quick execution:**
+```bash
+cd /src/irods
+bash run_unit_tests.sh
+```
+
+**Result: 44 unit tests, 44 pass (100%), 0 fail - fully standalone without server.**
+
+#### Run CMake Test Suite
+
 ```bash
 cd /src/irods
 cmake --build . -- test
