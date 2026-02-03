@@ -1160,6 +1160,19 @@ OR( term0 )
         BUILD_NODE( TK_STRING, "", &actionsFinish, 0, 0 );
         BUILD_APP_NODE( "remoteExec", &start, 4 );
     OR( func )
+        TTEXT( "run_as_admin" );
+        TTEXT( "{" );
+        char buf[10000];
+        Label actionsStart = *FPOS;
+        NT2( Actions, 1, 0 );
+        ( void ) POP;
+        ( void ) POP;
+        Label actionsFinish = *FPOS;
+        TTEXT( "}" );
+        dupString( e, &actionsStart, actionsFinish.exprloc - actionsStart.exprloc, buf );
+        BUILD_NODE( TK_STRING, buf, &actionsStart, 0, 0 );
+        BUILD_APP_NODE( "adminExec", &start, 1 );
+    OR( func )
         ABORT( !rulegen );
         TTEXT( "delay" );
         TTEXT( "(" );

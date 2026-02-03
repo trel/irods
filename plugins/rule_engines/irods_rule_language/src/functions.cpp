@@ -13,7 +13,11 @@
 #include "irods/private/re/datetime.hpp"
 #include "irods/private/re/cache.hpp"
 #include "irods/private/re/configuration.hpp"
+#include "irods/private/re/rules.hpp"
+#include "irods/private/re/reHelpers1.hpp"
 #include "irods/rsExecMyRule.hpp"
+#include "irods/irods_exec_rule_text_guard.hpp"
+#include "irods/scoped_privileged_client.hpp"
 #include "irods/rsDataObjOpen.hpp"
 #include "irods/rsDataObjLseek.hpp"
 #include "irods/rsDataObjWrite.hpp"
@@ -30,6 +34,7 @@ getDataObjInfoIncSpecColl( rsComm_t *rsComm, dataObjInp_t *dataObjInp,
 
 
 #include <boost/regex.h>
+#include <cctype>
 
 #ifndef DEBUG
 #include "irods/execMyRule.h"
@@ -1970,6 +1975,69 @@ Res *smsi_remoteExec( Node** paramsr, int, Node* node, ruleExecInfo_t* rei, int,
 #endif
 }
 
+Res *smsi_adminExec( Node** paramsr, int, Node* node, ruleExecInfo_t* rei, int, Env* env, rError_t* errmsg, Region* r ) {
+#ifdef DEBUG
+    return newErrorRes( r, RE_UNSUPPORTED_OP_OR_TYPE );
+#else
+
+    Res **params = ( Res ** )paramsr;
+
+    // Extract parameter
+    // params[0] = code block as string
+    char codeBlock[META_STR_LEN];
+    rstrcpy( codeBlock, params[0]->text, META_STR_LEN );
+
+    if (!rei || !rei->rsComm) {
+        generateAndAddErrMsg( "Invalid ruleExecInfo_t pointer", node, SYS_INVALID_INPUT_PARAM, errmsg );
+        return newErrorRes( r, SYS_INVALID_INPUT_PARAM );
+    }
+
+    rsComm_t& comm = *rei->rsComm;
+
+    // Check if user is admin
+    bool user_is_admin = (comm.clientUser.authInfo.authFlag >= LOCAL_PRIV_USER_AUTH);
+    bool exec_rule_text_active = irods::is_exec_rule_text_active();
+
+    // If user is NOT admin and called from irule, deny access
+    if (!user_is_admin && exec_rule_text_active) {
+        generateAndAddErrMsg( "Privilege escalation denied for non-admin user in irule context", node, SYS_NO_API_PRIV, errmsg );
+        return newErrorRes( r, SYS_NO_API_PRIV );
+    }
+
+    int result = 0;
+
+    // Strip trailing whitespace and semicolons from the code block
+    // The parser captures the raw action text which may include trailing semicolons
+    int len = strlen(codeBlock);
+    while (len > 0 && (codeBlock[len-1] == ';' || isspace(codeBlock[len-1]))) {
+        codeBlock[--len] = '\0';
+    }
+
+    // Use applyRuleBase with the pipe format to execute as an action block
+    // The pipe at the end tells applyRuleBase to treat this as an action (see nre.reLib1.cpp line 142)
+    char wrappedRule[META_STR_LEN];
+    snprintf( wrappedRule, META_STR_LEN, "%s|", codeBlock );
+
+    // Local execution with privilege escalation if needed
+    if (!user_is_admin) {
+        irods::experimental::scoped_privileged_client guard(comm);
+        // Privilege escalation happens in the guard constructor
+        // The code block is executed with elevated privileges within this scope
+        result = applyRuleBase( wrappedRule, rei->msParamArray, 1, rei, NO_SAVE_REI );
+    } else {
+        // Admin user executes normally without escalation
+        result = applyRuleBase( wrappedRule, rei->msParamArray, 1, rei, NO_SAVE_REI );
+    }
+
+    if ( result < 0 ) {
+        return newErrorRes( r, result );
+    }
+    else {
+        return newIntRes( r, result );
+    }
+#endif
+}
+
 #ifdef IRODS_FOR_DOXYGEN 
 /// \brief  Writes a message to either the iRODS log, stdout, stderr, or a data object.
 /// 
@@ -2728,6 +2796,7 @@ void getSystemFunctions( Hashtable *ft, Region* r ) {
     insertIntoHashTable( ft, "not like regex", newFunctionFD( "string * string->boolean", smsi_not_like_regex, r ) );
     insertIntoHashTable( ft, "delayExec", newFunctionFD( "string * string * string->integer", smsi_delayExec, r ) );
     insertIntoHashTable( ft, "remoteExec", newFunctionFD( "string * string * string * string->integer", smsi_remoteExec, r ) );
+    insertIntoHashTable( ft, "adminExec", newFunctionFD( "string->integer", smsi_adminExec, r ) );
     insertIntoHashTable( ft, "writeLine", newFunctionFD( "string * ?->integer", smsi_writeLine, r ) );
     insertIntoHashTable( ft, "writeString", newFunctionFD( "string * ?->integer", smsi_writeString, r ) );
     insertIntoHashTable( ft, "triml", newFunctionFD( "string * string->string", smsi_triml, r ) );

@@ -110,6 +110,7 @@ set(
   replica_state_table
   replica_truncate
   rerror_stack
+  run_as_admin
   resource_administration
   scoped_privileged_client
   server_properties
