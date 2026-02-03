@@ -65,6 +65,7 @@ set(
   dns_cache
   dstream
   environment_variables
+  exec_rule_text_guard
   file_object
   filesystem
   fixed_buffer_resource

@@ -5,6 +5,7 @@ set(
   "${CMAKE_CURRENT_SOURCE_DIR}/src/genQueryMS.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/icatAdminMS.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/icatGeneralMS.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/irods_exec_rule_text_guard.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/irods_ms_plugin.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/irods_re_plugin.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/irods_re_structs.cpp"
@@ -28,6 +29,7 @@ set(
 
 set(
   IRODS_SERVER_RE_HEADERS_PUBLIC
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/irods/irods_exec_rule_text_guard.hpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/include/irods/irods_ms_plugin.hpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/include/irods/irods_re_plugin.hpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/include/irods/irods_re_namespaceshelper.hpp"

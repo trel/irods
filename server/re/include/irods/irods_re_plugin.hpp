@@ -6,6 +6,7 @@
 #include "irods/irods_lookup_table.hpp"
 #include "irods/irods_re_structs.hpp"
 #include "irods/irods_state_table.h"
+#include "irods/irods_exec_rule_text_guard.hpp"
 
 #include <boost/any.hpp>
 #include <boost/algorithm/string.hpp>
@@ -334,6 +335,7 @@ namespace irods {
             msParamArray_t*    _ms_params,
             const std::string& _out_desc)
         {
+            exec_rule_text_guard guard;
             return re_mgr_->exec_rule_text(_instance_name, _rule_text, _ms_params, _out_desc);
         }
 
@@ -647,6 +649,7 @@ namespace irods {
                 msParamArray_t*    _ms_params,
                 const std::string& _out_desc)
         {
+            exec_rule_text_guard guard;
             if (_instance_name.empty()) {
                 for (auto&& re_pack : this->re_mgr_.re_packs_) {
                     log_error_code(re_pack.re_->exec_rule_text(re_pack.re_ctx_, _rt, _ms_params, _out_desc, callback(*this)));
@@ -730,6 +733,7 @@ namespace irods {
                 msParamArray_t*    _ms_params,
                 const std::string& _out_desc)
         {
+            exec_rule_text_guard guard;
             if (_instance_name.empty()) {
                 for (auto&& re_pack : this->re_mgr_.re_packs_) {
                     log_error_code(re_pack.re_->exec_rule_text(re_pack.re_ctx_, _rt, _ms_params, _out_desc, callback(*this)));

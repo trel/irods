@@ -3,6 +3,7 @@
 #include "irods/execMyRule.h"
 #include "irods/irods_logger.hpp"
 #include "irods/irods_re_plugin.hpp"
+#include "irods/irods_exec_rule_text_guard.hpp"
 #include "irods/miscServerFunct.hpp"
 #include "irods/msParam.h"
 #include "irods/objInfo.h"
@@ -93,6 +94,7 @@ auto rsExecMyRule(RsComm* _comm, ExecMyRuleInp* _exec_inp, MsParamArray** _out_p
 
     irods::rule_engine_context_manager<irods::unit, RuleExecInfo*, irods::AUDIT_RULE> re_ctx_mgr(
         irods::re_plugin_globals->global_re_mgr, &rei);
+    irods::exec_rule_text_guard guard;
     irods::error err = re_ctx_mgr.exec_rule_text(inst_name, my_rule_text, _exec_inp->inpParamArray, out_param_desc);
 
     // If the client didn't specify a target REP, clear all error information.

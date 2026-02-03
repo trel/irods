@@ -1,4 +1,5 @@
 #include "irods/irods_re_plugin.hpp"
+#include "irods/irods_exec_rule_text_guard.hpp"
 #include "irods/region.h"
 #include "irods/irods_hashtable.h"
 #include "irods/irods_server_properties.hpp"
