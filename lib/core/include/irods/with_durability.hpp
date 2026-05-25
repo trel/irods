@@ -22,7 +22,7 @@ namespace irods::experimental
         {
         }
 
-        const int value;
+        const int value; ///< The maximum number of retries.
     };
 
     /// A type that specifies how long (in milliseconds) \p with_durability
@@ -36,7 +36,7 @@ namespace irods::experimental
         {
         }
 
-        const std::chrono::milliseconds value;
+        const std::chrono::milliseconds value; ///< The delay between retries.
     };
 
     /// A type that specifies a multiplier of \p delay.
@@ -49,7 +49,7 @@ namespace irods::experimental
         {
         }
 
-        const float value;
+        const float value; ///< The multiplier applied after each retry delay.
     };
 
     /// A type that holds options used to control the behavior of \p with_durability.
@@ -191,6 +191,7 @@ namespace irods::experimental
 
     namespace detail
     {
+        /// Type trait yielding the final type in a parameter pack.
         template <typename ...Ts>
         struct last_type
         {
@@ -198,6 +199,7 @@ namespace irods::experimental
             using type = typename decltype((tag<Ts>{}, ...))::type;
         };
 
+        /// Alias for the final type in a parameter pack.
         template <typename ...Ts>
         using last_type_t = typename last_type<Ts...>::type;
 

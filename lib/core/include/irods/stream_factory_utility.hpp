@@ -73,6 +73,7 @@ namespace irods::experimental::io
         /// Move assignment operator.
         ///
         /// \param[in] _other The stream to move from.
+        /// \return A reference to this stream.
         auto operator=(managed_dstream&& _other) -> managed_dstream&
         {
             std::iostream::operator=(std::move(_other));
@@ -97,9 +98,9 @@ namespace irods::experimental::io
             stream.close(_on_close_success);
         }
 
-        irods::connection_pool::connection_proxy conn;
-        std::unique_ptr<io::client::native_transport> transport;
-        io::dstream stream;
+        irods::connection_pool::connection_proxy conn; ///< Connection owned by the managed stream.
+        std::unique_ptr<io::client::native_transport> transport; ///< Transport bound to \ref conn.
+        io::dstream stream; ///< Data object stream operating over \ref transport.
     }; // class managed_dstream
 
     /// Creates a factory that produces managed_dstream objects.
@@ -198,7 +199,7 @@ namespace irods::experimental::io
     ///
     /// \since 4.2.9
     ///
-    /// \param[in] _path The full path to a file on the local disk. All streams will poin to this file.
+    /// \param[in] _path The full path to a file on the local disk. All streams will point to this file.
     ///
     /// \return A new factory function.
     auto make_fstream_factory(std::string _path)

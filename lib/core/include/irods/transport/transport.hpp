@@ -225,17 +225,17 @@ namespace irods::experimental::io
 
         /// The name of the root resource where the replica resides.
         ///
-        /// eturn The root resource name for the open replica.
+        /// \return The root resource name for the open replica.
         virtual const root_resource_name& root_resource_name() const = 0;
 
         /// The name of the leaf resource where the replica resides.
         ///
-        /// eturn The leaf resource name for the open replica.
+        /// \return The leaf resource name for the open replica.
         virtual const leaf_resource_name& leaf_resource_name() const = 0;
 
         /// The replica number that identifies the replica.
         ///
-        /// eturn The replica number for the open replica.
+        /// \return The replica number for the open replica.
         virtual const replica_number& replica_number() const = 0;
 
         /// The replica token attached to the replica.
@@ -243,7 +243,7 @@ namespace irods::experimental::io
         /// Replica tokens only apply to write operations. Replica opened only for reads do
         /// not produce replica tokens.
         ///
-        /// eturn The replica token for the open replica.
+        /// \return The replica token for the open replica.
         virtual const replica_token& replica_token() const = 0;
     }; // class transport
 } // irods::experimental::io

@@ -34,8 +34,9 @@ namespace irods::experimental::replica
     class replica_proxy
     {
     public:
-        // Aliases for various types used in replica_proxy
+        /// Underlying DataObjInfo type exposed through the proxy.
         using doi_type = I;
+        /// Pointer type for the underlying DataObjInfo object.
         using doi_pointer_type = doi_type*;
 
         /// \brief Constructs proxy using an existing doi_type
@@ -72,9 +73,9 @@ namespace irods::experimental::replica
         auto map_id()           const noexcept -> int              { return doi_->dataMapId; } ///< Returns the map ID stored in the underlying replica.
         // clang-format on
 
-        /// \returns key_value_proxy
+        /// Returns the condition-input key-value pairs.
         ///
-        /// \returns condInput for the DataObjInfo node as a key_value_proxy
+        /// \return The DataObjInfo node's `condInput` as a key-value proxy.
         ///
         /// \since 4.2.9
         auto cond_input()       const -> key_value_proxy<const KeyValPair>
@@ -82,9 +83,9 @@ namespace irods::experimental::replica
             return make_key_value_proxy<const KeyValPair>(doi_->condInput);
         }
 
-        /// \returns const SpecColl*
+        /// Returns the special collection information pointer.
         ///
-        /// \returns specColl pointer for the DataObjInfo node
+        /// \return The DataObjInfo node's `specColl` pointer.
         ///
         /// \since 4.2.9
         auto special_collection_info() const noexcept -> const SpecColl*
@@ -92,21 +93,25 @@ namespace irods::experimental::replica
             return doi_->specColl;
         }
 
-        /// \returns const doi_pointer_type
+        /// Returns a pointer to the underlying struct.
         ///
-        /// \returns Pointer to the underlying struct
+        /// \return The wrapped DataObjInfo pointer.
         ///
         /// \since 4.2.9
         auto get() const noexcept -> const doi_pointer_type { return doi_; }
 
-        /// \returns Whether the replica is considered at rest
+        /// Indicates whether the replica is considered at rest.
+        ///
+        /// \return True if the replica is not intermediate.
         /// \retval true If the passed replica status is considered at rest
         /// \retval false If the passed replica status is not considered at rest
         ///
         /// \since 4.2.9
         auto at_rest() const -> bool { return INTERMEDIATE_REPLICA != replica_status(); }
 
-        /// \returns Whether the replica is locked at the logical level
+        /// Indicates whether the replica is logically locked.
+        ///
+        /// \return True if the replica is read- or write-locked.
         /// \retval true If the passed replica status is locked at the logical level
         /// \retval false If the passed replica status is not locked at the logical level
         ///
@@ -338,9 +343,9 @@ namespace irods::experimental::replica
             typename = std::enable_if_t<!std::is_const_v<P>>>
         auto map_id(const int _m) -> void { doi_->dataMapId = _m; }
 
-        /// \returns key_value_proxy
+        /// Returns the condition-input key-value pairs.
         ///
-        /// \returns condInput for the DataObjInfo node as a key_value_proxy
+        /// \return The DataObjInfo node's `condInput` as a mutable key-value proxy.
         ///
         /// \since 4.2.9
         template<
@@ -351,9 +356,9 @@ namespace irods::experimental::replica
             return make_key_value_proxy(doi_->condInput);
         }
 
-        /// \returns SpecColl*
+        /// Returns the special collection information pointer.
         ///
-        /// \returns specColl pointer for the DataObjInfo node
+        /// \return The DataObjInfo node's `specColl` pointer.
         ///
         /// \since 4.2.9
         template<
@@ -364,7 +369,9 @@ namespace irods::experimental::replica
             return doi_->specColl;
         }
 
-        /// \returns Pointer to the underlying struct
+        /// Returns a pointer to the underlying struct.
+        ///
+        /// \return The wrapped DataObjInfo pointer.
         ///
         /// \since 4.2.9
         template<
@@ -463,7 +470,7 @@ namespace irods::experimental::replica
     ///
     /// Allocates a new DataObjInfo and wraps the struct in a proxy and lifetime_manager
     ///
-    /// \returns replica_proxy and lifetime_manager for managing a new DataObjInfo
+    /// \return A replica proxy and lifetime manager for the new DataObjInfo.
     ///
     /// \since 4.2.9
     static auto make_replica_proxy() -> std::pair<replica_proxy_t, lifetime_manager<DataObjInfo>>
@@ -477,11 +484,11 @@ namespace irods::experimental::replica
     ///
     /// Allocates a new DataObjInfo and wraps the struct in a proxy and lifetime_manager
     ///
-    /// \param[in] _comm connection object
-    /// \param[in] _logical_path
-    /// \param[in] _replica_number
+    /// \param[in] _comm The connection object used to query catalog state.
+    /// \param[in] _logical_path The logical path identifying the data object.
+    /// \param[in] _replica_number The replica number identifying the replica.
     ///
-    /// \returns replica_proxy and lifetime_manager for managing a new DataObjInfo
+    /// \return A replica proxy and lifetime manager for the new DataObjInfo.
     ///
     /// \since 4.2.9
     template<typename rxComm>
@@ -505,11 +512,11 @@ namespace irods::experimental::replica
     ///
     /// Allocates a new DataObjInfo and wraps the struct in a proxy and lifetime_manager
     ///
-    /// \param[in] _comm connection object
-    /// \param[in] _logical_path
-    /// \param[in] _leaf_resource_name
+    /// \param[in] _comm The connection object used to query catalog state.
+    /// \param[in] _logical_path The logical path identifying the data object.
+    /// \param[in] _leaf_resource_name The leaf resource name identifying the replica.
     ///
-    /// \returns replica_proxy and lifetime_manager for managing a new DataObjInfo
+    /// \return A replica proxy and lifetime manager for the new DataObjInfo.
     ///
     /// \since 4.2.9
     template<typename rxComm>
@@ -531,9 +538,9 @@ namespace irods::experimental::replica
 
     /// \brief Takes an existing replica_proxy and duplicates the underlying struct.
     ///
-    /// \param[in] _replica replica to duplicate
+    /// \param[in] _replica The replica to duplicate.
     ///
-    /// \returns replica_proxy and lifetime_manager for underlying struct
+    /// \return A replica proxy and lifetime manager for the duplicated struct.
     ///
     /// \since 4.2.9
     static auto duplicate_replica(const DataObjInfo& _replica)
@@ -564,9 +571,9 @@ namespace irods::experimental::replica
 
     /// \brief Takes an existing replica_proxy and duplicates the underlying struct.
     ///
-    /// \param[in] _replica replica to duplicate
+    /// \param[in] _replica The replica to duplicate.
     ///
-    /// \returns replica_proxy and lifetime_manager for underlying struct
+    /// \return A replica proxy and lifetime manager for the duplicated struct.
     ///
     /// \since 4.2.9
     static auto duplicate_replica(const replica_proxy_t& _replica)
@@ -577,7 +584,7 @@ namespace irods::experimental::replica
 
     /// \brief Takes a structured JSON input and creates a replica proxy
     ///
-    /// \param[in] _logical_path The DataObjInfo holds an objPath, but the catalog only holds the data name and collection ID
+    /// \param[in] _logical_path The logical path to store in the proxy.
     /// \param[in] _input \parblock
     /// Structured JSON of the following format (order is unimportant, but all fields must be included):
     /// \code{.js}
@@ -605,7 +612,7 @@ namespace irods::experimental::replica
     /// \endcode
     /// \endparblock
     ///
-    /// \returns replica_proxy and lifetime_manager for underlying struct
+    /// \return A replica proxy and lifetime manager for the populated struct.
     ///
     /// \since 4.2.9
     static auto make_replica_proxy(const std::string_view _logical_path, const nlohmann::json& _input)
@@ -647,7 +654,7 @@ namespace irods::experimental::replica
     ///
     /// \param[in] _proxy replica_proxy containing data object information
     ///
-    /// \returns Structured JSON of the following format: \parblock
+    /// \return Structured JSON of the following format: \parblock
     /// \code{.js}
     ///     {
     ///         "data_id": <string>,

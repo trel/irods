@@ -22,6 +22,7 @@
 
 namespace irods::experimental::filesystem::NAMESPACE_IMPL
 {
+    /// Input iterator over a collection hierarchy.
     class recursive_collection_iterator
     {
     public:
@@ -35,6 +36,7 @@ namespace irods::experimental::filesystem::NAMESPACE_IMPL
 
         // Constructors and destructor
 
+        /// Constructs an end iterator.
         recursive_collection_iterator() = default;
 
         /// Constructs a recursive iterator over a collection hierarchy.
@@ -66,6 +68,7 @@ namespace irods::experimental::filesystem::NAMESPACE_IMPL
         /// \return A reference to this iterator.
         auto operator=(recursive_collection_iterator&& _other) -> recursive_collection_iterator& = default;
 
+        /// Destroys the iterator.
         ~recursive_collection_iterator() = default;
 
         // Observers
@@ -90,6 +93,7 @@ namespace irods::experimental::filesystem::NAMESPACE_IMPL
         
         /// Skips the remainder of the current collection and resumes traversal at the parent level.
         auto pop() -> void;
+        /// Prevents recursion into the current entry.
         auto disable_recursion_pending() noexcept -> void { ctx_->recurse = false; } ///< Prevents recursion into the current entry.
 
         // Compare
@@ -102,21 +106,23 @@ namespace irods::experimental::filesystem::NAMESPACE_IMPL
     private:
         struct context
         {
-            std::stack<collection_iterator> stack;
-            collection_options opts = collection_options::none;
-            bool recurse = true;
+            std::stack<collection_iterator> stack; ///< Active iterator frames for each recursion depth.
+            collection_options opts = collection_options::none; ///< Traversal option flags.
+            bool recurse = true; ///< Indicates whether the current entry should be recursed into.
         };
 
-        std::shared_ptr<context> ctx_;
+        std::shared_ptr<context> ctx_; ///< Shared traversal state.
     };
 
     // Enables support for range-based for-loops.
 
+    /// Returns the iterator unchanged for range-based for loops.
     inline auto begin(recursive_collection_iterator _iter) noexcept -> recursive_collection_iterator
     {
         return _iter;
     }
 
+    /// Returns the end iterator for range-based for loops.
     inline auto end([[maybe_unused]] const recursive_collection_iterator& _iter) noexcept
         -> recursive_collection_iterator
     {

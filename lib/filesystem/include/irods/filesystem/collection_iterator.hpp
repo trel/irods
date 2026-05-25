@@ -26,12 +26,14 @@
 
 namespace irods::experimental::filesystem::NAMESPACE_IMPL
 {
+    /// Options controlling collection iteration behavior.
     enum class collection_options
     {
-        none,
-        skip_permission_denied
+        none, ///< Do not enable any optional behavior.
+        skip_permission_denied ///< Continue iteration when permission is denied.
     };
 
+    /// Input iterator over the direct contents of a collection.
     class collection_iterator
     {
     public:
@@ -45,6 +47,7 @@ namespace irods::experimental::filesystem::NAMESPACE_IMPL
 
         // Constructors and destructor
 
+        /// Constructs an end iterator.
         collection_iterator() = default;
 
         /// Constructs an iterator over the contents of a collection.
@@ -76,6 +79,7 @@ namespace irods::experimental::filesystem::NAMESPACE_IMPL
         /// \return A reference to this iterator.
         auto operator=(collection_iterator&& _other) -> collection_iterator& = default;
 
+        /// Destroys the iterator and releases any active collection handle.
         ~collection_iterator();
 
         // Observers
@@ -104,28 +108,31 @@ namespace irods::experimental::filesystem::NAMESPACE_IMPL
     private:
         struct context
         {
-            rxComm* comm{};
-            path path{};
+            rxComm* comm{}; ///< Connection used for iteration.
+            path path{}; ///< Collection currently being traversed.
 #ifdef IRODS_FILESYSTEM_ENABLE_SERVER_SIDE_API
-            int handle{};
+            int handle{}; ///< Server-side collection handle.
 #else
-            collHandle_t handle{};
+            collHandle_t handle{}; ///< Client-side collection handle.
 #endif // IRODS_FILESYSTEM_ENABLE_SERVER_SIDE_API
-            value_type entry{};
+            value_type entry{}; ///< Current collection entry.
         };
 
+        /// Closes the active collection handle, if any.
         auto close() -> void;
 
-        std::shared_ptr<context> ctx_;
+        std::shared_ptr<context> ctx_; ///< Shared traversal state.
     };
 
     // Enables support for range-based for-loops.
 
+    /// Returns the iterator unchanged for range-based for loops.
     inline auto begin(collection_iterator _iter) noexcept -> collection_iterator
     {
         return _iter;
     }
 
+    /// Returns the end iterator for range-based for loops.
     inline auto end([[maybe_unused]] const collection_iterator& _iter) noexcept -> collection_iterator
     {
         return {};

@@ -8,12 +8,14 @@
 
 namespace irods::experimental
 {
+    /// Deprecated query type enumeration.
     enum class [[deprecated("use irods::query_type")]] query_type
     {
-        general,
-        specific
+        general, ///< Execute a general query.
+        specific ///< Execute a specific query.
     };
 
+    /// Fluent builder for constructing `irods::query` objects.
     class query_builder
     {
     public:
@@ -131,12 +133,12 @@ namespace irods::experimental
         }
 
     private:
-        const std::vector<std::string>* args_{};
-        std::string zone_hint_;
-        std::uintmax_t limit_ = 0;
-        std::uintmax_t offset_ = 0;
-        irods::query_type type_ = irods::query_type::general;
-        int options_ = 0;
+        const std::vector<std::string>* args_{}; ///< Bound arguments for specific queries.
+        std::string zone_hint_; ///< Zone hint applied at execution time.
+        std::uintmax_t limit_ = 0; ///< Maximum number of rows to expose.
+        std::uintmax_t offset_ = 0; ///< Zero-based starting row offset.
+        irods::query_type type_ = irods::query_type::general; ///< Query API to execute.
+        int options_ = 0; ///< Extra option bitmask passed to the query API.
     }; // class query_builder
 } // namespace irods::experimental
 

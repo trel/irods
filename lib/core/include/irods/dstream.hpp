@@ -501,7 +501,9 @@ namespace irods::experimental::io
             this->setp(pbase, pbase + buf_.size());
         }
 
-        /// Initializes the active stream area based on `_mode`.
+        /// Initializes the active stream area based on the requested open mode.
+        ///
+        /// \param[in] _mode The open mode used to choose the active stream area.
         void init_get_or_put_area(std::ios_base::openmode _mode) noexcept
         {
             using std::ios_base;
@@ -517,6 +519,8 @@ namespace irods::experimental::io
         }
 
         /// Flushes buffered output through the transport.
+        ///
+        /// \return Zero on success, or `external_write_error` on failure.
         int flush_buffer()
         {
             const auto bytes_to_send = this->pptr() - this->pbase();

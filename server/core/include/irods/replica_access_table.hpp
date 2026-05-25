@@ -25,10 +25,10 @@ namespace irods::experimental::replica_access_table
     }; // class replica_access_table_error
 
     // clang-format off
-    using replica_token_type      = std::string;
-    using replica_token_view_type = std::string_view;
-    using data_id_type            = std::uint64_t;
-    using replica_number_type     = std::uint32_t;
+    using replica_token_type      = std::string; ///< Owning type for replica tokens.
+    using replica_token_view_type = std::string_view; ///< Non-owning view of a replica token.
+    using data_id_type            = std::uint64_t; ///< Type used for data IDs.
+    using replica_number_type     = std::uint32_t; ///< Type used for replica numbers.
     // clang-format on
 
     /// A class that is used to restore previously removed entries.
@@ -37,12 +37,13 @@ namespace irods::experimental::replica_access_table
     class restorable_entry
     {
     public:
-        const replica_token_type token;
-        const data_id_type data_id;
-        const replica_number_type replica_number;
-        const pid_t pid;
+        const replica_token_type token; ///< Replica token associated with the entry.
+        const data_id_type data_id; ///< Data ID associated with the entry.
+        const replica_number_type replica_number; ///< Replica number associated with the entry.
+        const pid_t pid; ///< PID removed from the entry.
 
     private:
+        /// Constructs a restorable entry from the removed state.
         restorable_entry(replica_token_view_type _token,
                          data_id_type _data_id,
                          replica_number_type _replica_number,
@@ -54,6 +55,7 @@ namespace irods::experimental::replica_access_table
         {
         }
 
+        /// Allows `erase_pid()` to construct restorable entries.
         friend auto erase_pid(replica_token_view_type _token, pid_t _pid)
             -> std::optional<restorable_entry>;
     }; // class restorable_entry

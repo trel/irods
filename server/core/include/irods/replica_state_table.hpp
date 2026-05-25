@@ -522,6 +522,9 @@ namespace irods::replica_state_table
     /// to easily retrieve the logical path for a given entry in the table.
     /// \endparblock
     ///
+    /// \param[in] _key The key identifying the entry.
+    /// \return The logical path associated with the entry.
+    ///
     /// \since 4.2.9
     auto get_logical_path(const key_type& _key) -> std::string;
 
@@ -652,7 +655,7 @@ namespace irods::replica_state_table
         /// \param[in,out] _comm iRODS server comm struct
         /// \param[in] _ctx Context for publishing an RST entry (see #context for details)
         ///
-        /// \returns tuple with output string and error code returned by rs_data_object_finalize
+        /// \return A tuple containing the JSON output and error code returned by `rs_data_object_finalize`.
         ///
         /// \throws irods::exception
         ///

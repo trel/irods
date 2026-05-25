@@ -17,9 +17,11 @@ struct GenQueryInp;
 
 namespace irods::experimental::genquery1
 {
+    /// Coordinates scanning and parsing for GenQuery1 input.
     class driver
     {
       public:
+        /// Constructs an empty GenQuery1 driver.
         driver() = default;
 
         /// Parses a GenQuery1 string and populates the driver state.
@@ -28,17 +30,16 @@ namespace irods::experimental::genquery1
         /// \return Zero on success, or a non-zero parser error code on failure.
         auto parse(const std::string& _s) -> int;
 
-        // The GenQuery1 input structure to fill.
+        /// The GenQuery1 input structure populated by the parser.
         GenQueryInp* gq_input = nullptr;
 
-        // The Flex scanner implementation.
+        /// The Flex scanner implementation.
         scanner lexer;
 
-        // Holds the current location of the parser.
+        /// The current parser location.
         gq1::location location;
 
-        // Used by the lexer to capture string literals.
-        // This aids in handling escape sequences.
+        /// Temporary storage for string literals captured by the lexer.
         std::string string_literal;
     }; // class driver
 } // namespace irods::experimental::genquery1
