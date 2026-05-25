@@ -285,12 +285,13 @@ typedef enum node_type {
 typedef struct condIndexVal {
     Node *params; ///< Rule parameter list.
     Node *condExp; ///< Condition expression.
-    Hashtable *valIndex; /* char * -> int * */ ///< Value index table.
+    Hashtable *valIndex; ///< Value index table mapping names to indexes.
 } CondIndexVal;
 
 /// Links one rule index entry into a doubly linked list.
 typedef struct ruleIndexListNode {
-    struct ruleIndexListNode *next, *prev; ///< Adjacent list nodes.
+    struct ruleIndexListNode *next; ///< Next node in the rule index list.
+    struct ruleIndexListNode *prev; ///< Previous node in the rule index list.
     int secondaryIndex; ///< Secondary sort key.
     int ruleIndex; ///< Index into the owning ruleset.
     CondIndexVal *condIndex; ///< Condition index data.
@@ -299,7 +300,8 @@ typedef struct ruleIndexListNode {
 /// Holds all indexed entries for one rule name.
 typedef struct ruleIndexList {
     char *ruleName; ///< Indexed rule name.
-    RuleIndexListNode *head, *tail; ///< Bounds of the rule entry list.
+    RuleIndexListNode *head; ///< First node in the rule entry list.
+    RuleIndexListNode *tail; ///< Last node in the rule entry list.
 } RuleIndexList;
 
 /// Forward declaration for nested environments.
@@ -328,12 +330,12 @@ typedef struct str_list {
 
 /// Core AST, type, and value node representation.
 struct node {
-    int nodeType; /* node type */ ///< Raw `NodeType` value.
+    int nodeType; ///< Raw `NodeType` value.
     int degree; ///< Number of subtrees.
-    int option; /* weather runtime coercion is needed */ ///< Option flags for typing and evaluation.
+    int option; ///< Option flags controlling typing and evaluation.
     int ival; ///< Integer payload.
     /* when this node represents a type or a pattern, this field indicates whether the trailing subtree represents varargs */
-    ExprType *exprType; /* expression type */ ///< Inferred or declared expression type.
+    ExprType *exprType; ///< Inferred or declared expression type.
     ExprType *coercionType; /* coercion type */ ///< Runtime coercion target type.
     char *text; ///< Text payload.
     rodsLong_t expr; ///< Source position or integer payload.

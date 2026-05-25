@@ -454,9 +454,9 @@ void reIterable_genQuery_finalize( ReIterableData *itrData, Region* r ) {
 
 /* list iterable */
 typedef struct reIterable_list_data {
-    Res **elems;
-    int i;
-    int n;
+    Res **elems; ///< Elements being iterated.
+    int i; ///< Current element index.
+    int n; ///< Total number of elements.
 } ReIterable_list_data;
 
 void reIterable_list_init( ReIterableData *itrData, Region* ) {
@@ -488,8 +488,8 @@ void reIterable_list_finalize( ReIterableData *itrData, Region* ) {
 
 /* intArray strArray genQueryOut iterable */
 typedef struct reIterable_irods_data {
-    int i;
-    int n;
+    int i; ///< Current element index.
+    int n; ///< Total number of elements.
 } ReIterable_irods_data;
 
 void reIterable_irods_init( ReIterableData *itrData, Region* ) {
