@@ -11,17 +11,20 @@
 
 #include <cstring>
 
+/// Logger alias used by the microservice unit test macros.
 using log_msi_test_internal = irods::experimental::log::microservice;
 
 // clang-format off
 
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+/// Executes a test helper and returns `-1` if it reports failure.
 #define IRODS_MSI_TEST_CASE(func, rei) \
   if (func(rei)) {                     \
       return -1;                       \
   }
 
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+/// Begins a microservice test case and logs the test title.
 #define IRODS_MSI_TEST_BEGIN(test_title)                                    \
   int msi_test_error_code = 0;                                              \
                                                                             \
@@ -38,6 +41,7 @@ using log_msi_test_internal = irods::experimental::log::microservice;
     log_msi_test_internal::info(">>> TEST BEGIN: [" #test_title "]");
 
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+/// Ends a microservice test case and converts unexpected exceptions into failure.
 #define IRODS_MSI_TEST_END                                                      \
     return msi_test_error_code;                                                 \
   }                                                                             \
@@ -51,6 +55,7 @@ using log_msi_test_internal = irods::experimental::log::microservice;
   }                                                                             \
 
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+/// Fails the current test if the expression evaluates to false.
 #define IRODS_MSI_ASSERT(expr)                                                              \
   if (expr) {                                                                               \
     log_msi_test_internal::info("ASSERTION PASSED [{}:{}]: {}", __FILE__, __LINE__, #expr); \
@@ -61,6 +66,7 @@ using log_msi_test_internal = irods::experimental::log::microservice;
   }
 
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+/// Verifies that evaluating the expression throws the expected exception type.
 #define IRODS_MSI_THROWS(expr, ex_type)                                                     \
   try {                                                                                     \
     expr;                                                                                   \
@@ -76,6 +82,7 @@ using log_msi_test_internal = irods::experimental::log::microservice;
   }
 
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+/// Verifies that evaluating the expression throws the expected exception and message.
 #define IRODS_MSI_THROWS_MSG(expr, ex_type, ex_msg)                                           \
   try {                                                                                       \
     expr;                                                                                     \
@@ -95,6 +102,7 @@ using log_msi_test_internal = irods::experimental::log::microservice;
   }
 
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+/// Verifies that evaluating the expression throws an iRODS exception with the expected code.
 #define IRODS_MSI_THROWS_CODE(expr, irods_error_code)                                         \
   try {                                                                                       \
     expr;                                                                                     \
@@ -115,6 +123,7 @@ using log_msi_test_internal = irods::experimental::log::microservice;
 
 
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+/// Verifies that evaluating the expression does not throw.
 #define IRODS_MSI_NOTHROW(expr)                                                             \
   try {                                                                                     \
     expr;                                                                                   \
