@@ -20,7 +20,7 @@ namespace irods::authentication
     /// \param[in] _user_name The name of the user.
     /// \param[in] _zone_name The zone of the user.
     ///
-    /// \throws \p irods::exception \parblock In the following situations:
+    /// \throws irods::exception \parblock In the following situations:
     ///   - Fetching information about the user or zone fails
     ///   - The proxy user does not have sufficient privilege to act on behalf of a different client user
     /// \endparblock

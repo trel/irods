@@ -40,9 +40,9 @@ typedef struct pointer {
     char buf[POINTER_BUF_SIZE]; ///< Character buffer.
     unsigned int len; ///< Number of buffered characters.
     unsigned int p; ///< Offset of the next buffered character.
-    unsigned long fpos; /* position of the beginning of the buffer in file */ ///< File offset for the current buffer.
-    unsigned int strp; /* pointer to next char in strbuf */ ///< Offset of the next character in `strbuf`.
-    char *strbuf; /* string buffer */ ///< Backing source buffer when parsing from memory.
+    unsigned long fpos; ///< File offset for the current buffer.
+    unsigned int strp; ///< Offset of the next character in `strbuf`.
+    char *strbuf; ///< Backing source buffer when parsing from memory.
     unsigned int strlen; ///< Length of `strbuf`.
     int isFile; ///< Non-zero when the source is file-backed.
     char *base; ///< Source name used in diagnostics.
