@@ -26,146 +26,631 @@ using leaf_bundle_t = irods::resource_manager::leaf_bundle_t;
 
 extern icatSessionStruct icss;
 
+/// \brief Opens the catalog connection.
+/// \return Status code.
 int chlOpen();
+
+/// \brief Closes the catalog connection.
+/// \return Status code.
 int chlClose();
+
+/// \brief Reports whether the catalog connection is active.
+/// \return Connection state as a status code.
 int chlIsConnected();
+
+/// \brief Updates metadata for a data object.
+/// \param[in] rsComm Server communication context.
+/// \param[in] dataObjInfo Data object information to update.
+/// \param[in] regParam Additional update options.
+/// \return Status code.
 int chlModDataObjMeta( rsComm_t *rsComm, dataObjInfo_t *dataObjInfo,
                        keyValPair_t *regParam );
+
+/// \brief Adjusts the stored object count for a resource.
+/// \param[in] _resc Resource name.
+/// \param[in] _delta Count delta to apply.
+/// \return Status code.
 int chlUpdateRescObjCount( const std::string& _resc, int _delta );
+
+/// \brief Registers a data object in the catalog.
+/// \param[in] rsComm Server communication context.
+/// \param[in] dataObjInfo Data object information to register.
+/// \return Status code.
 int chlRegDataObj( rsComm_t *rsComm, dataObjInfo_t *dataObjInfo );
+
+/// \brief Registers a rule execution object.
+/// \param[in] rsComm Server communication context.
+/// \param[in] ruleExecSubmitInp Rule execution input to register.
+/// \return Status code.
 int chlRegRuleExecObj( rsComm_t *rsComm,
                        ruleExecSubmitInp_t *ruleExecSubmitInp );
+
+/// \brief Registers a replica in the catalog.
+/// \param[in] rsComm Server communication context.
+/// \param[in] srcDataObjInfo Source replica information.
+/// \param[in] dstDataObjInfo Destination replica information.
+/// \param[in] condInput Conditional options.
+/// \return Status code.
 int chlRegReplica( rsComm_t *rsComm, dataObjInfo_t *srcDataObjInfo,
                    dataObjInfo_t *dstDataObjInfo, keyValPair_t *condInput );
+
+/// \brief Unregisters a data object from the catalog.
+/// \param[in] rsComm Server communication context.
+/// \param[in] dataObjInfo Data object information to unregister.
+/// \param[in] condInput Conditional options.
+/// \return Status code.
 int chlUnregDataObj( rsComm_t *rsComm, dataObjInfo_t *dataObjInfo,
                      keyValPair_t *condInput );
+
+/// \brief Registers a resource.
+/// \param[in] rsComm Server communication context.
+/// \param[in] _resc_input Resource properties.
+/// \return Status code.
 int chlRegResc( rsComm_t *rsComm, std::map<std::string, std::string>& _resc_input );
+
+/// \brief Adds a child resource relationship.
+/// \param[in] rsComm Server communication context.
+/// \param[in] _resc_input Parent and child resource properties.
+/// \return Status code.
 int chlAddChildResc( rsComm_t* rsComm, std::map<std::string, std::string>& _resc_input );
+
+/// \brief Deletes a resource.
+/// \param[in] rsComm Server communication context.
+/// \param[in] _resc_name Resource name.
+/// \param[in] _dryrun Non-zero to validate without applying changes.
+/// \return Status code.
 int chlDelResc( rsComm_t *rsComm, const std::string& _resc_name, int _dryrun = 0 ); // JMC
+
+/// \brief Removes a child resource relationship.
+/// \param[in] rsComm Server communication context.
+/// \param[in] _resc_input Parent and child resource properties.
+/// \return Status code.
 int chlDelChildResc( rsComm_t* rsComm, std::map<std::string, std::string>& _resc_input );
+
+/// \brief Rolls back the current catalog transaction.
+/// \param[in] rsComm Server communication context.
+/// \return Status code.
 int chlRollback( rsComm_t *rsComm );
+
+/// \brief Commits the current catalog transaction.
+/// \param[in] rsComm Server communication context.
+/// \return Status code.
 int chlCommit( rsComm_t *rsComm );
+
+/// \brief Deletes a user rule execution entry.
+/// \param[in] rsComm Server communication context.
+/// \param[in] userInfo User information identifying the entry.
+/// \return Status code.
 int chlDelUserRE( rsComm_t *rsComm, userInfo_t *userInfo );
+
+/// \brief Registers a collection as an administrator.
+/// \param[in] rsComm Server communication context.
+/// \param[in] collInfo Collection information to register.
+/// \return Status code.
 int chlRegCollByAdmin( rsComm_t *rsComm, collInfo_t *collInfo );
+
+/// \brief Registers a collection.
+/// \param[in] rsComm Server communication context.
+/// \param[in] collInfo Collection information to register.
+/// \return Status code.
 int chlRegColl( rsComm_t *rsComm, collInfo_t *collInfo );
+
+/// \brief Modifies collection metadata in the catalog.
+/// \param[in] rsComm Server communication context.
+/// \param[in] collInfo Collection information containing updates.
+/// \return Status code.
 int chlModColl( rsComm_t *rsComm, collInfo_t *collInfo );
 
+/// \brief Executes a general query.
+/// \param[in] genQueryInp Query input structure.
+/// \param[out] result Query result structure.
+/// \return Status code.
 int chlGenQuery( genQueryInp_t genQueryInp, genQueryOut_t *result );
+
+/// \brief Sets access-control context for subsequent general queries.
+/// \param[in] user User name.
+/// \param[in] zone User zone.
+/// \param[in] host Client host.
+/// \param[in] priv Privilege level.
+/// \param[in] controlFlag Access-control setup flag.
+/// \return Status code.
 int chlGenQueryAccessControlSetup( const char *user, const char *zone, const char *host,
                                    int priv, int controlFlag );
+
+/// \brief Sets ticket context for subsequent general queries.
+/// \param[in] ticket Ticket string.
+/// \param[in] clientAddr Client address.
+/// \return Status code.
 int chlGenQueryTicketSetup( const char *ticket, const char *clientAddr );
+
+/// \brief Executes a specific query.
+/// \param[in] specificQueryInp Specific query input structure.
+/// \param[out] genQueryOut Query result structure.
+/// \return Status code.
 int chlSpecificQuery( specificQueryInp_t specificQueryInp,
                       genQueryOut_t *genQueryOut );
 
+/// \brief Deletes a collection as an administrator.
+/// \param[in] rsComm Server communication context.
+/// \param[in] collInfo Collection information to delete.
+/// \return Status code.
 int chlDelCollByAdmin( rsComm_t *rsComm, collInfo_t *collInfo );
+
+/// \brief Deletes a collection.
+/// \param[in] rsComm Server communication context.
+/// \param[in] collInfo Collection information to delete.
+/// \return Status code.
 int chlDelColl( rsComm_t *rsComm, collInfo_t *collInfo );
+
+/// \brief Checks authentication credentials.
+/// \param[in] rsComm Server communication context.
+/// \param[in] scheme Authentication scheme.
+/// \param[in] challenge Authentication challenge.
+/// \param[in] response Authentication response.
+/// \param[in] username User name being authenticated.
+/// \param[out] userPrivLevel User privilege level.
+/// \param[out] clientPrivLevel Client privilege level.
+/// \return Status code.
 int chlCheckAuth( rsComm_t *rsComm, const char* scheme, const char *challenge, const char *response,
                   const char *username, int *userPrivLevel, int *clientPrivLevel );
+
+/// \brief Generates a temporary password value.
+/// \param[in] rsComm Server communication context.
+/// \param[out] pwValueToHash Buffer receiving the password value.
+/// \param[in] otherUser Optional target user name.
+/// \return Status code.
 int chlMakeTempPw( rsComm_t *rsComm, char *pwValueToHash, const char *otherUser );
+
+/// \brief Generates a limited-lifetime password value.
+/// \param[in] rsComm Server communication context.
+/// \param[in] ttl Password lifetime.
+/// \param[out] pwValueToHash Buffer receiving the password value.
+/// \return Status code.
 int chlMakeLimitedPw(rsComm_t* rsComm, int ttl, char* pwValueToHash);
+
+/// \brief Modifies a user property.
+/// \param[in] rsComm Server communication context.
+/// \param[in] userName User name.
+/// \param[in] option Property to modify.
+/// \param[in] newValue New property value.
+/// \return Status code.
 int chlModUser( rsComm_t *rsComm, const char *userName, const char *option,
                 const char *newValue );
+
+/// \brief Modifies group membership or properties.
+/// \param[in] rsComm Server communication context.
+/// \param[in] groupName Group name.
+/// \param[in] option Requested modification.
+/// \param[in] userName User name involved in the change.
+/// \param[in] userZone User zone involved in the change.
+/// \return Status code.
 int chlModGroup( rsComm_t *rsComm, const char *groupName, const char *option,
                  const char *userName, const char *userZone );
+
+/// \brief Modifies a resource property.
+/// \param[in] rsComm Server communication context.
+/// \param[in] rescName Resource name.
+/// \param[in] option Property to modify.
+/// \param[in] optionValue New property value.
+/// \return Status code.
 int chlModResc( rsComm_t *rsComm, const char *rescName, const char *option,
                 const char *optionValue );
+
+/// \brief Updates resource data paths.
+/// \param[in] rsComm Server communication context.
+/// \param[in] rescName Resource name.
+/// \param[in] oldPath Existing data path prefix.
+/// \param[in] newPath Replacement data path prefix.
+/// \param[in] userName User requesting the change.
+/// \return Status code.
 int chlModRescDataPaths( rsComm_t *rsComm, const char *rescName, const char *oldPath,
                          const char *newPath, const char *userName );
+
+/// \brief Updates the recorded free space for a resource.
+/// \param[in] rsComm Server communication context.
+/// \param[in] rescName Resource name.
+/// \param[in] updateValue Free-space update value.
+/// \return Status code.
 int chlModRescFreeSpace( rsComm_t *rsComm, const char *rescName,
                          int updateValue );
+
+/// \brief Registers a user rule execution entry.
+/// \param[in] rsComm Server communication context.
+/// \param[in] userInfo User information to register.
+/// \return Status code.
 int chlRegUserRE( rsComm_t *rsComm, userInfo_t *userInfo );
+
+/// \brief Adds AVU metadata.
+/// \param[in] rsComm Server communication context.
+/// \param[in] type Target object type.
+/// \param[in] name Target object name.
+/// \param[in] attribute AVU attribute.
+/// \param[in] value AVU value.
+/// \param[in] units AVU units.
+/// \param[in] condInput Conditional options.
+/// \return Status code.
 int chlAddAVUMetadata( rsComm_t *rsComm, const char *type,
                        const char *name, const char *attribute, const char *value, const char *units,
                        const KeyValPair* condInput);
+
+/// \brief Deletes AVU metadata.
+/// \param[in] rsComm Server communication context.
+/// \param[in] option Delete mode.
+/// \param[in] type Target object type.
+/// \param[in] name Target object name.
+/// \param[in] attribute AVU attribute.
+/// \param[in] value AVU value.
+/// \param[in] units AVU units.
+/// \param[in] noCommit Non-zero to leave the transaction uncommitted.
+/// \param[in] condInput Conditional options.
+/// \return Status code.
 int chlDeleteAVUMetadata( rsComm_t *rsComm, int option, const char *type,
                           const char *name, const char *attribute, const char *value, const char *units, int noCommit,
                           const KeyValPair* condInput);
+
+/// \brief Replaces AVU metadata values.
+/// \param[in] rsComm Server communication context.
+/// \param[in] type Target object type.
+/// \param[in] name Target object name.
+/// \param[in] attribute AVU attribute.
+/// \param[in] newValue Replacement AVU value.
+/// \param[in] newUnit Replacement AVU units.
+/// \param[in] condInput Conditional options.
+/// \return Status code.
 int chlSetAVUMetadata( rsComm_t *rsComm, const char *type, // JMC - backport 4836
                        const char *name, const char *attribute, const char *newValue, const char *newUnit,
                        const KeyValPair* condInput);
+
+/// \brief Copies AVU metadata between catalog entries.
+/// \param[in] rsComm Server communication context.
+/// \param[in] type1 Source object type.
+/// \param[in] type2 Destination object type.
+/// \param[in] name1 Source object name.
+/// \param[in] name2 Destination object name.
+/// \param[in] condInput Conditional options.
+/// \return Status code.
 int chlCopyAVUMetadata( rsComm_t *rsComm, const char *type1,  const char *type2,
                         const char *name1, const char *name2,
                         const KeyValPair* condInput);
+
+/// \brief Applies a general AVU metadata modification.
+/// \param[in] rsComm Server communication context.
+/// \param[in] type Target object type.
+/// \param[in] name Target object name.
+/// \param[in] attribute AVU attribute.
+/// \param[in] value AVU value.
+/// \param[in] unitsOrChange0 Units or first change argument.
+/// \param[in] change1 Additional change argument.
+/// \param[in] change2 Additional change argument.
+/// \param[in] change3 Additional change argument.
+/// \param[in] condInput Conditional options.
+/// \return Status code.
 int chlModAVUMetadata( rsComm_t *rsComm, const char *type, const char *name,
                        const char *attribute, const char *value, const char *unitsOrChange0,
                        const char *change1, const char *change2, const char *change3,
                        const KeyValPair *condInput );
+
+/// \brief Modifies access control on a catalog path.
+/// \param[in] rsComm Server communication context.
+/// \param[in] recursiveFlag Non-zero to apply recursively.
+/// \param[in] accessLevel Access level to apply.
+/// \param[in] userName User receiving the access level.
+/// \param[in] zone User zone.
+/// \param[in] pathName Target path.
+/// \return Status code.
 int chlModAccessControl( rsComm_t *rsComm, int recursiveFlag,
                          const char* accessLevel, const char *userName, const char *zone,
                          const char* pathName );
 
+/// \brief Registers a delayed rule execution entry.
+/// \param[in] rsComm Server communication context.
+/// \param[in] ruleExecSubmitInp Rule execution input to register.
+/// \return Status code.
 int chlRegRuleExec( rsComm_t *rsComm, ruleExecSubmitInp_t *ruleExecSubmitInp );
+
+/// \brief Modifies a delayed rule execution entry.
+/// \param[in] rsComm Server communication context.
+/// \param[in] ruleExecId Rule execution identifier.
+/// \param[in] regParam Update parameters.
+/// \return Status code.
 int chlModRuleExec( rsComm_t *rsComm, const char *ruleExecId, keyValPair_t *regParam );
+
+/// \brief Deletes a delayed rule execution entry.
+/// \param[in] rsComm Server communication context.
+/// \param[in] ruleExecId Rule execution identifier.
+/// \return Status code.
 int chlDelRuleExec( rsComm_t *rsComm, const char *ruleExecId );
 
+/// \brief Renames a catalog object.
+/// \param[in] rsComm Server communication context.
+/// \param[in] objId Object identifier.
+/// \param[in] newName Replacement name.
+/// \return Status code.
 int chlRenameObject( rsComm_t *rsComm, rodsLong_t objId, const char *newName );
+
+/// \brief Moves a catalog object to another collection.
+/// \param[in] rsComm Server communication context.
+/// \param[in] objId Object identifier.
+/// \param[in] targetCollId Target collection identifier.
+/// \return Status code.
 int chlMoveObject( rsComm_t *rsComm, rodsLong_t objId, rodsLong_t targetCollId );
 
+/// \brief Registers a token value.
+/// \param[in] rsComm Server communication context.
+/// \param[in] nameSpace Token namespace.
+/// \param[in] name Token name.
+/// \param[in] value Primary token value.
+/// \param[in] value2 Secondary token value.
+/// \param[in] value3 Tertiary token value.
+/// \param[in] comment Token comment.
+/// \return Status code.
 int chlRegToken( rsComm_t *rsComm, const char *nameSpace, const char *name, const char *value,
                  const char *value2, const char *value3, const char *comment );
+
+/// \brief Deletes a token value.
+/// \param[in] rsComm Server communication context.
+/// \param[in] nameSpace Token namespace.
+/// \param[in] Name Token name.
+/// \return Status code.
 int chlDelToken( rsComm_t *rsComm, const char *nameSpace, const char *Name );
 
+/// \brief Registers a zone.
+/// \param[in] rsComm Server communication context.
+/// \param[in] zoneName Zone name.
+/// \param[in] zoneType Zone type.
+/// \param[in] zoneConnInfo Zone connection information.
+/// \param[in] zoneComment Zone comment.
+/// \return Status code.
 int chlRegZone( rsComm_t *rsComm, const char *zoneName, const char *zoneType,
                 const char *zoneConnInfo, const char *zoneComment );
+
+/// \brief Modifies a zone property.
+/// \param[in] rsComm Server communication context.
+/// \param[in] zoneName Zone name.
+/// \param[in] option Property to modify.
+/// \param[in] optionValue New property value.
+/// \return Status code.
 int chlModZone( rsComm_t *rsComm, const char *zoneName, const char *option,
                 const char *optionValue );
+
+/// \brief Modifies access control on a zone collection.
+/// \param[in] rsComm Server communication context.
+/// \param[in] accessLevel Access level to apply.
+/// \param[in] userName User receiving the access level.
+/// \param[in] pathName Target collection path.
+/// \return Status code.
 int chlModZoneCollAcl( rsComm_t *rsComm, const char* accessLevel, const char *userName,
                        const char* pathName );
+
+/// \brief Deletes a zone.
+/// \param[in] rsComm Server communication context.
+/// \param[in] zoneName Zone name.
+/// \return Status code.
 int chlDelZone( rsComm_t *rsComm, const char *zoneName );
+
+/// \brief Renames the local zone.
+/// \param[in] rsComm Server communication context.
+/// \param[in] oldZoneName Current zone name.
+/// \param[in] newZoneName Replacement zone name.
+/// \return Status code.
 int chlRenameLocalZone( rsComm_t *rsComm, const char *oldZoneName, const char *newZoneName );
+
+/// \brief Renames a collection.
+/// \param[in] rsComm Server communication context.
+/// \param[in] oldName Current collection name.
+/// \param[in] newName Replacement collection name.
+/// \return Status code.
 int chlRenameColl( rsComm_t *rsComm, const char *oldName, const char *newName );
 
+/// \brief Registers a server load sample.
+/// \param[in] rsComm Server communication context.
+/// \param[in] hostName Host name.
+/// \param[in] rescName Resource name.
+/// \param[in] cpuUsed CPU usage value.
+/// \param[in] memUsed Memory usage value.
+/// \param[in] swapUsed Swap usage value.
+/// \param[in] runqLoad Run queue load value.
+/// \param[in] diskSpace Disk space value.
+/// \param[in] netInput Network input value.
+/// \param[in] netOutput Network output value.
+/// \return Status code.
 int chlRegServerLoad( rsComm_t *rsComm,
                       const char *hostName, const char *rescName,
                       const char *cpuUsed, const char *memUsed, const char *swapUsed, const char *runqLoad,
                       const char *diskSpace, const char *netInput, const char *netOutput );
+
+/// \brief Deletes server load samples older than a threshold.
+/// \param[in] rsComm Server communication context.
+/// \param[in] secondsAgo Age threshold in seconds.
+/// \return Status code.
 int chlPurgeServerLoad( rsComm_t *rsComm, const char *secondsAgo );
+
+/// \brief Registers a server load digest entry.
+/// \param[in] rsComm Server communication context.
+/// \param[in] rescName Resource name.
+/// \param[in] loadFactor Aggregated load value.
+/// \return Status code.
 int chlRegServerLoadDigest( rsComm_t *rsComm, const char *rescName, const char *loadFactor );
+
+/// \brief Deletes server load digest entries older than a threshold.
+/// \param[in] rsComm Server communication context.
+/// \param[in] secondsAgo Age threshold in seconds.
+/// \return Status code.
 int chlPurgeServerLoadDigest( rsComm_t *rsComm, const char *secondsAgo );
 
+/// \brief Recalculates usage and quota information.
+/// \param[in] rsComm Server communication context.
+/// \return Status code.
 int chlCalcUsageAndQuota( rsComm_t *rsComm );
+
+/// \brief Fetches a grid configuration value.
+/// \param[in] _rsComm Server communication context.
+/// \param[in] _namespace Configuration namespace.
+/// \param[in] _optionName Configuration option name.
+/// \param[out] _optionValue Buffer receiving the option value.
+/// \param[in] _optionValueBufferSize Size of \p _optionValue in bytes.
+/// \return Status code.
 int chlGetGridConfigurationValue(rsComm_t*   _rsComm,
                                  const char* _namespace,
                                  const char* _optionName,
                                  char*       _optionValue,
                                  std::size_t _optionValueBufferSize);
+
+/// \brief Sets a grid configuration value.
+/// \param[in] _rsComm Server communication context.
+/// \param[in] _namespace Configuration namespace.
+/// \param[in] _optionName Configuration option name.
+/// \param[in] _optionValue Configuration option value.
+/// \return Status code.
 int chlSetGridConfigurationValue(rsComm_t*   _rsComm,
                                  const char* _namespace,
                                  const char* _optionName,
                                  const char* _optionValue);
+
+/// \brief Sets a quota entry.
+/// \param[in] rsComm Server communication context.
+/// \param[in] type Quota target type.
+/// \param[in] name Target user or group name.
+/// \param[in] rescName Resource name.
+/// \param[in] limit Quota limit value.
+/// \return Status code.
 int chlSetQuota( rsComm_t *rsComm, const char *type, const char *name, const char *rescName,
                  const char *limit );
+
+/// \brief Checks quota information for a user on a resource.
+/// \param[in] rsComm Server communication context.
+/// \param[in] userName User name.
+/// \param[in] rescName Resource name.
+/// \param[out] userQuota Quota value for the user.
+/// \param[out] quotaStatus Quota status indicator.
+/// \return Status code.
 int chlCheckQuota( rsComm_t *rsComm, const char *userName, const char *rescName,
                    rodsLong_t *userQuota, int *quotaStatus );
+
+/// \brief Deletes AVUs no longer attached to catalog entries.
+/// \param[in] rsComm Server communication context.
+/// \return Status code.
 int chlDelUnusedAVUs( rsComm_t *rsComm ); // TODO Does this need a condInput too?
+
+/// \brief Registers a specific query.
+/// \param[in] rsComm Server communication context.
+/// \param[in] alias Query alias.
+/// \param[in] sql Query SQL text.
+/// \return Status code.
 int chlAddSpecificQuery( rsComm_t *rsComm, const char *alias, const char *sql );
+
+/// \brief Deletes a specific query.
+/// \param[in] rsComm Server communication context.
+/// \param[in] sqlOrAlias Query SQL text or alias.
+/// \return Status code.
 int chlDelSpecificQuery( rsComm_t *rsComm, const char *sqlOrAlias );
 
+/// \brief Retrieves the local zone name.
+/// Writes the zone name to the provided string.
+/// \return Status code.
 int chlGetLocalZone( std::string& );
 
+/// \brief Initializes query table metadata.
+/// \return Status code.
 int sTableInit();
+
+/// \brief Registers a foreign-key style table link for query setup.
+/// \param[in] table1 First table name.
+/// \param[in] table2 Second table name.
+/// \param[in] connectingSQL SQL fragment connecting the tables.
+/// \return Status code.
 int sFklink( const char *table1, const char *table2, const char *connectingSQL );
+
+/// \brief Registers a table for query setup.
+/// \param[in] tableName Table name.
+/// \param[in] tableAlias Table alias.
+/// \param[in] cycler Table cycle identifier.
+/// \return Status code.
 int sTable( const char *tableName, const char *tableAlias, int cycler );
+
+/// \brief Registers a column for query setup.
+/// \param[in] defineVal Column definition value.
+/// \param[in] tableName Table name.
+/// \param[in] columnName Column name.
+/// \return Status code.
 int sColumn( int defineVal, const char *tableName, const char *columnName );
 
+/// \brief Sets catalog debug mode.
+/// \param[in] debugMode Debug mode string.
+/// \return Status code.
 int chlDebug( const char *debugMode );
+
+/// \brief Inserts a rule base entry.
+/// \param[in] rsComm Server communication context.
+/// \param[in] baseName Rule base name.
+/// \param[in] priorityStr Rule priority.
+/// \param[in] ruleName Rule name.
+/// \param[in] ruleHead Rule head.
+/// \param[in] ruleCondition Rule condition.
+/// \param[in] ruleAction Rule action.
+/// \param[in] ruleRecovery Rule recovery action.
+/// \param[in] ruleIdStr Rule identifier.
+/// \param[in] myTime Timestamp string.
+/// \return Status code.
 int chlInsRuleTable( rsComm_t *rsComm,
                      const char *baseName, const char *priorityStr, const char *ruleName,
                      const char *ruleHead, const char *ruleCondition, const char *ruleAction,
                      const char *ruleRecovery, const char *ruleIdStr, const char *myTime );
+
+/// \brief Versions a rule base.
+/// \param[in] rsComm Server communication context.
+/// \param[in] baseName Rule base name.
+/// \param[in] myTime Timestamp string.
+/// \return Status code.
 int chlVersionRuleBase( rsComm_t *rsComm,
                         const char *baseName, const char *myTime );
+
+/// \brief Versions a DVM base.
+/// \param[in] rsComm Server communication context.
+/// \param[in] baseName DVM base name.
+/// \param[in] myTime Timestamp string.
+/// \return Status code.
 int chlVersionDvmBase( rsComm_t *rsComm,
                        const char *baseName, const char *myTime );
 /*int chlDatabaseObjectAdmin(rsComm_t *rsComm,
   databaseObjectAdminInp_t *databaseObjectAdminInp,
   databaseObjectAdminOut_t *databaseObjectAdminOut);*/
+/// \brief Inserts a DVM table entry.
+/// \param[in] rsComm Server communication context.
+/// \param[in] baseName DVM base name.
+/// \param[in] varName Variable name.
+/// \param[in] action Requested action.
+/// \param[in] var2CMap Variable-to-C mapping.
+/// \param[in] myTime Timestamp string.
+/// \return Status code.
 int chlInsDvmTable( rsComm_t *rsComm,
                     const char *baseName, const char *varName, const char *action,
                     const char *var2CMap, const char *myTime );
+
+/// \brief Inserts an FNM table entry.
+/// \param[in] rsComm Server communication context.
+/// \param[in] baseName FNM base name.
+/// \param[in] funcName Function name.
+/// \param[in] func2CMap Function-to-C mapping.
+/// \param[in] myTime Timestamp string.
+/// \return Status code.
 int chlInsFnmTable( rsComm_t *rsComm,
                     const char *baseName, const char *funcName,
                     const char *func2CMap, const char *myTime );
+
+/// \brief Inserts a microservice table entry.
+/// \param[in] rsComm Server communication context.
+/// \param[in] moduleName Module name.
+/// \param[in] msrvcName Microservice name.
+/// \param[in] msrvcSignature Microservice signature.
+/// \param[in] msrvcVersion Microservice version.
+/// \param[in] msrvcHost Microservice host.
+/// \param[in] msrvcLocation Microservice location.
+/// \param[in] msrvcLanguage Microservice language.
+/// \param[in] msrvcTypeName Microservice type name.
+/// \param[in] msrvcStatus Microservice status.
+/// \param[in] myTime Timestamp string.
+/// \return Status code.
 int chlInsMsrvcTable( rsComm_t *rsComm,
                       const char *moduleName,
                       const char *msrvcName,
@@ -177,11 +662,36 @@ int chlInsMsrvcTable( rsComm_t *rsComm,
                       const char *msrvcTypeName,
                       const char *msrvcStatus,
                       const char *myTime );
+
+/// \brief Versions an FNM base.
+/// \param[in] rsComm Server communication context.
+/// \param[in] baseName FNM base name.
+/// \param[in] myTime Timestamp string.
+/// \return Status code.
 int chlVersionFnmBase( rsComm_t *rsComm,
                        const char *baseName, const char *myTime );
+
+/// \brief Modifies ticket state or properties.
+/// \param[in] rsComm Server communication context.
+/// \param[in] opName Ticket operation name.
+/// \param[in] ticket Ticket string.
+/// \param[in] arg1 First operation argument.
+/// \param[in] arg2 Second operation argument.
+/// \param[in] arg3 Third operation argument.
+/// \param[in] condInput Conditional options.
+/// \return Status code.
 int chlModTicket( rsComm_t *rsComm, const char *opName, const char *ticket,
                   const char *arg1, const char *arg2, const char *arg3,
                   const KeyValPair *condInput);
+
+/// \brief Updates an iRODS PAM password.
+/// \param[in] _comm Server communication context.
+/// \param[in] _user_name User name.
+/// \param[in] _ttl Password lifetime.
+/// \param[in] _test_time Optional test timestamp.
+/// \param[out] _password_buffer Buffer pointer receiving the generated password.
+/// \param[in] _password_buffer_size Size of the password buffer.
+/// \return Status code.
 auto chlUpdateIrodsPamPassword(rsComm_t* _comm,
                                const char* _user_name,
                                int _ttl,
@@ -209,19 +719,35 @@ int chlGetDistinctDataObjCountOnResource(
     const std::string&   _resc_name,
     long long&           _count );
 
+/// \brief Retrieves the hierarchy string for a resource.
+/// \param[in] resc_name Resource name.
+/// \param[in] zone_name Zone name.
+/// \param[out] hierarchy Resource hierarchy string.
+/// \return Status code.
 int chlGetHierarchyForResc(
     const std::string&	resc_name,
     const std::string&	zone_name,
     std::string& hierarchy );
 
+/// \brief Checks an object request using the provided communication handle, type, name, and access strings.
+/// \return Status code.
 int chlCheckAndGetObjectID(
     rsComm_t*, // comm
     char*,     // type
     char*,     // name
     char* );   // access
 
+/// \brief Retrieves the active catalog session structure through the provided pointer.
+/// \return Status code.
 int chlGetRcs( icatSessionStruct** );
 
+/// \brief Retrieves replica candidates for leaf-bundle rebalancing.
+/// \param[in] _count Number of results to return.
+/// \param[in] _child_idx Index of the child resource.
+/// \param[in] _bundles Leaf resource bundles.
+/// \param[in] _invocation_timestamp Rebalance invocation timestamp.
+/// \param[out] _results Result vector receiving data IDs.
+/// \return Status code.
 int chlGetReplListForLeafBundles(
     rodsLong_t                  _count,
     size_t                      _child_idx,
@@ -245,7 +771,7 @@ int chlGetReplListForLeafBundles(
 /// \param[in] _bundles Vector of all leaf resources
 /// \param[in] _invocation_timestamp Timestamp of when rebalance was called
 /// \param[in,out] _results Vector of items needing rebalancing
-/// \param[in] _offest Number of results to skip before returning
+/// \param[in] _offset Number of results to skip before returning
 ///
 /// \returns Error code based on whether results are generated successfully.
 ///
@@ -432,8 +958,8 @@ auto chl_execute_genquery2_sql(RsComm& _comm, const char* _sql, const std::vecto
 ///
 /// \param[in] _comm          The communication object.
 /// \param[in] _rule_id       The ID of the delay rule to lock.
-/// \param[in] _lock_host     The FQDN, hostname, or IP of the delay server.
-/// \param[in] _lock_host_pid The PID of the delay server process.
+/// \param[in] _delay_rule_host The FQDN, hostname, or IP of the delay server.
+/// \param[in] _delay_rule_pid  The PID of the delay server process.
 ///
 /// \return An integer.
 /// \retval  0 On success.
