@@ -10,8 +10,9 @@
 #include "irods/irods_log.hpp"
 #include "irods/subStructFileRead.h"
 
-namespace irods {
+    namespace irods {
 
+    /// @brief File object describing an entry within a structured file.
     class structured_object : public file_object {
         public:
             // =-=-=-=-=-=-=-
@@ -141,13 +142,25 @@ namespace irods {
             // NOTE :: These are not guaranteed to be properly populated right now
             //      :: that will need be done later when these changes are pushed
             //      :: higher in the original design
+            /// \brief Host address associated with the structured-file operation.
             rodsHostAddr_t addr_;
+
+            /// \brief Path of the member inside the structured file.
             std::string    sub_file_path_;
+
+            /// \brief Byte offset associated with the operation.
             rodsLong_t     offset_;
+
+            /// \brief Special collection descriptor for the structured file.
             specColl_t*    spec_coll_;
+
+            /// \brief Data type associated with the structured-file entry.
             std::string    data_type_;
+
+            /// \brief Operation type associated with the structured-file request.
             int            opr_type_;
 
+            /// \brief Structured-file type for the special collection.
             structFileType_t spec_coll_type_;
 
     }; // class structured_object
@@ -159,4 +172,3 @@ namespace irods {
 }; // namespace irods
 
 #endif // __IRODS_STRUCTURED_OBJECT_HPP__
-

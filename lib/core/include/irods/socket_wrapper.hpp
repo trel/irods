@@ -7,34 +7,33 @@
 
 namespace irods {
 
-// =-=-=-=-=-=-=-
-// JMC :: simple wrapper for boost::asio sockets.  they did
-//     :: not provide a pure interface base class which didn't
-//     :: have associated template parameters so one needed to
-//     :: be provided.  unfortunately the interface needs redefined.
+    /// @brief Abstract wrapper around Boost.Asio socket types.
     class socket_wrapper {
 
         public:
-            // =-=-=-=-=-=-=-
-            // members
+            /// @brief Constructs a socket wrapper.
             socket_wrapper() {}
+
+            /// @brief Destroys the socket wrapper.
             virtual ~socket_wrapper() {}
 
-            // =-=-=-=-=-=-=-
-            // interface declaration
+            /// @brief Opens the socket around an existing native descriptor.
             virtual bool open( int, const char* ) = 0;
 
     }; // class socket_wrapper
 
-// =-=-=-=-=-=-=-
-// derived class for handling tcp style sockets
+    /// @brief Socket wrapper implementation for TCP sockets.
     class socket_wrapper_tcp : public socket_wrapper {
+            /// @brief Underlying Boost.Asio TCP socket.
             boost::asio::ip::tcp::socket* sock_;
         public:
-            // =-=-=-=-=-=-=-
-            // members
+            /// @brief Constructs a TCP socket wrapper.
             socket_wrapper_tcp();
+
+            /// @brief Destroys the TCP socket wrapper.
             ~socket_wrapper_tcp();
+
+            /// @brief Opens the TCP socket around an existing native descriptor.
             virtual bool open( int, const char* );
 
     }; // class socket_wrapper_tcp

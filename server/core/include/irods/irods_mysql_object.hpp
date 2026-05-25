@@ -11,39 +11,34 @@
 
 namespace irods {
 
-// =-=-=-=-=-=-=-
-// @brief
+    /// @brief Plugin type string for the MySQL database plugin.
     const std::string MYSQL_DATABASE_PLUGIN( "mysql" );
 
-// =-=-=-=-=-=-=-
-// @brief mysql object class
+    /// @brief Database object representing the MySQL plugin.
     class mysql_object : public database_object {
         public:
-            // =-=-=-=-=-=-=-
-            // Constructors
+            /// @brief Constructs a MySQL database object.
             mysql_object();
+
+            /// @brief Copy-constructs a MySQL database object.
             mysql_object( const mysql_object& );
 
-            // =-=-=-=-=-=-=-
-            // Destructors
+            /// @brief Destroys the MySQL database object.
             virtual ~mysql_object();
 
-            // =-=-=-=-=-=-=-
-            // Operators
+            /// @brief Copies state from another MySQL database object.
             virtual mysql_object& operator=( const mysql_object& );
 
             // =-=-=-=-=-=-=-
             /// @brief Comparison operator
             virtual bool operator==( const mysql_object& _rhs ) const;
 
-            // =-=-=-=-=-=-=-
-            // plugin resolution operation
+            /// @brief Resolves the database plugin for the requested interface.
             virtual error resolve(
                 const std::string&, // plugin interface
                 plugin_ptr& );      // resolved plugin
 
-            // =-=-=-=-=-=-=-
-            // accessor for rule engine variables
+            /// @brief Populates rule-engine variables for this object.
             virtual error get_re_vars( rule_engine_vars_t& );
 
             // =-=-=-=-=-=-=-
@@ -58,13 +53,11 @@ namespace irods {
 
     }; // mysql_object
 
-// =-=-=-=-=-=-=-
-// helpful typedef for sock comm interface & factory
+    /// @brief Shared-pointer type for `mysql_object` instances.
     typedef boost::shared_ptr< mysql_object > mysql_object_ptr;
 
 }; // namespace irods
 
 #endif // __IRODS_MYSQL_OBJECT_HPP__
-
 
 

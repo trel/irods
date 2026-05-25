@@ -97,12 +97,10 @@ namespace irods {
             virtual error get_re_vars( rule_engine_vars_t& ) = 0;
 
         protected:
+            /// @brief Error stack associated with the request.
             rError_t*   r_error_;
 
-            /// =-=-=-=-=-=-=-
-            // result passed to outgoing auth request
-            // struct back to client - challenge for native,
-            // password for pam etc
+            /// @brief Result returned to the client for the authentication exchange.
             std::string request_result_;
 
             /// =-=-=-=-=-=-=-
@@ -119,7 +117,7 @@ namespace irods {
             std::string context_;
     };
 
-/// @brief Helpful typedef
+    /// @brief Shared-pointer type for `auth_object` instances.
     typedef boost::shared_ptr<auth_object> auth_object_ptr;
 
 }; // namespace irods
