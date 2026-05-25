@@ -18,18 +18,18 @@
 #include <iostream>
 
 typedef struct {
-    int  _this;
-    char _that [64];
+    int  _this; ///< Integer input used by the hello-world API example.
+    char _that [64]; ///< String input used by the hello-world API example.
 } helloInp_t;
 
 typedef struct {
-    double _value;
+    double _value; ///< Floating-point output value returned by the API example.
 } otherOut_t;
 
 typedef struct {
-    int  _this;
-    char _that [64];
-    otherOut_t _other;
+    int  _this; ///< Integer output returned by the API example.
+    char _that [64]; ///< String output returned by the API example.
+    otherOut_t _other; ///< Nested output structure returned by the API example.
 } helloOut_t;
 
 #define HelloInp_PI "int _this; str _that[64];"

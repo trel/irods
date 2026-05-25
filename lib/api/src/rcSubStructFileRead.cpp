@@ -2,7 +2,7 @@
 #include "irods/procApiRequest.h"
 #include "irods/apiNumber.h"
 
-/**
+/*
  * \fn rcSubStructFileRead( rcComm_t *conn, subStructFileFdOprInp_t *subStructFileReadInp, bytesBuf_t *subStructFileReadOutBBuf )
  *
  * \brief Read a subfile within a structured file object.
@@ -19,7 +19,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 int
 rcSubStructFileRead( rcComm_t *conn, subStructFileFdOprInp_t *subStructFileReadInp,
                      bytesBuf_t *subStructFileReadOutBBuf ) {
