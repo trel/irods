@@ -140,7 +140,9 @@ int verifyDataObjChksum(RsComm* rsComm,
                          DataObjInfo* dataObjInfo,
                          char** outChksumStr);
 
-/// Deprecated spelling of `verifyDataObjChksum`.
+/// \cond IRODS_DOXYGEN_INTERNAL
+/// \cond IRODS_DOXYGEN_INTERNAL
+/* Deprecated spelling of `verifyDataObjChksum`. */
 ///
 /// \param[in]  rsComm       The communication object.
 /// \param[in]  dataObjInfo  The replica information.
@@ -149,5 +151,7 @@ __attribute__((deprecated("Use verifyDataObjChksum instead")))
 int verifyDatObjChksum(RsComm* rsComm,
                          DataObjInfo* dataObjInfo,
                          char** outChksumStr);
+/// \endcond
+/// \endcond
 
 #endif // RS_DATA_OBJ_CHKSUM_HPP

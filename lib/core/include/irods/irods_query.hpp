@@ -33,6 +33,7 @@ namespace irods
     };
 } //namespace irods
 
+/// \cond IRODS_DOXYGEN_INTERNAL
 /// Formats `irods::query_type` values for `fmt` output.
 template <>
 struct fmt::formatter<irods::query_type> : fmt::formatter<std::underlying_type_t<irods::query_type>>
@@ -47,6 +48,7 @@ struct fmt::formatter<irods::query_type> : fmt::formatter<std::underlying_type_t
             static_cast<std::underlying_type_t<irods::query_type>>(e), ctx);
     }
 };
+/// \endcond
 
 namespace irods
 {

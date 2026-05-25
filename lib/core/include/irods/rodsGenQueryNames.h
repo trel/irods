@@ -5,7 +5,7 @@
 ///
 /// \brief Common header file for the generalized query names.
 ///
-/// Maps the user specified strings to the corresponding #define values.
+/// Maps the user specified strings to the corresponding generalized query constants.
 
 #include "irods/rodsGenQuery.h"
 

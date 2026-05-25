@@ -263,21 +263,26 @@ cleanRcComm( rcComm_t *conn );
 [[deprecated("Use irods::authentication::authenticate_client instead.")]]
 int clientLogin(rcComm_t* conn, const char* _context = nullptr, const char* _scheme_override = nullptr);
 #else
-/// Authenticates a client connection using the configured authentication scheme.
+/// \cond IRODS_DOXYGEN_INTERNAL
+/* Authenticates a client connection using the configured authentication scheme. */
 ///
 /// Parameters: `conn` is the client connection handle, `_context` is the authentication context
 /// string, and `_scheme_override` optionally selects a specific authentication scheme.
 __attribute__((deprecated("Use rc_authenticate_client instead.")))
 int clientLogin(rcComm_t* conn, const char* _context, const char* _scheme_override);
+/// \endcond
 #endif
 
-/// Authenticates using PAM with a password and TTL for the connected client.
+/// \cond IRODS_DOXYGEN_INTERNAL
+/* Authenticates using PAM with a password and TTL for the connected client. */
 ///
 /// Parameters: `conn` is the client connection handle, `password` is the PAM password, and `ttl`
 /// is the requested lifetime for the generated iRODS password.
 __attribute__((deprecated("Use rc_authenticate_client with pam_password scheme, and AUTH_PASSWORD_KEY and TTL_KEY in context.")))
 int clientLoginPam(rcComm_t* conn, char* password, int ttl);
+/// \endcond
 
+/// \cond IRODS_DOXYGEN_INTERNAL
 /// Requests a limited password and stores it in the client's obfuscated password file.
 ///
 /// This function does not authenticate the connection. It is used by `iinit` for native
@@ -288,6 +293,7 @@ int clientLoginTTL(rcComm_t* conn, int ttl);
 /// Authenticates using the legacy native password flow.
 __attribute__((deprecated("Use rc_authenticate_client with AUTH_PASSWORD_KEY in context.")))
 int clientLoginWithPassword(rcComm_t* conn, char* password);
+/// \endcond
 
 /// Returns the legacy client-side session signature buffer.
 __attribute__((deprecated("Use session_signature member variable in RcComm instance.")))

@@ -9,9 +9,11 @@
 namespace irods
 {
     // NOLINTNEXTLINE(cert-err58-cpp)
+    /// \cond IRODS_DOXYGEN_INTERNAL
     inline const std::unordered_map<int, std::string> api_plugin_number_names{
 #include "irods/plugins/api/api_plugin_number_data.h"
     };
+    /// \endcond
 } // namespace irods
 
 #undef API_PLUGIN_NUMBER

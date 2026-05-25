@@ -3,7 +3,7 @@
 
 /**
  * IMPORTANT - END OF LIFE ERROR CODES
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * -----------------------------------
  *
  * Error codes having a prefix of "END_OF_LIFE_" must NEVER be used
  * in new code.

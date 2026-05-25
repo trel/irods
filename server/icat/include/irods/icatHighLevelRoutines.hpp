@@ -674,13 +674,6 @@ int chlVersionFnmBase( rsComm_t *rsComm,
                        const char *baseName, const char *myTime );
 
 /// \brief Modifies ticket state or properties.
-/// \param[in] rsComm Server communication context.
-/// \param[in] opName Ticket operation name.
-/// \param[in] ticket Ticket string.
-/// \param[in] arg1 First operation argument.
-/// \param[in] arg2 Second operation argument.
-/// \param[in] arg3 Third operation argument.
-/// \param[in] condInput Conditional options.
 /// \return Status code.
 int chlModTicket( rsComm_t *rsComm, const char *opName, const char *ticket,
                   const char *arg1, const char *arg2, const char *arg3,
@@ -722,9 +715,6 @@ int chlGetDistinctDataObjCountOnResource(
     long long&           _count );
 
 /// \brief Retrieves the hierarchy string for a resource.
-/// \param[in] resc_name Resource name.
-/// \param[in] zone_name Zone name.
-/// \param[out] hierarchy Resource hierarchy string.
 /// \return Status code.
 int chlGetHierarchyForResc(
     const std::string&	resc_name,
