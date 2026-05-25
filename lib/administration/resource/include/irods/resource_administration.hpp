@@ -14,6 +14,7 @@
 
 #  include "irods/rsGeneralAdmin.hpp"
 
+// Server-side communication object.
 struct RsComm;
 #else
 #  define NAMESPACE_IMPL client
@@ -22,6 +23,7 @@ struct RsComm;
 
 #  include "irods/generalAdmin.h"
 
+// Client-side communication object.
 struct RcComm;
 #endif // IRODS_RESOURCE_ADMINISTRATION_ENABLE_SERVER_SIDE_API
 
@@ -56,10 +58,7 @@ namespace irods::experimental::administration
     // Forward declaration for "resource_info" class.
     namespace NAMESPACE_IMPL
     {
-        /// Retrieves information about a resource.
-        /// \param[in] _comm Communication object used to execute the request.
-        /// \param[in] _name Name of the resource.
-        /// \return Resource information if the resource exists.
+        // Forward declaration for the resource_info API function.
         auto resource_info(RxComm&, const resource_name_type) -> std::optional<class resource_info>;
     } // namespace NAMESPACE_IMPL
 
@@ -405,7 +404,8 @@ namespace irods::experimental::administration
         ///
         /// \throws irods::exception If an error occurs.
         ///
-        /// \returns A tuple containing error information and the existence results.
+        /// \retval true The resource exists.
+        /// \retval false Otherwise.
         auto resource_exists(RxComm& _comm, const resource_name_type _name) -> bool;
 
         /// Retrieves information about a resource.
@@ -415,7 +415,7 @@ namespace irods::experimental::administration
         ///
         /// \throws irods::exception If an error occurs.
         ///
-        /// \returns A tuple containing error information and the resource information.
+        /// \return Resource information if the resource exists.
         auto resource_info(RxComm& _comm, const resource_name_type _name) -> std::optional<class resource_info>;
 
         /// Modifies a property of a resource.
@@ -495,18 +495,16 @@ namespace irods::experimental::administration
         /// \param[in] _name The name of the resource.
         ///
         /// \throws irods::exception If an error occurs.
-        ///
-        /// \returns A std::error_code.
         auto rebalance_resource(RxComm& _comm, const resource_name_type _name) -> void;
 
         /// Retrieves the name of a resource given a resource ID.
         ///
         /// \param[in] _comm The communication object.
-        /// \param[in] _name The ID of the resource.
+        /// \param[in] _id The ID of the resource.
         ///
         /// \throws irods::exception If an error occurs.
         ///
-        /// \returns A tuple containing error information and the resource name.
+        /// \return The resource name if the resource exists.
         auto resource_name(RxComm& _comm, const resource_id_type _id) -> std::optional<std::string>;
     } // namespace NAMESPACE_IMPL
 } // namespace irods::experimental::administration

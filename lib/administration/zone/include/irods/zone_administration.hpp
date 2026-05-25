@@ -18,6 +18,7 @@
 #  include "irods/rodsConnect.h"
 #  include "irods/rsGeneralAdmin.hpp"
 
+// Server-side communication object.
 struct RsComm;
 #else
 // NOLINTBEGIN(cppcoreguidelines-macro-usage)
@@ -28,6 +29,7 @@ struct RsComm;
 
 #  include "irods/generalAdmin.h"
 
+// Client-side communication object.
 struct RcComm;
 #endif // IRODS_ZONE_ADMINISTRATION_ENABLE_SERVER_SIDE_API
 
@@ -45,6 +47,7 @@ struct RcComm;
 #include <string_view>
 #include <type_traits>
 
+/// Namespace containing zone administration types and operations.
 namespace irods::experimental::administration
 {
     /// Represents the set of valid ACL values for a zone collection.
@@ -61,6 +64,7 @@ namespace irods::experimental::administration
     /// \since 4.3.1
     struct zone_name_property
     {
+        /// The new zone name.
         std::string value;
     }; // struct zone_name_property
 
@@ -69,6 +73,7 @@ namespace irods::experimental::administration
     /// \since 4.3.1
     struct connection_info_property
     {
+        /// The new connection information.
         std::string value;
     }; // struct connection_info_property
 
@@ -77,6 +82,7 @@ namespace irods::experimental::administration
     /// \since 4.3.1
     struct comment_property
     {
+        /// The new zone comment.
         std::string value;
     }; // struct comment_property
 
@@ -111,10 +117,15 @@ namespace irods::experimental::administration
     /// \since 4.3.1
     struct zone_info
     {
+        /// The zone name.
         std::string name;
+        /// The connection information associated with the zone.
         std::string connection_info;
+        /// The zone comment.
         std::string comment;
+        /// The zone identifier.
         int id;
+        /// The zone type.
         zone_type type;
     }; // struct zone_info
 
@@ -283,4 +294,3 @@ namespace irods::experimental::administration
 } // namespace irods::experimental::administration
 
 #endif // IRODS_ZONE_ADMINISTRATION_HPP
-
