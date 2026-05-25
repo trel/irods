@@ -16,18 +16,18 @@
 // NOTE:: these track the same structs in
 //     :: the api example libhelloworld.cpp
 typedef struct {
-    int  _this;
-    char _that [64];
+    int  _this; ///< Integer input used by the hello-world test API.
+    char _that [64]; ///< String input used by the hello-world test API.
 } helloInp_t;
 
 typedef struct {
-    double _value;
+    double _value; ///< Floating-point output value returned by the hello-world test API.
 } otherOut_t;
 
 typedef struct {
-    int  _this;
-    char _that [64];
-    otherOut_t _other;
+    int  _this; ///< Integer output returned by the hello-world test API.
+    char _that [64]; ///< String output returned by the hello-world test API.
+    otherOut_t _other; ///< Nested output structure returned by the hello-world test API.
 } helloOut_t;
 
 int
@@ -106,4 +106,3 @@ main( int argc, char** argv ) {
 
     rcDisconnect( conn );
 }
-
