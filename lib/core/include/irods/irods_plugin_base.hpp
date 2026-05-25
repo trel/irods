@@ -22,11 +22,17 @@
 #include "irods/irods_lookup_table.hpp"
 #include "irods/irods_plugin_context.hpp"
 
+/// @brief Default plugin interface version supported by `plugin_base`.
 static double PLUGIN_INTERFACE_VERSION = 2.0;
 
 namespace irods
 {
+    /// @brief Type of a post-disconnect maintenance operation callback.
+    /// Receives the disconnected client's communication handle and returns an iRODS error.
     typedef std::function< irods::error( rcComm_t* ) > pdmo_type;
+
+    /// @brief Type of a plugin lifecycle callback.
+    /// Receives the plugin property map and returns an iRODS error.
     typedef std::function< irods::error( plugin_property_map& ) > maintenance_operation_t;
 
     /**
@@ -112,20 +118,24 @@ namespace irods
          */
         virtual ~plugin_base() {} // dtor
 
-        /// @brief interface to create and register a PDMO
+        /// @brief Registers a post-disconnect maintenance operation for the plugin.
+        /// Populates the supplied callback object when a maintenance operation exists.
+        /// @return An error indicating whether a maintenance operation is available.
         virtual error post_disconnect_maintenance_operation( pdmo_type& ) {
             return ERROR( NO_PDMO_DEFINED, "no defined operation" );
         }
 
-        /// =-=-=-=-=-=-=-
-        /// @brief interface to determine if a PDMO is necessary
+        /// @brief Indicates whether a post-disconnect maintenance operation is needed.
+        /// @param[out] _b Set to `true` if the plugin requires a maintenance operation.
+        /// @return `SUCCESS()`.
         virtual error need_post_disconnect_maintenance_operation( bool& _b ) {
             _b = false;
             return SUCCESS();
         }
 
-        /// =-=-=-=-=-=-=-
-        /// @brief list all of the operations in the plugin
+        /// @brief Lists operation names registered for delayed loading.
+        /// @param[out] _ops Populated with operation names in registration order.
+        /// @return `SUCCESS()`.
         error enumerate_operations( std::vector< std::string >& _ops ) {
             for ( size_t i = 0; i < ops_for_delay_load_.size(); ++i ) {
                 _ops.push_back( ops_for_delay_load_[ i ].first );
@@ -134,8 +144,8 @@ namespace irods
             return SUCCESS();
         }
 
-        /// =-=-=-=-=-=-=-
-        /// @brief accessor for context string
+        /// @brief Returns the plugin context string.
+        /// @return The configured context string for this plugin instance.
         const std::string& context_string() const {
             return context_;
         }
@@ -419,9 +429,9 @@ namespace irods
         }
 
     protected:
-        std::string context_;           // context string for this plugin
-        std::string instance_name_;     // name of this instance of the plugin
-        double      interface_version_; // version of the plugin interface supported
+        std::string context_;           ///< Context string describing this plugin instance.
+        std::string instance_name_;     ///< Name of this plugin instance.
+        double      interface_version_; ///< Plugin interface version supported by this instance.
 
         /// =-=-=-=-=-=-=-
         /// @brief heterogeneous key value map of plugin data
@@ -435,8 +445,8 @@ namespace irods
         /// @brief operations to be loaded from the plugin
         lookup_table< boost::any > operations_;
 
-        maintenance_operation_t start_operation_;
-        maintenance_operation_t stop_operation_;
+        maintenance_operation_t start_operation_; ///< Callable invoked by `start_operation()`.
+        maintenance_operation_t stop_operation_;  ///< Callable invoked by `stop_operation()`.
 
     private:
 #ifdef ENABLE_RE
@@ -505,8 +515,7 @@ namespace irods
 #endif // ENABLE_RE
     }; // class plugin_base
 
-    // =-=-=-=-=-=-=-
-    // helpful typedef for sock comm interface & factory
+    /// @brief Shared pointer type for plugin instances.
     typedef boost::shared_ptr<plugin_base> plugin_ptr;
 } // namespace irods
 

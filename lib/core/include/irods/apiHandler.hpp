@@ -28,37 +28,27 @@
 
 namespace irods
 {
+    /// @brief Describes an API entry and its marshaling metadata.
     struct apidef_t {
-        // =-=-=-=-=-=-=-
-        // attributes
-        int            apiNumber;      /* the API number */
-        char*          apiVersion;     /* The API version of this call */
-        int            clientUserAuth; /* Client user authentication level.
-                                        * NO_USER_AUTH, REMOTE_USER_AUTH,
-                                        * LOCAL_USER_AUTH, REMOTE_PRIV_USER_AUTH or
-                                        * LOCAL_PRIV_USER_AUTH */
-        int            proxyUserAuth;                    /* same for proxyUser */
-        const char*    inPackInstruct; /* the packing instruct for the input
-                                        * struct */
-        int inBsFlag;                  /* input bytes stream flag. 0 ==> no input
-                                        * byte stream. 1 ==> we have an input byte
-                                        * stream */
-        const char*    outPackInstruct;/* the packing instruction for the
-                                        * output struct */
-        int            outBsFlag;      /* output bytes stream. 0 ==> no output byte
-                                        * stream. 1 ==> we have an output byte stream
-                                        */
-        boost::any     svrHandler;     /* the server handler. should be defined NULL for
-                                        * client */
-
-        const char *   operation_name;
-
-        std::function<void(void*)> clearInStruct; // free input struct function
-        std::function<void(void*)> clearOutStruct; // free output struct function
-
-        int(*call_wrapper)(...);        // wraps the api call for type casting
+        int            apiNumber;      ///< API number identifying the endpoint.
+        char*          apiVersion;     ///< API version string expected by this endpoint.
+        int            clientUserAuth; ///< Required client authentication level.
+        int            proxyUserAuth;  ///< Required proxy authentication level.
+        const char*    inPackInstruct; ///< Packing instruction string for the input structure.
+        int            inBsFlag;       ///< Indicates whether the API consumes an input byte stream.
+        const char*    outPackInstruct;///< Packing instruction string for the output structure.
+        int            outBsFlag;      ///< Indicates whether the API produces an output byte stream.
+        boost::any     svrHandler;     ///< Server handler callable or null for client-side entries.
+        const char*    operation_name; ///< Operation name used for plugin dispatch and PEP lookup.
+        std::function<void(void*)> clearInStruct;  ///< Releases an input structure instance.
+        std::function<void(void*)> clearOutStruct; ///< Releases an output structure instance.
+        int(*call_wrapper)(...);       ///< Wrapper used to adapt the API handler signature.
     }; // struct apidef_t
 
+    /// @brief Reports whether an error code should bypass exception PEP handling.
+    /// @tparam Integer Integral error-code type.
+    /// @param[in] error_code Error code returned by an API operation.
+    /// @return `true` if the error code is treated as acceptable, otherwise `false`.
     template <typename Integer,
               typename std::enable_if_t<std::is_integral<Integer>::value, int> = 0>
     bool is_acceptable_error(Integer error_code) {
@@ -70,6 +60,8 @@ namespace irods
         );
     }
 
+    /// @brief Adapts legacy API handlers to the plugin error interface.
+    /// @tparam types_t API argument types following `rsComm_t*`.
     template <typename... types_t>
     class api_call_adaptor
     {
@@ -77,11 +69,19 @@ namespace irods
         std::function<int(rsComm_t*, types_t...)> fcn_;
 
       public:
+        /// @brief Constructs an adaptor around a legacy API handler.
+        /// @param[in] _fcn Function to invoke when the adaptor is called.
         api_call_adaptor( std::function<int(rsComm_t*, types_t...)> _fcn )
             : fcn_(_fcn)
         {
         }
 
+        /// @brief Executes the adapted API handler.
+        /// The plugin context is accepted for interface compatibility and the remaining arguments are
+        /// forwarded to the legacy API handler.
+        /// @param[in] _comm Server communication handle for the request.
+        /// @param[in] _t Arguments forwarded to the legacy API handler.
+        /// @return An iRODS error object built from the handler return code.
         irods::error operator()( irods::plugin_context&, rsComm_t* _comm, types_t... _t )
         {
 #ifdef IRODS_ENABLE_SYSLOG
@@ -133,14 +133,18 @@ namespace irods
 
     }; // class api_call_adaptor
 
+    /// @brief Plugin-backed representation of an API table entry.
     class api_entry : public irods::plugin_base
     {
       private:
         using rule_engine_context_manager_type = rule_engine_context_manager<unit, ruleExecInfo_t*, AUDIT_RULE>;
 
       public:
-        /// =-=-=-=-=-=-=-
-        /// @brief adaptor from old api sig to new plugin sig
+        /// @brief Registers a legacy API handler under the provided operation name.
+        /// @tparam types_t Argument types accepted by the handler.
+        /// @param[in] _op Operation name used for lookup.
+        /// @param[in] _f Legacy handler callable to register.
+        /// @return An error indicating success or invalid input.
         template<typename... types_t>
         error add_operation(const std::string& _op, std::function<int(types_t...)> _f)
         {
@@ -156,6 +160,10 @@ namespace irods
             return SUCCESS();
         } // add_operation
 
+        /// @brief Calls the registered API handler and associated policy enforcement points.
+        /// @param[in] _comm Server communication handle for the request.
+        /// @param[in] _t Arguments forwarded to the registered handler and PEPs.
+        /// @return Integer status code returned by the operation or rule engine.
         template<typename... types_t>
         int call_handler(rsComm_t* _comm, types_t... _t)
         {
@@ -280,6 +288,10 @@ namespace irods
             return 0;
         } // call_handler
 
+        /// @brief Calls the registered API handler without invoking policy enforcement points.
+        /// @param[in] _comm Server communication handle for the request.
+        /// @param[in] _args Arguments forwarded directly to the registered handler.
+        /// @return Integer status code returned by the handler.
         template <typename ...Args>
         int call_handler_without_policy(rsComm_t* _comm, Args... _args)
         {
@@ -303,43 +315,35 @@ namespace irods
             return 0;
         } // call_handler_without_policy
 
-        // ctors
+        /// @brief Constructs an API entry from a static API definition.
         api_entry( apidef_t& );
 
+        /// @brief Copies an API entry.
         api_entry( const api_entry& );
 
-        // operators
+        /// @brief Assigns state from another API entry.
+        /// @return Reference to `*this`.
         api_entry& operator=( const api_entry& );
 
-        // attributes
-        int            apiNumber;      /* the API number */
-        char*          apiVersion;     /* The API version of this call */
-        int            clientUserAuth; /* Client user authentication level.
-                                    * NO_USER_AUTH, REMOTE_USER_AUTH,
-                                    * LOCAL_USER_AUTH, REMOTE_PRIV_USER_AUTH or
-                                    * LOCAL_PRIV_USER_AUTH */
-        int            proxyUserAuth;                    /* same for proxyUser */
-        const char*    inPackInstruct; /* the packing instruct for the input
-                                    * struct */
-        int inBsFlag;                  /* input bytes stream flag. 0 ==> no input
-                                    * byte stream. 1 ==> we have an input byte
-                                    * stream */
-        const char*    outPackInstruct;/* the packing instruction for the
-                                    * output struct */
-        int            outBsFlag;      /* output bytes stream. 0 ==> no output byte
-                                    * stream. 1 ==> we have an output byte stream
-                                    */
-        funcPtr        call_wrapper; // wraps the api call for type casting
-        std::string    in_pack_key;
-        std::string    out_pack_key;
-        std::string    in_pack_value;
-        std::string    out_pack_value;
-        std::string    operation_name;
+        int            apiNumber;      ///< API number identifying the endpoint.
+        char*          apiVersion;     ///< API version string expected by this endpoint.
+        int            clientUserAuth; ///< Required client authentication level.
+        int            proxyUserAuth;  ///< Required proxy authentication level.
+        const char*    inPackInstruct; ///< Packing instruction string for the input structure.
+        int            inBsFlag;       ///< Indicates whether the API consumes an input byte stream.
+        const char*    outPackInstruct;///< Packing instruction string for the output structure.
+        int            outBsFlag;      ///< Indicates whether the API produces an output byte stream.
+        funcPtr        call_wrapper;   ///< Wrapper used to adapt the API handler signature.
+        std::string    in_pack_key;    ///< Pack-table key for the input structure.
+        std::string    out_pack_key;   ///< Pack-table key for the output structure.
+        std::string    in_pack_value;  ///< Pack-table value for the input structure.
+        std::string    out_pack_value; ///< Pack-table value for the output structure.
+        std::string    operation_name; ///< Operation name used for dispatch and PEP lookup.
 
-        lookup_table< std::string>   extra_pack_struct;
+        lookup_table< std::string>   extra_pack_struct; ///< Additional pack-structure definitions owned by the entry.
 
-        std::function<void(void*)> clearInStruct; // free input struct function
-        std::function<void(void*)> clearOutStruct; // free output struct function
+        std::function<void(void*)> clearInStruct;  ///< Releases an input structure instance.
+        std::function<void(void*)> clearOutStruct; ///< Releases an output structure instance.
 
       private:
 #ifdef ENABLE_RE
@@ -397,6 +401,7 @@ namespace irods
 #endif // ENABLE_RE
     }; // class api_entry
 
+    /// @brief Shared pointer type for `api_entry` instances.
     typedef boost::shared_ptr< api_entry > api_entry_ptr;
 
     /// =-=-=-=-=-=-=-
@@ -405,17 +410,29 @@ namespace irods
         : public lookup_table<api_entry_ptr, size_t, boost::hash<size_t>>
     {
       public:
+        /// @brief Constructs an API entry table from static definitions.
+        /// @param[in] defs Array of API definitions to load.
+        /// @param[in] size Number of elements in `defs`.
         api_entry_table(apidef_t defs[], size_t size);
 
+        /// @brief Reports whether an API plugin has already been loaded.
+        /// @param[in] plugin_name Name of the plugin to query.
+        /// @return `true` if the plugin has been marked as loaded.
         auto is_plugin_loaded(std::string_view plugin_name) -> bool;
+
+        /// @brief Marks an API plugin as loaded.
+        /// @param[in] plugin_name Name of the plugin to record.
         auto mark_plugin_as_loaded(std::string_view plugin_name) -> void;
 
       private:
         std::vector<std::string> loaded_plugins_;
     }; // class api_entry_table
 
-    /// =-=-=-=-=-=-=-
-    /// @brief load api plugins
+    /// @brief Loads statically compiled and dynamically discovered API entries.
+    /// @param[in,out] _api_tbl Table receiving API entries.
+    /// @param[in,out] _pack_tbl Table receiving related pack-structure definitions.
+    /// @param[in] _cli_flg `true` when loading client-side entries, otherwise server-side entries.
+    /// @return An error describing the result of initialization.
     error init_api_table(
         api_entry_table&  _api_tbl,    // table holding api entries
         pack_entry_table& _pack_tbl,   // table for pack struct ref

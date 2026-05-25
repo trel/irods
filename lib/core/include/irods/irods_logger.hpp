@@ -74,12 +74,12 @@ namespace irods::experimental::log
     /// \since 4.3.0
     enum class level
     {
-        trace,
-        debug,
-        info,
-        warn,
-        error,
-        critical
+        trace,    ///< Most verbose diagnostic output.
+        debug,    ///< Diagnostic output intended for development and troubleshooting.
+        info,     ///< Informational messages describing normal operation.
+        warn,     ///< Warnings about unusual but non-fatal conditions.
+        error,    ///< Errors indicating a failed operation.
+        critical  ///< Severe failures requiring immediate attention.
     }; // enum class level
 
     /// Pre-defined log categories.
@@ -91,21 +91,21 @@ namespace irods::experimental::log
     namespace category
     {
         // clang-format off
-        struct legacy {};
-        struct server {};
-        struct agent_factory {};
-        struct agent {};
-        struct delay_server {};
-        struct genquery1 {};
-        struct genquery2 {};
-        struct resource {};
-        struct database {};
-        struct authentication {};
-        struct api {};
-        struct microservice {};
-        struct network {};
-        struct rule_engine {};
-        struct sql {};
+        struct legacy {};         ///< Tag type for legacy log messages.
+        struct server {};         ///< Tag type for server log messages.
+        struct agent_factory {};  ///< Tag type for agent factory log messages.
+        struct agent {};          ///< Tag type for agent log messages.
+        struct delay_server {};   ///< Tag type for delay server log messages.
+        struct genquery1 {};      ///< Tag type for GenQuery1 log messages.
+        struct genquery2 {};      ///< Tag type for GenQuery2 log messages.
+        struct resource {};       ///< Tag type for resource log messages.
+        struct database {};       ///< Tag type for database log messages.
+        struct authentication {}; ///< Tag type for authentication log messages.
+        struct api {};            ///< Tag type for API log messages.
+        struct microservice {};   ///< Tag type for microservice log messages.
+        struct network {};        ///< Tag type for network log messages.
+        struct rule_engine {};    ///< Tag type for rule engine log messages.
+        struct sql {};            ///< Tag type for SQL log messages.
         // clang-format on
     } // namespace category
 
@@ -134,8 +134,8 @@ namespace irods::experimental::log
     /// \since 4.3.0
     template <typename Category> class logger_config;
 
-    // A forward declaration used to define type aliases for various loggers.
-    // See implementation of class template for more information.
+    /// @brief Logger class template used to emit messages for a category.
+    /// @tparam Category Tag type identifying the log category.
     template <typename Category> class logger;
 
     /// \name Log Categories
@@ -397,6 +397,8 @@ namespace irods::experimental::log
     namespace detail
     {
 #ifdef IRODS_ENABLE_SYSLOG
+        /// @brief Returns the shared backend logger used by the logging API.
+        /// @return A shared pointer to the configured spdlog logger.
         auto get_logger() noexcept -> std::shared_ptr<spdlog::logger>;
 #endif // IRODS_ENABLE_SYSLOG
     } // namespace detail
@@ -412,9 +414,9 @@ namespace irods::experimental::log
         namespace log
         {
             // clang-format off
-            inline constexpr const char* category = "log_category";
-            inline constexpr const char* message  = "log_message";
-            inline constexpr const char* level    = "log_level";
+            inline constexpr const char* category = "log_category"; ///< JSON key storing the log category name.
+            inline constexpr const char* message  = "log_message";  ///< JSON key storing the rendered log message.
+            inline constexpr const char* level    = "log_level";    ///< JSON key storing the log level.
             // clang-format on
         } // namespace log
 
@@ -424,13 +426,13 @@ namespace irods::experimental::log
         namespace request
         {
             // clang-format off
-            inline constexpr const char* release_version = "request_release_version";
-            inline constexpr const char* api_version     = "request_api_version";
-            inline constexpr const char* host            = "request_host";
-            inline constexpr const char* client_user     = "request_client_user";
-            inline constexpr const char* proxy_user      = "request_proxy_user";
-            inline constexpr const char* api_number      = "request_api_number";
-            inline constexpr const char* api_name        = "request_api_name";
+            inline constexpr const char* release_version = "request_release_version"; ///< JSON key storing the client release version.
+            inline constexpr const char* api_version     = "request_api_version";     ///< JSON key storing the client API version.
+            inline constexpr const char* host            = "request_host";            ///< JSON key storing the client hostname or IP.
+            inline constexpr const char* client_user     = "request_client_user";     ///< JSON key storing the client username.
+            inline constexpr const char* proxy_user      = "request_proxy_user";      ///< JSON key storing the proxy username.
+            inline constexpr const char* api_number      = "request_api_number";      ///< JSON key storing the API number.
+            inline constexpr const char* api_name        = "request_api_name";        ///< JSON key storing the API name.
             // clang-forexprmat on
         } // namespace request
 
@@ -440,12 +442,12 @@ namespace irods::experimental::log
         namespace server
         {
             // clang-format off
-            inline constexpr const char* type      = "server_type";
-            inline constexpr const char* host      = "server_host";
-            inline constexpr const char* pid       = "server_pid";
-            inline constexpr const char* name      = "server_name";
-            inline constexpr const char* timestamp = "server_timestamp";
-            inline constexpr const char* zone      = "server_zone";
+            inline constexpr const char* type      = "server_type";      ///< JSON key storing the server type.
+            inline constexpr const char* host      = "server_host";      ///< JSON key storing the server hostname.
+            inline constexpr const char* pid       = "server_pid";       ///< JSON key storing the server process ID.
+            inline constexpr const char* name      = "server_name";      ///< JSON key storing the configured server name.
+            inline constexpr const char* timestamp = "server_timestamp"; ///< JSON key storing the message timestamp.
+            inline constexpr const char* zone      = "server_zone";      ///< JSON key storing the server zone.
             // clang-format on
         } // namespace server
     } // namespace tag
@@ -480,11 +482,14 @@ namespace irods::experimental::log
           public:
             friend class logger<Category>;
 
+            /// @brief Disabled copy construction for logger implementations.
             impl(const impl&) = delete;
+            /// @brief Disabled copy assignment for logger implementations.
             auto operator=(const impl&) -> impl& = delete;
 
 #ifdef IRODS_ENABLE_SYSLOG
             template <typename T>
+            /// @brief Detects whether a type supports iteration.
             using is_iterable = decltype(std::begin(std::declval<std::decay_t<T>>()));
 
             /// Writes a formatted string to the log file.
@@ -646,11 +651,15 @@ namespace irods::experimental::log
 
             // clang-format on
 
+            /// @brief No-op overload retained for client-side builds.
+            /// @param[in] _list Ignored key-value list.
             constexpr auto operator()(std::initializer_list<key_value> _list) const noexcept -> void
             {
             } // operator()
 
             template <typename... Args>
+            /// @brief No-op overload retained for client-side builds.
+            /// Accepts arbitrary arguments and ignores them.
             constexpr auto operator()(Args&&...) const noexcept -> void
             {
             } // operator()
@@ -780,9 +789,12 @@ namespace irods::experimental::log
 #endif // IRODS_ENABLE_SYSLOG
         }; // class impl
 
+        /// @brief Loggers cannot be instantiated directly.
         logger() = delete;
 
+        /// @brief Loggers are not copyable.
         logger(const logger&) = delete;
+        /// @brief Loggers are not copy-assignable.
         auto operator=(const logger&) -> logger& = delete;
 
         /// Sets the log level for a specific logger.
@@ -798,12 +810,12 @@ namespace irods::experimental::log
         } // set_level
 
         // clang-format off
-        inline static const auto trace    = impl<level::trace>{};
-        inline static const auto debug    = impl<level::debug>{};
-        inline static const auto info     = impl<level::info>{};
-        inline static const auto warn     = impl<level::warn>{};
-        inline static const auto error    = impl<level::error>{};
-        inline static const auto critical = impl<level::critical>{};
+        inline static const auto trace    = impl<level::trace>{};    ///< Logger entry point for trace-level messages.
+        inline static const auto debug    = impl<level::debug>{};    ///< Logger entry point for debug-level messages.
+        inline static const auto info     = impl<level::info>{};     ///< Logger entry point for info-level messages.
+        inline static const auto warn     = impl<level::warn>{};     ///< Logger entry point for warning-level messages.
+        inline static const auto error    = impl<level::error>{};    ///< Logger entry point for error-level messages.
+        inline static const auto critical = impl<level::critical>{}; ///< Logger entry point for critical-level messages.
         // clang-format on
     }; // class logger
 
@@ -811,6 +823,7 @@ namespace irods::experimental::log
     // Pre-defined Logger Category Configurations
     //
 
+    /// @brief Logger configuration specialization for the legacy category.
     template <>
     class logger_config<category::legacy>
     {
@@ -820,6 +833,7 @@ namespace irods::experimental::log
         friend class logger<category::legacy>;
     }; // class logger_config<category::legacy>
 
+    /// @brief Logger configuration specialization for the server category.
     template <>
     class logger_config<category::server>
     {
@@ -829,6 +843,7 @@ namespace irods::experimental::log
         friend class logger<category::server>;
     }; // class logger_config<category::server>
 
+    /// @brief Logger configuration specialization for the agent factory category.
     template <>
     class logger_config<category::agent_factory>
     {
@@ -838,6 +853,7 @@ namespace irods::experimental::log
         friend class logger<category::agent_factory>;
     }; // class logger_config<category::agent_factory>
 
+    /// @brief Logger configuration specialization for the agent category.
     template <>
     class logger_config<category::agent>
     {
@@ -847,6 +863,7 @@ namespace irods::experimental::log
         friend class logger<category::agent>;
     }; // class logger_config<category::agent>
 
+    /// @brief Logger configuration specialization for the delay server category.
     template <>
     class logger_config<category::delay_server>
     {
@@ -856,6 +873,7 @@ namespace irods::experimental::log
         friend class logger<category::delay_server>;
     }; // class logger_config<category::delay_server>
 
+    /// @brief Logger configuration specialization for the GenQuery1 category.
     template <>
     class logger_config<category::genquery1>
     {
@@ -865,6 +883,7 @@ namespace irods::experimental::log
         friend class logger<category::genquery1>;
     }; // class logger_config<category::genquery1>
 
+    /// @brief Logger configuration specialization for the GenQuery2 category.
     template <>
     class logger_config<category::genquery2>
     {
@@ -874,6 +893,7 @@ namespace irods::experimental::log
         friend class logger<category::genquery2>;
     }; // class logger_config<category::genquery2>
 
+    /// @brief Logger configuration specialization for the resource category.
     template <>
     class logger_config<category::resource>
     {
@@ -883,6 +903,7 @@ namespace irods::experimental::log
         friend class logger<category::resource>;
     }; // class logger_config<category::resource>
 
+    /// @brief Logger configuration specialization for the database category.
     template <>
     class logger_config<category::database>
     {
@@ -892,6 +913,7 @@ namespace irods::experimental::log
         friend class logger<category::database>;
     }; // class logger_config<category::database>
 
+    /// @brief Logger configuration specialization for the authentication category.
     template <>
     class logger_config<category::authentication>
     {
@@ -901,6 +923,7 @@ namespace irods::experimental::log
         friend class logger<category::authentication>;
     }; // class logger_config<category::authentication>
 
+    /// @brief Logger configuration specialization for the API category.
     template <>
     class logger_config<category::api>
     {
@@ -910,6 +933,7 @@ namespace irods::experimental::log
         friend class logger<category::api>;
     }; // class logger_config<category::api>
 
+    /// @brief Logger configuration specialization for the microservice category.
     template <>
     class logger_config<category::microservice>
     {
@@ -919,6 +943,7 @@ namespace irods::experimental::log
         friend class logger<category::microservice>;
     }; // class logger_config<category::microservice>
 
+    /// @brief Logger configuration specialization for the network category.
     template <>
     class logger_config<category::network>
     {
@@ -928,6 +953,7 @@ namespace irods::experimental::log
         friend class logger<category::network>;
     }; // class logger_config<category::network>
 
+    /// @brief Logger configuration specialization for the rule engine category.
     template <>
     class logger_config<category::rule_engine>
     {
@@ -937,6 +963,7 @@ namespace irods::experimental::log
         friend class logger<category::rule_engine>;
     }; // class logger_config<category::rule_engine>
 
+    /// @brief Logger configuration specialization for the SQL category.
     template <>
     class logger_config<category::sql>
     {
