@@ -30,9 +30,9 @@
  */
 
 typedef struct FileLseekInp {
-    int fileInx;
-    rodsLong_t offset;
-    int whence;
+    int fileInx; ///< Open file descriptor returned by a file open call.
+    rodsLong_t offset; ///< Offset applied during the seek.
+    int whence; ///< Origin used to interpret the offset.
 } fileLseekInp_t;
 
 /**
@@ -51,7 +51,7 @@ typedef struct FileLseekInp {
  */
 
 typedef struct FileLseekOut {
-    rodsLong_t offset;
+    rodsLong_t offset; ///< Resulting offset measured from the beginning of the file.
 } fileLseekOut_t;
 
 #define fileLseekInp_PI "int fileInx; double offset; int whence;"
@@ -60,6 +60,15 @@ typedef struct FileLseekOut {
 #ifdef __cplusplus
 extern "C"
 #endif
+/**
+ * Reposition an open file descriptor.
+ *
+ * @param[in] conn Client connection handle.
+ * @param[in] fileLseekInp Seek request input.
+ * @param[out] fileLseekOut Output containing the resulting file offset.
+ *
+ * @return Operation status.
+ */
 int rcFileLseek( rcComm_t *conn, fileLseekInp_t *fileLseekInp, fileLseekOut_t **fileLseekOut );
 
 #endif

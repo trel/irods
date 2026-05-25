@@ -50,7 +50,7 @@ struct region_node {
 
 /// Region allocator state.
 typedef struct region {
-    struct region_node *head, *active; /**< First and active blocks. */
+    struct region_node *head, *active; /**< First block in the region and the currently active block. */
     jmp_buf *label;                    /**< Jump target for fatal allocation errors. */
     struct region_error error;         /**< Last recorded region error. */
 } Region;

@@ -23,22 +23,16 @@ static const int STDOUT_STATUS = 1000000;
 extern "C" {
 #endif
 
-/// \brief A struct containing an error code and a message
-///
-/// \var status Error code for this error message
-/// \var msg String containing a message related to this error
+/// \brief A struct containing an error code and a message.
 typedef struct ErrorMessage {
-    int status;
-    char msg[ERR_MSG_LEN];
+    int status; ///< Error code for this error message.
+    char msg[ERR_MSG_LEN]; ///< Message associated with this error.
 } rErrMsg_t;
 
-/// \brief A struct containing a stack of error codes and messages
-///
-/// \var len Number of errors in the stack.
-/// \var errMsg An array of pointers to the ErrorMessage struct.
+/// \brief A struct containing a stack of error codes and messages.
 typedef struct ErrorStack {
-    int len;
-    struct ErrorMessage **errMsg;
+    int len; ///< Number of errors in the stack.
+    struct ErrorMessage **errMsg; ///< Array of pointers to error messages.
 } rError_t;
 
 /// \brief Allocate memory for the ErrorStack struct if the dereferenced pointer is null.
