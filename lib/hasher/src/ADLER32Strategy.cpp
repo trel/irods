@@ -19,15 +19,21 @@ namespace irods {
 
     const std::string ADLER32_NAME( "adler32" );
 
+    /// @brief Stores the rolling Adler-32 state.
     struct adler32_parts {
+        /// The low-order Adler-32 accumulator.
         uint32_t a;
+
+        /// The high-order Adler-32 accumulator.
         uint32_t b;
     };
 
+    /// @brief Returns the initial Adler-32 state.
     adler32_parts adler32_init() {
         return adler32_parts{1, 0};
     }
 
+    /// @brief Updates the Adler-32 state with additional bytes.
     static adler32_parts adler32_update(const adler32_parts& parts, const unsigned char *data, size_t len) {
 
         const uint32_t MOD_ADLER = 65521;
@@ -44,17 +50,20 @@ namespace irods {
         return adler32_parts{a, b};
     }
 
+    /// @brief Converts the rolling Adler-32 state into the final checksum value.
     static uint32_t adler32_final(const adler32_parts& parts) {
         return (parts.b << 16) | parts.a;
     }
 
 
+    /// @brief Initializes the hashing context.
     error
     ADLER32Strategy::init( boost::any& _context ) const {
         _context = adler32_init();
         return SUCCESS();
     }
 
+    /// @brief Updates the hashing context with input data.
     error
     ADLER32Strategy::update( const std::string& data, boost::any& _context ) const {
 
@@ -62,6 +71,7 @@ namespace irods {
         return SUCCESS();
     }
 
+    /// @brief Produces the default checksum string for the context.
     error
     ADLER32Strategy::digest( std::string& _messageDigest, boost::any& _context ) const {
         return digest(
@@ -70,11 +80,13 @@ namespace irods {
             _messageDigest);
     }
 
+    /// @brief Reports whether the string has the Adler-32 checksum prefix.
     bool ADLER32Strategy::isChecksum(const std::string& _chksum) const
     {
         return _chksum.starts_with(ADLER32_CHKSUM_PREFIX);
     }
 
+    /// @brief Produces the checksum string according to the requested options.
     auto ADLER32Strategy::digest(const hash::options& _options, boost::any& _context, std::string& _out) const
         -> irods::error
     {
@@ -95,10 +107,12 @@ namespace irods {
         return SUCCESS();
     } // ADLER32Strategy::digest
 
+    /// @brief Returns the checksum prefix for Adler-32 digests.
     auto ADLER32Strategy::checksum_prefix() const -> std::string_view
     {
         return ADLER32_CHKSUM_PREFIX;
     } // ADLER32Strategy::checksum_prefix
 
+    /// @brief Releases resources associated with the hashing context.
     void ADLER32Strategy::free_context(boost::any& context) const {}
 }; // namespace irods

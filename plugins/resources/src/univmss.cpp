@@ -61,8 +61,7 @@ namespace
     // The context string property for escaping single quotes in paths.
     const char* const ESCAPE_SINGLE_QUOTES = "escape_single_quotes";
 
-    // Returns the input string with single quotes escaped when the ESCAPE_SINGLE_QUOTES
-    // property is set to "1". Otherwise, the input string is returned unchanged.
+    /// @brief Returns the input string with single quotes escaped when enabled.
     auto escape_single_quotes(irods::plugin_context& _ctx, const std::string& _input) -> std::string
     {
         std::string resc_name;
@@ -107,8 +106,7 @@ irods::error univ_mss_file_create(
 
 } // univ_mss_file_create
 
-// =-=-=-=-=-=-=-
-// interface for POSIX Open
+/// @brief Interface for POSIX open.
 irods::error univ_mss_file_open(
     irods::plugin_context& ) {
     return ERROR( SYS_NOT_SUPPORTED, __FUNCTION__ );
@@ -805,20 +803,18 @@ irods::error univ_mss_file_resolve_hierarchy(
 } // univ_mss_file_resolve_hierarchy
 
 
-// =-=-=-=-=-=-=-
-// univ_mss__file_rebalance - code which would rebalance the subtree
+/// @brief Rebalances the universal MSS resource subtree.
 irods::error univ_mss_file_rebalance(
     irods::plugin_context& _ctx ) {
     return SUCCESS();
 
 } // univ_mss_file_rebalance
 
-// =-=-=-=-=-=-=-
-// 3. create derived class to handle universal mss resources
-//    context string will hold the script to be called.
+/// @brief Implements the universal MSS resource plugin.
 class univ_mss_resource : public irods::resource
 {
   public:
+    /// @brief Constructs the resource and parses its context string.
     univ_mss_resource(const std::string& _inst_name, const std::string& _context)
         : irods::resource(_inst_name, _context)
     {
@@ -872,25 +868,21 @@ class univ_mss_resource : public irods::resource
         properties_.set<std::string>(SCRIPT_PROP, context_);
     }
 
+    /// @brief Indicates whether post-disconnect maintenance is needed.
     irods::error need_post_disconnect_maintenance_operation(bool& _flg) override
     {
         _flg = false;
         return SUCCESS();
     }
 
+    /// @brief Performs post-disconnect maintenance.
     irods::error post_disconnect_maintenance_operation(irods::pdmo_type&) override
     {
         return ERROR(-1, "nop");
     }
 }; // class univ_mss_resource
 
-// =-=-=-=-=-=-=-
-// 4. create the plugin factory function which will return a dynamically
-//    instantiated object of the previously defined derived resource.  use
-//    the add_operation member to associate a 'call name' to the interfaces
-//    defined above.  for resource plugins these call names are standardized
-//    as used by the irods facing interface defined in
-//    server/drivers/src/fileDriver.c
+/// @brief Constructs and returns the universal MSS resource plugin instance.
 extern "C"
 irods::resource* plugin_factory( const std::string& _inst_name,
                                  const std::string& _context ) {

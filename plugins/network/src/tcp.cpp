@@ -17,8 +17,7 @@
 #include <string>
 #include <iostream>
 
-// =-=-=-=-=-=-=-
-// local function to read a buffer from a socket
+/// @brief Reads bytes from the socket into the caller-provided buffer.
 irods::error tcp_socket_read(int _socket, void* _buffer, int _length, int& _bytes_read, struct timeval* _time_value)
 {
     fd_set set;
@@ -73,8 +72,7 @@ irods::error tcp_socket_read(int _socket, void* _buffer, int _length, int& _byte
     return CODE( _length - len_to_read );
 } // tcp_socket_read
 
-// =-=-=-=-=-=-=-
-// local function to write a buffer to a socket
+/// @brief Writes bytes from the caller-provided buffer to the socket.
 irods::error tcp_socket_write(
     int         _socket,
     const void* _buffer,
@@ -125,32 +123,28 @@ irods::error tcp_socket_write(
 
 } // tcp_socket_write
 
-// =-=-=-=-=-=-=-
-//
+/// @brief Performs network plugin startup work.
 irods::error tcp_start(
     irods::plugin_context& ) {
     return SUCCESS();
 
 } // tcp_start
 
-// =-=-=-=-=-=-=-
-//
+/// @brief Performs network plugin shutdown preparation.
 irods::error tcp_end(
     irods::plugin_context& ) {
     return SUCCESS();
 
 } // tcp_end
 
-// =-=-=-=-=-=-=-
-//
+/// @brief Performs final network plugin shutdown work.
 irods::error tcp_shutdown(
     irods::plugin_context& ) {
     return SUCCESS();
 
 } // tcp_end
 
-// =-=-=-=-=-=-=-
-//
+/// @brief Reads a message header from the socket.
 irods::error tcp_read_msg_header(
     irods::plugin_context& _ctx,
     void*                  _buffer,
@@ -217,8 +211,7 @@ irods::error tcp_read_msg_header(
     return SUCCESS();
 } // tcp_read_msg_header
 
-// =-=-=-=-=-=-=-
-//
+/// @brief Writes a message header to the socket.
 irods::error tcp_write_msg_header(
     irods::plugin_context& _ctx,
     const bytesBuf_t*      _header ) {
@@ -277,8 +270,7 @@ irods::error tcp_write_msg_header(
 
 } // tcp_write_msg_header
 
-// =-=-=-=-=-=-=-
-//
+/// @brief Sends a complete iRODS message over the socket.
 irods::error tcp_send_rods_msg(
     irods::plugin_context& _ctx,
     const char*            _msg_type,
@@ -378,8 +370,7 @@ irods::error tcp_send_rods_msg(
     return SUCCESS();
 } // tcp_send_rods_msg
 
-// =-=-=-=-=-=-=-
-// helper fcn to read a bytes buf
+/// @brief Reads a message body buffer from the socket.
 irods::error read_bytes_buf(
     int             _socket_handle,
     int             _length,
@@ -420,8 +411,7 @@ irods::error read_bytes_buf(
 
 } // read_bytes_buf
 
-// =-=-=-=-=-=-=-
-// read a message body off of the socket
+/// @brief Reads the body buffers described by a message header.
 irods::error tcp_read_msg_body(
     irods::plugin_context& _ctx,
     msgHeader_t*            _header,
@@ -551,9 +541,7 @@ irods::error tcp_read_msg_body(
 
 } // tcp_read_msg_body
 
-// =-=-=-=-=-=-=-
-// stubs for ops that the tcp plug does
-// not need to support - accept etc
+/// @brief No-op client stop handler for the TCP network plugin.
 irods::error tcp_client_stop(
     irods::plugin_context&,
     rodsEnv* ) {
@@ -561,30 +549,31 @@ irods::error tcp_client_stop(
 
 } // tcp_success_stub
 
+/// @brief No-op client start handler for the TCP network plugin.
 irods::error tcp_client_start(
     irods::plugin_context& _ctx,
     rodsEnv*                _env ) {
     return SUCCESS();
 }
 
+/// @brief No-op agent stop handler for the TCP network plugin.
 irods::error tcp_agent_stop(
     irods::plugin_context& ) {
     return SUCCESS();
 
 } // tcp_success_stub
 
+/// @brief No-op agent start handler for the TCP network plugin.
 irods::error tcp_agent_start(
     irods::plugin_context& ) {
     return SUCCESS();
 
 } // tcp_success_stub
 
-// =-=-=-=-=-=-=-
-// derive a new tcp network plugin from
-// the network plugin base class for handling
-// tcp communications
+/// @brief Implements the TCP network plugin.
 class tcp_network_plugin : public irods::network {
     public:
+        /// @brief Constructs a TCP network plugin instance.
         tcp_network_plugin(
             const std::string& _nm,
             const std::string& _ctx ) :
@@ -593,6 +582,7 @@ class tcp_network_plugin : public irods::network {
                 _ctx ) {
         } // ctor
 
+        /// @brief Destroys the TCP network plugin instance.
         ~tcp_network_plugin() {
         }
 
@@ -600,8 +590,7 @@ class tcp_network_plugin : public irods::network {
 
 
 
-// =-=-=-=-=-=-=-
-// factory function to provide instance of the plugin
+/// @brief Constructs and returns the TCP network plugin instance.
 extern "C"
 irods::network* plugin_factory(
     const std::string& _inst_name,

@@ -15,13 +15,19 @@ int debug = 0;
 rcComm_t *Conn;
 rodsEnv myEnv;
 
+/// @brief Prints command usage information.
 void usage();
 
+/// @brief Identifies the user and zone used to build catalog queries.
 struct userinfo_t {
+    /// The user name to query.
     char* user_name;
+
+    /// The zone containing the user.
     char* zone_name;
 };
 
+/// @brief Builds a GenQuery statement for the target user.
 std::string construct_userinfo_query_string(
     const userinfo_t& _info,
     const std::string& _select_string) {
@@ -29,6 +35,7 @@ std::string construct_userinfo_query_string(
                         _select_string % _info.user_name % _info.zone_name).str()};
 }
 
+/// @brief Prints general metadata for the target user.
 bool print_general_info(const userinfo_t& _info) {
     // Construct query object for listing info for specified user
     const std::string select{
@@ -58,6 +65,7 @@ bool print_general_info(const userinfo_t& _info) {
     return true;
 }
 
+/// @brief Prints authentication information for the target user.
 void print_auth_info(const userinfo_t& _info) {
     irods::query<rcComm_t> qobj{Conn, construct_userinfo_query_string(_info, "USER_DN")};
     for (const auto& result: qobj) {
@@ -65,6 +73,7 @@ void print_auth_info(const userinfo_t& _info) {
     }
 }
 
+/// @brief Prints group membership information for the target user.
 void print_group_info(const userinfo_t& _info) {
     irods::query<rcComm_t> qobj{Conn, construct_userinfo_query_string(_info, "USER_GROUP_NAME")};
     if (qobj.begin() == qobj.end()) {
@@ -77,6 +86,7 @@ void print_group_info(const userinfo_t& _info) {
     }
 }
 
+/// @brief Shows information for the named user.
 int
 showUser(const char *name) {
     char user_name[NAME_LEN]{};
@@ -101,6 +111,7 @@ showUser(const char *name) {
     return 0;
 }
 
+/// @brief Runs the iuserinfo command-line client.
 int
 main( int argc, char **argv ) {
 
@@ -171,9 +182,7 @@ main( int argc, char **argv ) {
     return status;
 }
 
-/*
-Print the main usage/help information.
- */
+/// @brief Prints the main usage/help information.
 void usage() {
     char *msgs[] = {
         "Usage: iuserinfo [-vVh] [user]",
