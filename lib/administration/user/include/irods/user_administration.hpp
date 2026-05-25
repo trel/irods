@@ -89,11 +89,11 @@ namespace irods::experimental::administration
     /// \since 4.3.1
     struct user_password_property
     {
-        /// Constructs an instance of #user_password_property.
+        /// Constructs an instance of `user_password_property`.
         ///
         /// \param[in] _value              The new password for a user.
         /// \param[in] _requester_password The plaintext password of the user requesting the
-        ///                                change. If passed, #obfGetPw will not be used.
+        ///                                change. If passed, `obfGetPw` will not be used.
         ///
         /// \since 4.3.1
         explicit user_password_property(std::string _value,
@@ -174,7 +174,7 @@ namespace irods::experimental::administration
 
     /// Obfuscates a user password.
     ///
-    /// See #user_password_property for additional details.
+    /// See `user_password_property` for additional details.
     ///
     /// \param[in] _property The password property to obfuscate.
     ///

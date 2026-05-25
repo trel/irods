@@ -215,6 +215,7 @@ namespace
 /// Registers the `msi_test_password_hashing` microservice.
 /// Registers the `msi_test_password_hashing` microservice.
 /// Registers the `msi_test_password_hashing` microservice.
+/// Registers the `msi_test_password_hashing` microservice.
 extern "C" auto plugin_factory() -> irods::ms_table_entry*
 {
     return make_msi<>("msi_test_password_hashing", msi_impl);

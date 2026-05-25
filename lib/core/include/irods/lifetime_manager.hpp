@@ -91,8 +91,7 @@ namespace irods::experimental {
         /// will be used on destruction provided T is not a specially
         /// supported type.
         ///
-        /// \param[in] _array_delete - Tag struct which indicates that the
-        /// passed-in pointer points to an array of structures.
+        /// The leading tag indicates that the passed-in pointer points to an array of structures.
         /// \param[in] _obj - Pointer to allocated structure.
         ///
         /// \since 4.2.8
