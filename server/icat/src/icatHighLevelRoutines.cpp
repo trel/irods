@@ -591,9 +591,9 @@ int chlRegReplica(
 
 /// =-=-=-=-=-=-=-
 /// @brief unregDataObj - Unregister a data object
-///        Input - rsComm_t *rsComm  - the server handle
-///                dataObjInfo_t *dataObjInfo - contains info about the data object.
-///                keyValPair_t *condInput - used to specify a admin-mode.
+/// @param[in] _comm The server communication handle.
+/// @param[in] _data_obj_info Information describing the data object to unregister.
+/// @param[in] _cond_input Conditional input controlling unregister behavior.
 int chlUnregDataObj(
     rsComm_t*      _comm,
     dataObjInfo_t* _data_obj_info,
@@ -808,6 +808,8 @@ int chlDelRuleExec(
 
 /// =-=-=-=-=-=-=-
 /// @brief Adds the child, with context, to the resource all specified in the resc_input map
+/// @param[in] _comm The server communication handle.
+/// @param[in] _resc_input Resource properties describing the parent/child relationship.
 int chlAddChildResc(
     rsComm_t*   _comm,
     std::map<std::string, std::string>& _resc_input ) {
@@ -912,6 +914,8 @@ int chlRegResc(
 
 /// =-=-=-=-=-=-=-
 /// @brief Remove a child from its parent
+/// @param[in] _comm The server communication handle.
+/// @param[in] _resc_input Resource properties describing the parent/child relationship.
 int chlDelChildResc(
     rsComm_t*   _comm,
     std::map<std::string, std::string>& _resc_input ) {
@@ -4223,6 +4227,9 @@ int chlGetDistinctDataObjsMissingFromChildGivenParent(
 
 /// =-=-=-=-=-=-=-
 /// @brief Given a resource, resolves the hierarchy down to said resource
+/// @param[in] _resc_name The resource name to resolve.
+/// @param[in] _zone_name The zone containing the resource.
+/// @param[out] _hierarchy The resolved resource hierarchy.
 int chlGetHierarchyForResc(
     const std::string& _resc_name,
     const std::string& _zone_name,
@@ -4279,6 +4286,13 @@ int chlGetHierarchyForResc(
 /// @brief Administrative operations on a ticket.
 ///        create, modify, and remove.
 ///        ticketString is either the ticket-string or ticket-id.
+/// @param[in] _comm The server communication handle.
+/// @param[in] _op_name The administrative operation to perform.
+/// @param[in] _ticket_string The ticket identifier or ticket string.
+/// @param[in] _arg3 The first operation-specific argument.
+/// @param[in] _arg4 The second operation-specific argument.
+/// @param[in] _arg5 The third operation-specific argument.
+/// @param[in] _cond_input Optional conditional input for the ticket operation.
 int chlModTicket(
     rsComm_t*         _comm,
     const char*       _op_name,
