@@ -92,6 +92,9 @@ namespace irods::experimental::io::NAMESPACE_IMPL
         // clang-format on
 
     public:
+        /// Constructs a transport bound to an existing iRODS connection.
+        ///
+        /// \param[in] _comm The connection object used for replica operations.
         explicit basic_transport(rxComm& _comm)
             : transport<CharT>{}
             , comm_{&_comm}

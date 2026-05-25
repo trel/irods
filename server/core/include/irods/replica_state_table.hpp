@@ -271,11 +271,11 @@ namespace irods::replica_state_table
     /// \since 4.2.9
     auto at(const key_type& _key) -> nlohmann::json;
 
-    /// \brief return a specific replica by replica number with optional before/after specification (defaults to both)
+    /// \brief Returns a specific replica by leaf resource name with optional state selection.
     ///
-    /// \param[in] _key
-    /// \param[in] _replica_number Replica number in the "before" entry
-    /// \param[in] _state
+    /// \param[in] _key The key identifying the replica state table entry.
+    /// \param[in] _leaf_resource_name The leaf resource name identifying the replica in the entry.
+    /// \param[in] _state The state view to return.
     ///
     /// \returns JSON object of the following form: \parblock
     /// - For state_type::both:
@@ -326,7 +326,7 @@ namespace irods::replica_state_table
     ///     }
     /// \endcode
     ///
-    /// - For state_type::before/state_type::after:
+    /// - For \c state_type::before or \c state_type::after:
     /// \code{.js}
     ///     {
     ///         "data_id": <string>,
@@ -357,11 +357,11 @@ namespace irods::replica_state_table
             const std::string_view _leaf_resource_name,
             const state_type _state = state_type::both) -> nlohmann::json;
 
-    /// \brief return a specific replica by replica number with optional before/after specification (defaults to both)
+    /// \brief Returns a specific replica by replica number with optional state selection.
     ///
-    /// \param[in] _key
-    /// \param[in] _replica_number Replica number in the "before" entry
-    /// \param[in] _state
+    /// \param[in] _key The key identifying the replica state table entry.
+    /// \param[in] _replica_number The replica number identifying the replica in the entry.
+    /// \param[in] _state The state view to return.
     ///
     /// \returns JSON object of the following form: \parblock
     /// - For state_type::both...
@@ -412,7 +412,7 @@ namespace irods::replica_state_table
     ///     }
     /// \endcode
     ///
-    /// - For state_type::before/state_type::after...
+    /// - For \c state_type::before or \c state_type::after...
     /// \code{.js}
     ///     {
     ///         "data_id": <string>,
@@ -571,12 +571,13 @@ namespace irods::replica_state_table
 
             // Constructors
 
-            /// \brief Explicit constructor for all members
+            /// \brief Constructs a publishing context with explicit values for every member.
             ///
-            /// \param[in] _k Key to RST entry
-            /// \param[in] _id ID for a particular replica in the RST
-            /// \param[in] _fmp JSON list of key-value pairs for fileModified input
-            /// \param[in] _p Elevate privileges when publishing
+            /// \param[in] _k Key to the replica state table entry.
+            /// \param[in] _id Identifier for the target replica in the entry.
+            /// \param[in] _fmp JSON list of key-value pairs for fileModified input.
+            /// \param[in] _p Indicates whether publishing should use elevated privileges.
+            /// \param[in] _bw The number of bytes written during the associated operation.
             ///
             /// \since 4.2.9
             context(const key_type& _k,

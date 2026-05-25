@@ -168,7 +168,7 @@ namespace irods::experimental::io
 
         /// Closes an open replica.
         ///
-        /// \param[in] _on_close_success A pointer to an ::on_close_success object that instructs
+        /// \param[in] _on_close_success A pointer to an on_close_success object that instructs
         ///                              the server to skip or perform certain operations. If the pointer
         ///                              is null, implementations of this function must default to
         ///                              instructing the server to update the catalog and skip computing
@@ -236,4 +236,3 @@ namespace irods::experimental::io
 } // irods::experimental::io
 
 #endif // IRODS_IO_TRANSPORT_HPP
-

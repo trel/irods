@@ -59,6 +59,11 @@ namespace irods::experimental::pmr
         } // allocated
 
     protected:
+        /// Allocates memory while enforcing the configured allocation limit.
+        ///
+        /// \param[in] _bytes The number of bytes to allocate.
+        /// \param[in] _alignment The required alignment for the returned block.
+        /// \return A pointer to a newly allocated memory block.
         auto do_allocate(std::size_t _bytes, std::size_t _alignment) -> void* override
         {
             if (allocated_ + _bytes >= max_size_) {
@@ -71,12 +76,22 @@ namespace irods::experimental::pmr
             return p;
         } // do_allocate
 
+        /// Releases a block previously allocated by this resource.
+        ///
+        /// \param[in] _p The block to release.
+        /// \param[in] _bytes The size of the allocation represented by \p _p.
+        /// \param[in] _alignment The alignment used for the allocation.
         auto do_deallocate(void* _p, std::size_t _bytes, std::size_t _alignment) -> void override
         {
             ::operator delete(_p, std::align_val_t{_alignment});
             allocated_ -= _bytes;
         } // do_deallocate
 
+        /// Indicates whether another memory resource is considered equivalent to this one.
+        ///
+        /// Accepts another memory resource instance for comparison.
+        ///
+        /// \return True because all capped_memory_resource instances are treated as equal.
         auto do_is_equal(const boost::container::pmr::memory_resource&) const noexcept -> bool override
         {
             return true;
@@ -89,4 +104,3 @@ namespace irods::experimental::pmr
 } // namespace irods::experimental::pmr
 
 #endif // IRODS_CAPPED_MEMORY_RESOURCE_HPP
-

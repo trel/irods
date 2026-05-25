@@ -55,12 +55,19 @@ namespace irods::experimental::io
         {
         }
 
+        /// Move-constructs a stream buffer from another stream buffer.
+        ///
+        /// \param[in] _other The stream buffer to move from.
         basic_data_object_buf(basic_data_object_buf&& _other)
             : basic_data_object_buf{}
         {
             swap(_other);
         }
 
+        /// Move-assigns the state of another stream buffer.
+        ///
+        /// \param[in] _other The stream buffer to move from.
+        /// \return A reference to this stream buffer.
         basic_data_object_buf& operator=(basic_data_object_buf&& _other)
         {
             close();
@@ -73,6 +80,9 @@ namespace irods::experimental::io
             close();
         }
 
+        /// Exchanges the state of this stream buffer with another.
+        ///
+        /// \param[in,out] _other The stream buffer to exchange state with.
         void swap(basic_data_object_buf& _other)
         {
             using std::swap;
@@ -82,16 +92,29 @@ namespace irods::experimental::io
             swap(buf_, _other.buf_);
         }
 
+        /// Exchanges the state of two stream buffers.
+        ///
+        /// \param[in,out] _lhs The first stream buffer.
+        /// \param[in,out] _rhs The second stream buffer.
         friend void swap(basic_data_object_buf& _lhs, basic_data_object_buf& _rhs)
         {
             _lhs.swap(_rhs);
         }
 
+        /// Indicates whether the underlying transport has an open replica.
+        ///
+        /// \return True if the underlying transport is open.
         bool is_open() const noexcept
         {
             return transport_ && transport_->is_open();
         }
 	
+        /// Opens a data object using the provided transport and path.
+        ///
+        /// \param[in,out] _transport The transport used for I/O.
+        /// \param[in] _path The logical path to the data object.
+        /// \param[in] _mode The stream open mode.
+        /// \return This stream buffer on success, or null on failure.
         basic_data_object_buf* open(transport<char_type>& _transport,
                                     const filesystem::path& _path,
                                     std::ios_base::openmode _mode)
@@ -107,6 +130,13 @@ namespace irods::experimental::io
             return this;
         }
 
+        /// Opens a specific replica of a data object.
+        ///
+        /// \param[in,out] _transport The transport used for I/O.
+        /// \param[in] _path The logical path to the data object.
+        /// \param[in] _replica_number The replica number to open.
+        /// \param[in] _mode The stream open mode.
+        /// \return This stream buffer on success, or null on failure.
         basic_data_object_buf* open(transport<char_type>& _transport,
                                     const filesystem::path& _path,
                                     const replica_number& _replica_number,
@@ -123,6 +153,13 @@ namespace irods::experimental::io
             return this;
         }
 
+        /// Opens a data object replica selected by root resource.
+        ///
+        /// \param[in,out] _transport The transport used for I/O.
+        /// \param[in] _path The logical path to the data object.
+        /// \param[in] _root_resource_name The root resource identifying the replica.
+        /// \param[in] _mode The stream open mode.
+        /// \return This stream buffer on success, or null on failure.
         basic_data_object_buf* open(transport<char_type>& _transport,
                                     const filesystem::path& _path,
                                     const root_resource_name& _root_resource_name,
@@ -139,6 +176,13 @@ namespace irods::experimental::io
             return this;
         }
 
+        /// Opens a data object replica selected by leaf resource.
+        ///
+        /// \param[in,out] _transport The transport used for I/O.
+        /// \param[in] _path The logical path to the data object.
+        /// \param[in] _leaf_resource_name The leaf resource identifying the replica.
+        /// \param[in] _mode The stream open mode.
+        /// \return This stream buffer on success, or null on failure.
         basic_data_object_buf* open(transport<char_type>& _transport,
                                     const filesystem::path& _path,
                                     const leaf_resource_name& _leaf_resource_name,
@@ -155,6 +199,14 @@ namespace irods::experimental::io
             return this;
         }
 
+        /// Reopens a specific replica using a replica token.
+        ///
+        /// \param[in,out] _transport The transport used for I/O.
+        /// \param[in] _replica_token The token authorizing access to the replica.
+        /// \param[in] _path The logical path to the data object.
+        /// \param[in] _replica_number The replica number to open.
+        /// \param[in] _mode The stream open mode.
+        /// \return This stream buffer on success, or null on failure.
         basic_data_object_buf* open(transport<char_type>& _transport,
                                     const replica_token& _replica_token,
                                     const filesystem::path& _path,
@@ -172,6 +224,14 @@ namespace irods::experimental::io
             return this;
         }
 
+        /// Reopens a replica on a specific leaf resource using a replica token.
+        ///
+        /// \param[in,out] _transport The transport used for I/O.
+        /// \param[in] _replica_token The token authorizing access to the replica.
+        /// \param[in] _path The logical path to the data object.
+        /// \param[in] _leaf_resource_name The leaf resource identifying the replica.
+        /// \param[in] _mode The stream open mode.
+        /// \return This stream buffer on success, or null on failure.
         basic_data_object_buf* open(transport<char_type>& _transport,
                                     const replica_token& _replica_token,
                                     const filesystem::path& _path,
@@ -189,6 +249,10 @@ namespace irods::experimental::io
             return this;
         }
 
+        /// Closes the currently open replica.
+        ///
+        /// \param[in] _on_close_success Optional close directives for the server.
+        /// \return This stream buffer on success, or null on failure.
         basic_data_object_buf* close(const on_close_success* _on_close_success = nullptr)
         {
             if (!transport_ || !transport_->is_open()) {
@@ -208,32 +272,50 @@ namespace irods::experimental::io
             return sb;
         }
 
+        /// Returns the file descriptor exposed by the transport.
+        ///
+        /// \return The transport-specific file descriptor.
         int file_descriptor() const noexcept
         {
             return transport_->file_descriptor();;
         }
 
+        /// Returns the root resource name for the open replica.
+        ///
+        /// \return The root resource name associated with the open replica.
         const root_resource_name& root_resource_name() const
         {
             return transport_->root_resource_name();
         }
 
+        /// Returns the leaf resource name for the open replica.
+        ///
+        /// \return The leaf resource name associated with the open replica.
         const leaf_resource_name& leaf_resource_name() const
         {
             return transport_->leaf_resource_name();
         }
 
+        /// Returns the replica number for the open replica.
+        ///
+        /// \return The replica number associated with the open replica.
         const replica_number& replica_number() const
         {
             return transport_->replica_number();
         }
 
+        /// Returns the replica token for the open replica.
+        ///
+        /// \return The replica token associated with the open replica.
         const replica_token& replica_token() const
         {
             return transport_->replica_token();
         }
 
     protected:
+        /// Refills the get area when more input is required.
+        ///
+        /// \return The next available character, or EOF on failure or end-of-input.
         int_type underflow() override
         {
             prepare_for_input();
@@ -259,6 +341,10 @@ namespace irods::experimental::io
             return traits_type::to_int_type(*this->gptr());
         }
 
+        /// Flushes buffered output and optionally writes one additional character.
+        ///
+        /// \param[in] _c The optional character to write after flushing.
+        /// \return EOF on failure, or a non-EOF value on success.
         int_type overflow(int_type _c = traits_type::eof()) override
         {
             prepare_for_output();
@@ -274,6 +360,11 @@ namespace irods::experimental::io
             return traits_type::not_eof(_c);
         }
 
+        /// Reads a sequence of characters into the caller-provided buffer.
+        ///
+        /// \param[out] _buffer The destination buffer.
+        /// \param[in] _buffer_size The number of characters requested.
+        /// \return The number of characters read from the underlying transport.
         std::streamsize xsgetn(char_type* _buffer, std::streamsize _buffer_size) override
         {
             prepare_for_input();
@@ -290,6 +381,11 @@ namespace irods::experimental::io
             return transport_->receive(_buffer + bytes_to_copy, (_buffer_size - bytes_to_copy) * sizeof(char_type));
         }
 
+        /// Writes a sequence of characters from the caller-provided buffer.
+        ///
+        /// \param[in] _buffer The source buffer.
+        /// \param[in] _buffer_size The number of characters to write.
+        /// \return The number of characters written, or a negative value on failure.
         std::streamsize xsputn(const char_type* _buffer, std::streamsize _buffer_size) override
         {
             prepare_for_output();
@@ -301,6 +397,9 @@ namespace irods::experimental::io
             return transport_->send(_buffer, _buffer_size * sizeof(char_type));
         }
 
+        /// Flushes any pending output.
+        ///
+        /// \return Zero on success, or a non-zero value on failure.
         int sync() override
         {
             if (this->pptr()) {
@@ -310,6 +409,10 @@ namespace irods::experimental::io
             return 0;
         }
 
+        /// Pushes a character back into the get area.
+        ///
+        /// \param[in] _c The character to push back, or EOF to only move the get pointer.
+        /// \return EOF on failure, or a non-EOF value on success.
         int_type pbackfail(int_type _c = traits_type::eof()) override
         {
             // If the "next" pointer of the "Get" area points to the beginning of the
@@ -330,6 +433,12 @@ namespace irods::experimental::io
             return traits_type::not_eof(_c);
         }
 
+        /// Repositions the stream by an offset relative to a direction.
+        ///
+        /// \param[in] _off The offset to apply.
+        /// \param[in] _dir The base position used to interpret \p _off.
+        /// \param[in] _which The active stream sequences being repositioned.
+        /// \return The resulting position, or an error position on failure.
         pos_type seekoff(off_type _off,
                          std::ios_base::seekdir _dir,
                          std::ios_base::openmode _which = std::ios_base::in | std::ios_base::out) override
@@ -341,6 +450,11 @@ namespace irods::experimental::io
             return transport_->seekpos(_off, _dir);
         }
 
+        /// Repositions the stream to an absolute position.
+        ///
+        /// \param[in] _pos The absolute position to seek to.
+        /// \param[in] _which The active stream sequences being repositioned.
+        /// \return The resulting position, or an error position on failure.
         pos_type seekpos(pos_type _pos, std::ios_base::openmode _which = std::ios_base::in | std::ios_base::out) override
         {
             if (this->sync() != 0) {
@@ -474,6 +588,11 @@ namespace irods::experimental::io
         {
         }
 
+        /// Constructs and opens a stream for the given data object path.
+        ///
+        /// \param[in,out] _transport The transport used for I/O.
+        /// \param[in] _path The logical path to the data object.
+        /// \param[in] _mode The stream open mode.
         basic_dstream(transport<char_type>& _transport,
                       const filesystem::path& _path,
                       std::ios_base::openmode _mode = default_openmode<GeneralStream>)
@@ -482,6 +601,12 @@ namespace irods::experimental::io
             open(_transport, _path, _mode);
         }
 
+        /// Constructs and opens a stream for a specific replica number.
+        ///
+        /// \param[in,out] _transport The transport used for I/O.
+        /// \param[in] _path The logical path to the data object.
+        /// \param[in] _replica_number The replica number to open.
+        /// \param[in] _mode The stream open mode.
         basic_dstream(transport<char_type>& _transport,
                       const filesystem::path& _path,
                       const replica_number& _replica_number,
@@ -491,6 +616,12 @@ namespace irods::experimental::io
             open(_transport, _path, _replica_number, _mode);
         }
 
+        /// Constructs and opens a stream for a replica selected by root resource.
+        ///
+        /// \param[in,out] _transport The transport used for I/O.
+        /// \param[in] _path The logical path to the data object.
+        /// \param[in] _root_resource_name The root resource identifying the replica.
+        /// \param[in] _mode The stream open mode.
         basic_dstream(transport<char_type>& _transport,
                       const filesystem::path& _path,
                       const root_resource_name& _root_resource_name,
@@ -500,6 +631,12 @@ namespace irods::experimental::io
             open(_transport, _path, _root_resource_name, _mode);
         }
 
+        /// Constructs and opens a stream for a replica selected by leaf resource.
+        ///
+        /// \param[in,out] _transport The transport used for I/O.
+        /// \param[in] _path The logical path to the data object.
+        /// \param[in] _leaf_resource_name The leaf resource identifying the replica.
+        /// \param[in] _mode The stream open mode.
         basic_dstream(transport<char_type>& _transport,
                       const filesystem::path& _path,
                       const leaf_resource_name& _leaf_resource_name,
@@ -509,6 +646,13 @@ namespace irods::experimental::io
             open(_transport, _path, _leaf_resource_name, _mode);
         }
 
+        /// Constructs and opens a stream for a replica number using a replica token.
+        ///
+        /// \param[in,out] _transport The transport used for I/O.
+        /// \param[in] _replica_token The token authorizing access to the replica.
+        /// \param[in] _path The logical path to the data object.
+        /// \param[in] _replica_number The replica number to open.
+        /// \param[in] _mode The stream open mode.
         basic_dstream(transport<char_type>& _transport,
                       const replica_token& _replica_token,
                       const filesystem::path& _path,
@@ -519,6 +663,13 @@ namespace irods::experimental::io
             open(_transport, _replica_token, _path, _replica_number, _mode);
         }
 
+        /// Constructs and opens a stream for a leaf-resource replica using a replica token.
+        ///
+        /// \param[in,out] _transport The transport used for I/O.
+        /// \param[in] _replica_token The token authorizing access to the replica.
+        /// \param[in] _path The logical path to the data object.
+        /// \param[in] _leaf_resource_name The leaf resource identifying the replica.
+        /// \param[in] _mode The stream open mode.
         basic_dstream(transport<char_type>& _transport,
                       const replica_token& _replica_token,
                       const filesystem::path& _path,
@@ -529,6 +680,9 @@ namespace irods::experimental::io
             open(_transport, _replica_token, _path, _leaf_resource_name, _mode);
         }
 
+        /// Move-constructs a stream from another stream.
+        ///
+        /// \param[in] _other The stream to move from.
         basic_dstream(basic_dstream&& _other)
             : GeneralStream{std::move(_other)}
             , buf_{std::move(_other.buf_)}
@@ -536,6 +690,10 @@ namespace irods::experimental::io
             this->set_rdbuf(&buf_);
         }
 
+        /// Move-assigns the state of another stream.
+        ///
+        /// \param[in] _other The stream to move from.
+        /// \return A reference to this stream.
         basic_dstream& operator=(basic_dstream&& _other)
         {
             GeneralStream::operator=(std::move(_other));
@@ -545,27 +703,45 @@ namespace irods::experimental::io
 
         ~basic_dstream() = default;
 
+        /// Exchanges the state of this stream with another stream.
+        ///
+        /// \param[in,out] _other The stream to exchange state with.
         void swap(basic_dstream& _other)
         {
             GeneralStream::swap(_other);
             buf_.swap(_other.buf_);
         }
 
+        /// Exchanges the state of two streams.
+        ///
+        /// \param[in,out] _lhs The first stream.
+        /// \param[in,out] _rhs The second stream.
         friend void swap(basic_dstream& _lhs, basic_dstream& _rhs)
         {
             _lhs.swap(_rhs);
         }
 
+        /// Returns the underlying stream buffer.
+        ///
+        /// \return A pointer to the underlying data object stream buffer.
         basic_data_object_buf<char_type, traits_type>* rdbuf() const
         {
             return const_cast<basic_data_object_buf<char_type, traits_type>*>(&buf_);
         }
 
+        /// Indicates whether the underlying stream buffer is open.
+        ///
+        /// \return True if the stream buffer is open.
         bool is_open() const noexcept
         {
             return buf_.is_open();
         }
 
+        /// Opens a data object using the provided transport and path.
+        ///
+        /// \param[in,out] _transport The transport used for I/O.
+        /// \param[in] _path The logical path to the data object.
+        /// \param[in] _mode The stream open mode.
         void open(transport<char_type>& _transport,
                   const filesystem::path& _path,
                   std::ios_base::openmode _mode = default_openmode<GeneralStream>)
@@ -578,6 +754,12 @@ namespace irods::experimental::io
             }
         }
 
+        /// Opens a specific replica of a data object.
+        ///
+        /// \param[in,out] _transport The transport used for I/O.
+        /// \param[in] _path The logical path to the data object.
+        /// \param[in] _replica_number The replica number to open.
+        /// \param[in] _mode The stream open mode.
         void open(transport<char_type>& _transport,
                   const filesystem::path& _path,
                   const replica_number& _replica_number,
@@ -591,6 +773,12 @@ namespace irods::experimental::io
             }
         }
 
+        /// Opens a data object replica selected by root resource.
+        ///
+        /// \param[in,out] _transport The transport used for I/O.
+        /// \param[in] _path The logical path to the data object.
+        /// \param[in] _root_resource_name The root resource identifying the replica.
+        /// \param[in] _mode The stream open mode.
         void open(transport<char_type>& _transport,
                   const filesystem::path& _path,
                   const root_resource_name& _root_resource_name,
@@ -604,6 +792,12 @@ namespace irods::experimental::io
             }
         }
 
+        /// Opens a data object replica selected by leaf resource.
+        ///
+        /// \param[in,out] _transport The transport used for I/O.
+        /// \param[in] _path The logical path to the data object.
+        /// \param[in] _leaf_resource_name The leaf resource identifying the replica.
+        /// \param[in] _mode The stream open mode.
         void open(transport<char_type>& _transport,
                   const filesystem::path& _path,
                   const leaf_resource_name& _leaf_resource_name,
@@ -617,6 +811,13 @@ namespace irods::experimental::io
             }
         }
 
+        /// Opens a specific replica using a replica token.
+        ///
+        /// \param[in,out] _transport The transport used for I/O.
+        /// \param[in] _replica_token The token authorizing access to the replica.
+        /// \param[in] _path The logical path to the data object.
+        /// \param[in] _replica_number The replica number to open.
+        /// \param[in] _mode The stream open mode.
         void open(transport<char_type>& _transport,
                   const replica_token& _replica_token,
                   const filesystem::path& _path,
@@ -631,6 +832,13 @@ namespace irods::experimental::io
             }
         }
 
+        /// Opens a leaf-resource replica using a replica token.
+        ///
+        /// \param[in,out] _transport The transport used for I/O.
+        /// \param[in] _replica_token The token authorizing access to the replica.
+        /// \param[in] _path The logical path to the data object.
+        /// \param[in] _leaf_resource_name The leaf resource identifying the replica.
+        /// \param[in] _mode The stream open mode.
         void open(transport<char_type>& _transport,
                   const replica_token& _replica_token,
                   const filesystem::path& _path,
@@ -645,6 +853,9 @@ namespace irods::experimental::io
             }
         }
 
+        /// Closes the currently open replica.
+        ///
+        /// \param[in] _on_close_success Optional close directives for the server.
         void close(const on_close_success* _on_close_success = nullptr)
         {
             if (!buf_.close(_on_close_success)) {
@@ -655,26 +866,41 @@ namespace irods::experimental::io
             }
         }
 
+        /// Returns the file descriptor exposed by the stream buffer.
+        ///
+        /// \return The transport-specific file descriptor.
         int file_descriptor() const noexcept
         {
             return buf_.file_descriptor();
         }
 
+        /// Returns the root resource name for the open replica.
+        ///
+        /// \return The root resource name associated with the open replica.
         const root_resource_name& root_resource_name() const
         {
             return buf_.root_resource_name();
         }
 
+        /// Returns the leaf resource name for the open replica.
+        ///
+        /// \return The leaf resource name associated with the open replica.
         const leaf_resource_name& leaf_resource_name() const
         {
             return buf_.leaf_resource_name();
         }
 
+        /// Returns the replica number for the open replica.
+        ///
+        /// \return The replica number associated with the open replica.
         const replica_number& replica_number() const
         {
             return buf_.replica_number();
         }
 
+        /// Returns the replica token for the open replica.
+        ///
+        /// \return The replica token associated with the open replica.
         const replica_token& replica_token() const
         {
             return buf_.replica_token();
@@ -701,4 +927,3 @@ namespace irods::experimental::io
 } // namespace irods::experimental::io
 
 #endif // IRODS_IO_DSTREAM_HPP
-

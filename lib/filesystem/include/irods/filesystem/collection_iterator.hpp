@@ -47,36 +47,58 @@ namespace irods::experimental::filesystem::NAMESPACE_IMPL
 
         collection_iterator() = default;
 
+        /// Constructs an iterator over the contents of a collection.
+        ///
+        /// \param[in] _comm The connection used to query collection entries.
+        /// \param[in] _p The collection path to iterate.
+        /// \param[in] _opts Optional iterator behavior flags.
         collection_iterator(rxComm& _comm,
                             const path& _p,
                             collection_options _opts = collection_options::none);
 
+        /// Copies an existing collection iterator.
+        ///
+        /// \param[in] _other The iterator to copy.
         collection_iterator(const collection_iterator& _other) = default;
+        /// Assigns from another collection iterator.
+        ///
+        /// \param[in] _other The iterator to copy.
+        /// \return A reference to this iterator.
         auto operator=(const collection_iterator& _other) -> collection_iterator& = default;
 
+        /// Moves an existing collection iterator.
+        ///
+        /// \param[in] _other The iterator to move from.
         collection_iterator(collection_iterator&& _other) = default;
+        /// Move-assigns from another collection iterator.
+        ///
+        /// \param[in] _other The iterator to move from.
+        /// \return A reference to this iterator.
         auto operator=(collection_iterator&& _other) -> collection_iterator& = default;
 
         ~collection_iterator();
 
         // Observers
 
-        auto connection() -> rxComm* { return ctx_->comm; }
+        auto connection() -> rxComm* { return ctx_->comm; } ///< Returns the underlying iRODS connection, or null for the end iterator.
 
         // clang-format off
-        auto operator*() const -> reference { return ctx_->entry; }
-        auto operator->() const -> pointer  { return &ctx_->entry; }
+        auto operator*() const -> reference { return ctx_->entry; } ///< Returns a reference to the current collection entry.
+        auto operator->() const -> pointer  { return &ctx_->entry; } ///< Returns a pointer to the current collection entry.
         // clang-format on
 
         // Modifiers
 
+        /// Advances the iterator to the next collection entry.
+        ///
+        /// \return A reference to the advanced iterator.
         auto operator++() -> collection_iterator&;
 
         // Compare
 
         // clang-format off
-        auto operator==(const collection_iterator& _rhs) const noexcept -> bool { return _rhs.ctx_ == ctx_; }
-        auto operator!=(const collection_iterator& _rhs) const noexcept -> bool { return !(*this == _rhs); }
+        auto operator==(const collection_iterator& _rhs) const noexcept -> bool { return _rhs.ctx_ == ctx_; } ///< Returns true if both iterators share the same traversal state.
+        auto operator!=(const collection_iterator& _rhs) const noexcept -> bool { return !(*this == _rhs); } ///< Returns true if the iterators do not share the same traversal state.
         // clang-format on
 
     private:

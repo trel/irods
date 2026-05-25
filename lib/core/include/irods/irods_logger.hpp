@@ -281,7 +281,7 @@ namespace irods::experimental::log
     ///
     /// This function is not thread-safe.
     ///
-    /// \param[in] _host A string representing the hostname or IP of the connected client.
+    /// \param[in] _hostname A string representing the hostname or IP of the connected client.
     ///
     /// \since 4.3.0
     auto set_request_client_hostname(std::string _hostname) noexcept -> void;
@@ -345,7 +345,7 @@ namespace irods::experimental::log
     ///
     /// This function is not thread-safe.
     ///
-    /// \param[in] _host A string containing the hostname of the iRODS server.
+    /// \param[in] _hostname A string containing the hostname of the iRODS server.
     ///
     /// \since 4.3.0
     auto set_server_hostname(std::string _hostname) noexcept -> void;
@@ -948,4 +948,3 @@ namespace irods::experimental::log
 } // namespace irods::experimental::log
 
 #endif // IRODS_LOGGER_HPP
-

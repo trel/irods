@@ -22,6 +22,10 @@ namespace irods::experimental::genquery1
       public:
         driver() = default;
 
+        /// Parses a GenQuery1 string and populates the driver state.
+        ///
+        /// \param[in] _s The GenQuery1 string to parse.
+        /// \return Zero on success, or a non-zero parser error code on failure.
         auto parse(const std::string& _s) -> int;
 
         // The GenQuery1 input structure to fill.

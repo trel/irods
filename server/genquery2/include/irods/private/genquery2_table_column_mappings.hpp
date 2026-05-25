@@ -11,6 +11,10 @@ namespace irods::experimental::genquery2
         std::string_view table; // NOLINT(misc-non-private-member-variables-in-classes)
         std::string_view name; // NOLINT(misc-non-private-member-variables-in-classes)
 
+        /// Compares two column mappings for equality.
+        ///
+        /// \param[in] _rhs The column mapping to compare against.
+        /// \return True if both mappings reference the same table and column name.
         auto operator==(const column_info& _rhs) const noexcept -> bool
         {
             return table == _rhs.table && name == _rhs.name;

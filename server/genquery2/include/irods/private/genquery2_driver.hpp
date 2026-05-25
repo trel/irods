@@ -25,6 +25,10 @@ namespace irods::experimental::genquery2
       public:
         driver() = default;
 
+        /// Parses a GenQuery2 string and populates the generated AST.
+        ///
+        /// \param[in] _s The GenQuery2 string to parse.
+        /// \return Zero on success, or a non-zero parser error code on failure.
         auto parse(const std::string& _s) -> int;
 
         // Holds an AST-like representation of a GenQuery2 string.

@@ -18,11 +18,18 @@ namespace irods::experimental::io
     namespace detail
     {
         // Catch-all case.
+        /// Fallback overload used when a sink stream does not expose a dstream-style close function.
+        ///
+        /// \return \c void to indicate no compatible close function was detected.
         constexpr auto has_special_close_function(...) -> void;
 
         // Used to detects if the sink stream object supports a close function
         // similar to the one provided by basic_dstream.
         template <typename SinkStreamType>
+        /// Detects whether a sink stream exposes a dstream-style close function.
+        ///
+        /// \param[in] _out The sink stream to inspect.
+        /// \return \c bool when the sink stream supports `close(on_close_success*)`.
         constexpr auto has_special_close_function(SinkStreamType& _out)
             -> decltype((void)(_out.close(std::declval<on_close_success*>())), bool());
     } // namespace detail
@@ -240,4 +247,3 @@ namespace irods::experimental::io
 } // namespace irods::experimental::io
 
 #endif // IRODS_IO_STREAM_FACTORY_UTILITY_HPP
-

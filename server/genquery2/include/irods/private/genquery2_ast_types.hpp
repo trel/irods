@@ -14,11 +14,18 @@ namespace irods::experimental::genquery2
     {
         column() = default;
 
+        /// Constructs a column reference with a column name.
+        ///
+        /// \param[in] name The column name.
         explicit column(std::string name)
             : name{std::move(name)}
         {
         }
 
+        /// Constructs a column reference with a column name and type name.
+        ///
+        /// \param[in] name The column name.
+        /// \param[in] type_name The associated type name.
         column(std::string name, std::string type_name)
             : name{std::move(name)}
             , type_name{std::move(type_name)}
@@ -33,6 +40,11 @@ namespace irods::experimental::genquery2
     {
         function() = default;
 
+        /// Constructs a function call node.
+        ///
+        /// \param[in] name The function name.
+        /// \param[in] _arguments The arguments passed to the function.
+        /// \param[in] _distinct Indicates whether the function applies DISTINCT semantics.
         function(std::string name,
                  std::vector<std::variant<std::string, column, function>> _arguments,
                  bool _distinct = false)
@@ -51,6 +63,9 @@ namespace irods::experimental::genquery2
     {
         condition_like() = default;
 
+        /// Constructs a LIKE condition expression.
+        ///
+        /// \param[in] string_literal The comparison pattern.
         explicit condition_like(std::string string_literal)
             : string_literal{std::move(string_literal)}
         {
@@ -63,6 +78,9 @@ namespace irods::experimental::genquery2
     {
         condition_in() = default;
 
+        /// Constructs an IN condition expression.
+        ///
+        /// \param[in] list_of_string_literals The set of candidate string literals.
         explicit condition_in(std::vector<std::string> list_of_string_literals)
             : list_of_string_literals{std::move(list_of_string_literals)}
         {
@@ -75,6 +93,10 @@ namespace irods::experimental::genquery2
     {
         condition_between() = default;
 
+        /// Constructs a BETWEEN condition expression.
+        ///
+        /// \param[in] low The lower bound string literal.
+        /// \param[in] high The upper bound string literal.
         condition_between(std::string low, std::string high)
             : low{std::move(low)}
             , high{std::move(high)}
@@ -89,6 +111,9 @@ namespace irods::experimental::genquery2
     {
         condition_equal() = default;
 
+        /// Constructs an equality condition expression.
+        ///
+        /// \param[in] string_literal The comparison value.
         explicit condition_equal(std::string string_literal)
             : string_literal{std::move(string_literal)}
         {
@@ -101,6 +126,9 @@ namespace irods::experimental::genquery2
     {
         condition_not_equal() = default;
 
+        /// Constructs an inequality condition expression.
+        ///
+        /// \param[in] string_literal The comparison value.
         explicit condition_not_equal(std::string string_literal)
             : string_literal{std::move(string_literal)}
         {
@@ -113,6 +141,9 @@ namespace irods::experimental::genquery2
     {
         condition_less_than() = default;
 
+        /// Constructs a less-than condition expression.
+        ///
+        /// \param[in] string_literal The comparison value.
         explicit condition_less_than(std::string string_literal)
             : string_literal{std::move(string_literal)}
         {
@@ -125,6 +156,9 @@ namespace irods::experimental::genquery2
     {
         condition_less_than_or_equal_to() = default;
 
+        /// Constructs a less-than-or-equal condition expression.
+        ///
+        /// \param[in] string_literal The comparison value.
         explicit condition_less_than_or_equal_to(std::string string_literal)
             : string_literal{std::move(string_literal)}
         {
@@ -137,6 +171,9 @@ namespace irods::experimental::genquery2
     {
         condition_greater_than() = default;
 
+        /// Constructs a greater-than condition expression.
+        ///
+        /// \param[in] string_literal The comparison value.
         explicit condition_greater_than(std::string string_literal)
             : string_literal{std::move(string_literal)}
         {
@@ -149,6 +186,9 @@ namespace irods::experimental::genquery2
     {
         condition_greater_than_or_equal_to() = default;
 
+        /// Constructs a greater-than-or-equal condition expression.
+        ///
+        /// \param[in] string_literal The comparison value.
         explicit condition_greater_than_or_equal_to(std::string string_literal)
             : string_literal{std::move(string_literal)}
         {
@@ -184,6 +224,9 @@ namespace irods::experimental::genquery2
     {
         condition_operator_not() = default;
 
+        /// Constructs a negated condition expression.
+        ///
+        /// \param[in] expression The condition expression to negate.
         condition_operator_not(condition_expression expression)
             : expression{std::move(expression)}
         {
@@ -196,12 +239,20 @@ namespace irods::experimental::genquery2
     {
         condition() = default;
 
+        /// Constructs a condition against a column.
+        ///
+        /// \param[in] column The column on the left-hand side of the condition.
+        /// \param[in] expression The comparison expression applied to the column.
         condition(column column, condition_expression expression)
             : lhs{std::move(column)}
             , expression{std::move(expression)}
         {
         }
 
+        /// Constructs a condition against a function call.
+        ///
+        /// \param[in] func The function call on the left-hand side of the condition.
+        /// \param[in] expression The comparison expression applied to the function result.
         condition(function func, condition_expression expression)
             : lhs{std::move(func)}
             , expression{std::move(expression)}
@@ -270,6 +321,10 @@ namespace irods::experimental::genquery2
     {
         select() = default;
 
+        /// Constructs a select AST node with projections and conditions.
+        ///
+        /// \param[in] projections The projection expressions requested by the query.
+        /// \param[in] conditions The filter expressions applied to the query.
         select(projections projections, conditions conditions)
             : projections(std::move(projections))
             , conditions(std::move(conditions))
