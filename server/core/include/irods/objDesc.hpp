@@ -69,12 +69,12 @@ struct l1desc
     // NOLINTNEXTLINE(misc-non-private-member-variables-in-classes)
     [[deprecated]] dataObjInfo_t* otherDataObjInfo; ///< Deprecated pointer to secondary replica information.
     int copiesNeeded; ///< Number of additional copies required.
-    rodsLong_t bytesWritten; /* mark whether it has been written */ ///< Number of bytes written through this descriptor.
+    rodsLong_t bytesWritten; ///< Number of bytes written through this descriptor.
     rodsLong_t dataSize; /* this is the target size. The size in dataObjInfo is the registered size */ ///< Target size expected at close.
     int replStatus; /* the replica status */ ///< Replica status to apply on close.
     int chksumFlag; /* parsed from condition */ ///< Checksum operation requested for the replica.
     int srcL1descInx; ///< Source L1 descriptor index for related operations.
-    char chksum[CHKSUM_LEN]; /* the input chksum */ ///< Input checksum value.
+    char chksum[CHKSUM_LEN]; ///< Input checksum value.
     int remoteL1descInx; ///< Remote L1 descriptor index for redirected operations.
     int stageFlag; ///< Indicates whether staging is required.
     int purgeCacheFlag; ///< Indicates whether the cache copy should be purged.

@@ -36,7 +36,7 @@ extern Op new_ops[];
 
 /// Buffered input source used by the parser.
 typedef struct pointer {
-    FILE *fp; /* file */ ///< Backing file handle when parsing from a file.
+    FILE *fp; ///< Backing file handle when parsing from a file.
     char buf[POINTER_BUF_SIZE]; /* buffer */ ///< Character buffer.
     unsigned int len; /* len of string in buf */ ///< Number of buffered characters.
     unsigned int p; /* pointer to next char in buf */ ///< Offset of the next buffered character.
@@ -45,7 +45,7 @@ typedef struct pointer {
     char *strbuf; /* string buffer */ ///< Backing source buffer when parsing from memory.
     unsigned int strlen; ///< Length of `strbuf`.
     int isFile; ///< Non-zero when the source is file-backed.
-    char *base; /* f + filename without extension, or s + source */ ///< Source name used in diagnostics.
+    char *base; ///< Source name used in diagnostics.
 } Pointer;
 
 /// Appends a rule descriptor to a ruleset.
