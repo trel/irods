@@ -28,7 +28,9 @@
  *
  * \sa none
  */
-
+/**
+ * \brief Input for file seek operations.
+ */
 typedef struct FileLseekInp {
     int fileInx; ///< Open file descriptor returned by a file open call.
     rodsLong_t offset; ///< Offset applied during the seek.
@@ -49,7 +51,9 @@ typedef struct FileLseekInp {
  *
  * \sa none
  */
-
+/**
+ * \brief Output from file seek operations.
+ */
 typedef struct FileLseekOut {
     rodsLong_t offset; ///< Resulting offset measured from the beginning of the file.
 } fileLseekOut_t;

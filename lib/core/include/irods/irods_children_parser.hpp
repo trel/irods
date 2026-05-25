@@ -14,7 +14,9 @@ namespace irods {
      */
     class children_parser {
         public:
+            /// Map of child resource names to context strings.
             typedef std::map<std::string, std::string> children_map_t;
+            /// Read-only iterator over the parsed children map.
             typedef children_map_t::const_iterator const_iterator;
             /**
              * @brief Constructor

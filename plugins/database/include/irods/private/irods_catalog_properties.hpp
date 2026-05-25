@@ -26,6 +26,7 @@ namespace irods {
     const std::string STANDARD_CONFORMING_STRINGS( "standard_conforming_strings" );
 
 
+    /// Holds cached catalog properties queried from the ICAT database.
     class catalog_properties {
         public:
 
@@ -34,14 +35,10 @@ namespace irods {
              */
             static catalog_properties& instance();
 
-            /*
-             * @brief Query for iCAT settings and fill catalog_properties::instance
-             */
+            /// Queries iCAT settings and stores them in the singleton instance.
             void capture( icatSessionStruct* );
 
-            /*
-             * @brief Query for iCAT settings if it has not already been queried
-             */
+            /// Queries iCAT settings if they have not already been captured.
             void capture_if_needed( icatSessionStruct* );
 
             /**
@@ -71,6 +68,7 @@ namespace irods {
             } // get_property
 
 
+            /// Cached catalog properties keyed by setting name.
             std::unordered_map<std::string, boost::any> properties;
         private:
             // =-=-=-=-=-=-=-
