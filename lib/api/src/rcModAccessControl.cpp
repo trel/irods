@@ -3,7 +3,7 @@
 #include "irods/procApiRequest.h"
 #include "irods/apiNumber.h"
 
-/**
+/*
  * \fn rcModAccessControl( rcComm_t *conn, modAccessControlInp_t *modAccessControlInp )
  *
  * \brief Modifies the access control metadata for iRODS entities.
@@ -34,7 +34,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 int
 rcModAccessControl( rcComm_t *conn, modAccessControlInp_t *modAccessControlInp ) {
     int status;

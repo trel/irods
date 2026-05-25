@@ -5,7 +5,7 @@
 #include "irods/procApiRequest.h"
 #include "irods/apiNumber.h"
 
-/**
+/*
  * \fn rcGetMiscSvrInfo( rcComm_t *conn, miscSvrInfo_t **outSvrInfo )
  *
  * \brief Get miscellaneous server info.
@@ -33,7 +33,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 int
 rcGetMiscSvrInfo( rcComm_t *conn, miscSvrInfo_t **outSvrInfo ) {
     int status;
