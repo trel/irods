@@ -14,6 +14,7 @@
 int msiRollback( ruleExecInfo_t *rei );
 
 int
+/// rief Prints a goodbye message.
 print_bye( ruleExecInfo_t *rei ) {
     RE_TEST_MACRO( "Bye\n" );
     fprintf( stdout, "Bye\n" );
@@ -21,6 +22,7 @@ print_bye( ruleExecInfo_t *rei ) {
 }
 
 int
+/// rief Prints a newline character.
 print_eol( ruleExecInfo_t *rei ) {
     RE_TEST_MACRO( "\n" );
     fprintf( stdout, "\n" );
@@ -37,6 +39,7 @@ print_hello_arg( msParam_t* xs, ruleExecInfo_t *rei ) {
 }
 
 int
+/// rief Recovery variant of `print_bye` that erases the previous output.
 recover_print_bye( ruleExecInfo_t *rei ) {
     RE_TEST_MACRO( "\b\b\b   \b\b\b" );
     fprintf( stdout, "\b\b\b   \b\b\b" );
@@ -44,6 +47,7 @@ recover_print_bye( ruleExecInfo_t *rei ) {
 }
 
 int
+/// rief Recovery variant of `print_eol` that rewinds the cursor.
 recover_print_eol( ruleExecInfo_t *rei ) {
     RE_TEST_MACRO( "*\b" );
     fprintf( stdout, "*\b" );
@@ -51,6 +55,7 @@ recover_print_eol( ruleExecInfo_t *rei ) {
 }
 
 int
+/// rief Recovery variant of `print_hello_arg` that erases the printed string.
 recover_print_hello_arg( msParam_t* xs, ruleExecInfo_t* ) {
     unsigned int i;
     char *s;
@@ -65,6 +70,7 @@ recover_print_hello_arg( msParam_t* xs, ruleExecInfo_t* ) {
 
 
 int
+/// rief Test microservice that echoes two inputs and populates one output.
 msitest1( msParam_t *A, msParam_t *B, msParam_t* C, ruleExecInfo_t *rei ) {
     /* A is IN, B is IN, C is OUT */
     msParam_t *mPA, *mPB, *mPC;
@@ -84,6 +90,7 @@ msitest1( msParam_t *A, msParam_t *B, msParam_t* C, ruleExecInfo_t *rei ) {
     return 0;
 }
 int
+/// rief Test microservice that echoes one input and populates two outputs.
 msitest2( msParam_t *A, msParam_t *B, msParam_t* C, ruleExecInfo_t *rei ) {
     /* A is IN, B is OUT, C is OUT */
     msParam_t *mPA, *mPB, *mPC;
@@ -106,6 +113,7 @@ msitest2( msParam_t *A, msParam_t *B, msParam_t* C, ruleExecInfo_t *rei ) {
 }
 
 int
+/// rief Test microservice that echoes three input parameters.
 msitest3( msParam_t *A, msParam_t *B, msParam_t* C, ruleExecInfo_t *rei ) {
     /* A is IN, B is IN C is IN */
     msParam_t *mPA, *mPB, *mPC;

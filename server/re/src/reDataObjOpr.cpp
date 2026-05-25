@@ -3299,8 +3299,8 @@ msiTarFileCreate( msParam_t *inpParam1, msParam_t *inpParam2, msParam_t *inpPara
 /// \endcode
 /// The JSON microservices can be used to parse and examine the output. See #msi_json_parse.
 /// \endparblock
-/// \param[in,out] rei - The RuleExecInfo structure that is automatically handled by the rule engine. The user does not
-/// include rei as a parameter in the rule invocation.
+/// \param[in,out] _rei - The RuleExecInfo structure that is automatically handled by the rule engine. The user does not
+/// include `_rei` as a parameter in the rule invocation.
 ///
 /// \usage \parblock
 /// \code{.py}
