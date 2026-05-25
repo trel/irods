@@ -158,7 +158,7 @@ namespace irods::authentication
     /// This function acts as the interface to the authentication plugins.
     /// \endparblock
     ///
-    /// \param[in/out] _comm iRODS communication object.
+    /// \param[in,out] _comm iRODS communication object.
     /// \param[in] _ctx JSON object which includes information for the authentication plugin. \parblock
     ///
     /// The inputs will differ based on the authentication scheme, and not all options are recognized by all

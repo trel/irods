@@ -2,7 +2,7 @@
 #include "irods/procApiRequest.h"
 #include "irods/apiNumber.h"
 
-/**
+/*
  * \fn rcFileGetFsFreeSpace( rcComm_t *conn, fileGetFsFreeSpaceInp_t *fileGetFsFreeSpaceInp, fileGetFsFreeSpaceOut_t **fileGetFsFreeSpaceOut )
  *
  * \brief Gets filesystem free space.
@@ -19,7 +19,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 int
 rcFileGetFsFreeSpace( rcComm_t *conn,
                       fileGetFsFreeSpaceInp_t *fileGetFsFreeSpaceInp,

@@ -11,7 +11,7 @@
     #include "irods/rsModDataObjMeta.hpp"
     #include "irods/rsFileStat.hpp"
 
-    #define rxFileStat rsFileStat
+    #define rxFileStat rsFileStat ///< Alias for the server-side file stat operation used by replica helpers.
 #else
     #undef IRODS_FILESYSTEM_ENABLE_SERVER_SIDE_API
     #undef IRODS_QUERY_ENABLE_SERVER_SIDE_API
@@ -20,7 +20,7 @@
     #include "irods/modDataObjMeta.h"
     #include "irods/fileStat.h"
 
-    #define rxFileStat rcFileStat
+    #define rxFileStat rcFileStat ///< Alias for the client-side file stat operation used by replica helpers.
 #endif
 
 #include "irods/escape_utilities.hpp"
@@ -381,8 +381,9 @@ namespace irods::experimental::replica
     /// \brief Gets replica metadata for the given replica number.
     ///
     /// \param[in] _comm connection object
-    /// \param[in] _logical_path
-    /// \param[in] _replica_number
+    /// \param[in] _logical_path Logical path of the data object.
+    /// \param[in] _replica_number Replica number identifying the target replica.
+    /// \param[in] _calculation Verification policy controlling checksum computation.
     ///
     /// \throws irods::exception If no replica information is found or query fails
     ///
@@ -405,8 +406,9 @@ namespace irods::experimental::replica
     /// \brief Gets replica metadata for the given leaf resource.
     ///
     /// \param[in] _comm connection object
-    /// \param[in] _logical_path
-    /// \param[in] _leaf_resource_name
+    /// \param[in] _logical_path Logical path of the data object.
+    /// \param[in] _leaf_resource_name Leaf resource hosting the target replica.
+    /// \param[in] _calculation Verification policy controlling checksum computation.
     ///
     /// \throws irods::exception If no replica information is found or query fails
     ///

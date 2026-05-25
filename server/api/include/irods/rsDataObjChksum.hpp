@@ -140,14 +140,14 @@ int verifyDataObjChksum(RsComm* rsComm,
                          DataObjInfo* dataObjInfo,
                          char** outChksumStr);
 
-__attribute__((deprecated("Use verifyDataObjChksum instead")))
 /// Deprecated spelling of `verifyDataObjChksum`.
 ///
 /// \param[in]  rsComm       The communication object.
 /// \param[in]  dataObjInfo  The replica information.
 /// \param[out] outChksumStr Receives checksum-related output for the caller.
+__attribute__((deprecated("Use verifyDataObjChksum instead")))
 int verifyDatObjChksum(RsComm* rsComm,
-                        DataObjInfo* dataObjInfo,
-                        char** outChksumStr);
+                         DataObjInfo* dataObjInfo,
+                         char** outChksumStr);
 
 #endif // RS_DATA_OBJ_CHKSUM_HPP

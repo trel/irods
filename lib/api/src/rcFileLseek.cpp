@@ -2,7 +2,7 @@
 #include "irods/procApiRequest.h"
 #include "irods/apiNumber.h"
 
-/**
+/*
  * \fn rcFileLseek( rcComm_t *conn, fileLseekInp_t *fileLseekInp, fileLseekOut_t **fileLseekOut )
  *
  * \brief Left seek within a file.
@@ -19,7 +19,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 int
 rcFileLseek( rcComm_t *conn, fileLseekInp_t *fileLseekInp,
              fileLseekOut_t **fileLseekOut ) {

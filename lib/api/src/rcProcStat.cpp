@@ -2,7 +2,7 @@
 #include "irods/procApiRequest.h"
 #include "irods/apiNumber.h"
 
-/**
+/*
  * \fn rcProcStat( rcComm_t *conn, procStatInp_t *procStatInp, genQueryOut_t **procStatOut )
  *
  * \brief Get the status of a process.
@@ -52,7 +52,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 int
 rcProcStat( rcComm_t *conn, procStatInp_t *procStatInp,
             genQueryOut_t **procStatOut ) {

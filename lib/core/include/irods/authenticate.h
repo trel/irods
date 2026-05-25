@@ -8,9 +8,9 @@ struct RcComm;
 // These macros are used extensively throughout the authentication code. Over time, we should move away from using
 // these, but we cannot escape from it for now. Just know that these values are currently very important.
 // NOLINTBEGIN(cppcoreguidelines-macro-usage)
-#define MAX_PASSWORD_LEN 50
-#define CHALLENGE_LEN    64
-#define RESPONSE_LEN     16
+#define MAX_PASSWORD_LEN 50 ///< Maximum password length supported by legacy authentication paths.
+#define CHALLENGE_LEN    64 ///< Length of the challenge buffer used by native authentication.
+#define RESPONSE_LEN     16 ///< Length of the response buffer used by native authentication.
 // NOLINTEND(cppcoreguidelines-macro-usage)
 
 #ifdef __cplusplus
