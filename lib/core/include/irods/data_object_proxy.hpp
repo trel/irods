@@ -33,10 +33,10 @@ namespace irods::experimental::data_object
     class data_object_proxy {
     public:
         // Aliases for various types used in data_object_proxy
-        using doi_type = I;
-        using doi_pointer_type = doi_type*;
-        using replica_list = std::vector<replica::replica_proxy<doi_type>>;
-        using size_type = int;
+        using doi_type = I; ///< Underlying DataObjInfo type.
+        using doi_pointer_type = doi_type*; ///< Pointer to the underlying DataObjInfo type.
+        using replica_list = std::vector<replica::replica_proxy<doi_type>>; ///< Container of replica proxies.
+        using size_type = int; ///< Type used to count replicas.
 
         /// \brief Constructs proxy using an existing doi_type
         /// \since 4.2.9
@@ -88,6 +88,7 @@ namespace irods::experimental::data_object
         /// \since 4.2.9
         auto get() const noexcept -> const doi_pointer_type { return data_obj_info_; }
 
+        /// Returns true if any replica is logically locked.
         auto locked() const noexcept -> bool
         {
             for (const auto& r : replica_list_) {
@@ -195,6 +196,7 @@ namespace irods::experimental::data_object
             replica_list_.push_back(replica::replica_proxy{_repl});
         } // add_replica
 
+        /// Returns true if the proxy references a data object.
         operator bool() const noexcept { return static_cast<bool>(data_obj_info_); }
 
         /// \brief Finds a replica in the list based on resource hierarchy.
@@ -262,8 +264,7 @@ namespace irods::experimental::data_object
 
         /// \brief Finds a replica in the list based on replica number
         ///
-        /// \param[in] _obj data_object_proxy to search in
-        /// \param[in] _replica_number
+        /// \param[in] _replica_number replica number to search for
         ///
         /// \retval replica_proxy if found
         /// \retval std::nullopt if no replica is found with the provided replica number

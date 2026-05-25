@@ -38,11 +38,11 @@ namespace irods::experimental::filesystem::NAMESPACE_IMPL
     {
     public:
         // clang-format off
-        using value_type        = collection_entry;
-        using difference_type   = std::ptrdiff_t;
-        using pointer           = const value_type*;
-        using reference         = const value_type&;
-        using iterator_category = std::input_iterator_tag;
+        using value_type        = collection_entry; ///< Value type yielded by the iterator.
+        using difference_type   = std::ptrdiff_t; ///< Signed distance type between iterators.
+        using pointer           = const value_type*; ///< Pointer to the current collection entry.
+        using reference         = const value_type&; ///< Reference to the current collection entry.
+        using iterator_category = std::input_iterator_tag; ///< Iterator category for collection traversal.
         // clang-format on
 
         // Constructors and destructor

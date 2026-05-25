@@ -75,11 +75,11 @@ namespace irods::experimental::io::NAMESPACE_IMPL
     {
     public:
         // clang-format off
-        using char_type   = typename transport<CharT>::char_type;
-        using traits_type = typename transport<CharT>::traits_type;
-        using int_type    = typename traits_type::int_type;
-        using pos_type    = typename traits_type::pos_type;
-        using off_type    = typename traits_type::off_type;
+        using char_type   = typename transport<CharT>::char_type; ///< Character type handled by the transport.
+        using traits_type = typename transport<CharT>::traits_type; ///< Character traits used by the transport.
+        using int_type    = typename traits_type::int_type; ///< Integer representation of a character.
+        using pos_type    = typename traits_type::pos_type; ///< Stream position type.
+        using off_type    = typename traits_type::off_type; ///< Stream offset type.
         // clang-format on
 
     private:
