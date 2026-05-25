@@ -13,11 +13,13 @@ namespace irods::experimental::json_events
         // hooks.
         std::unordered_multimap<std::string, std::size_t> edge_sets;
 
+        /// Returns the global list of registered JSON event hooks.
         std::vector<hook>& get_hooks()
         {
             return hooks;
         }
 
+        /// Returns the edge-trigger map from property names to hook indexes.
         std::unordered_multimap<std::string, size_t>& get_edge_sets()
         {
             return edge_sets;

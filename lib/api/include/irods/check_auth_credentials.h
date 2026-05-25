@@ -52,6 +52,7 @@ typedef struct CheckAuthCredentialsInput // NOLINT(modernize-use-using)
 } checkAuthCredsInp_t;
 
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+/// Packing instruction for `checkAuthCredsInp_t`.
 #define CheckAuthCredentialsInput_PI "str username[64]; str zone[64]; str password[250];"
 
 #ifdef __cplusplus
