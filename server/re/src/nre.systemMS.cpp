@@ -123,6 +123,7 @@ int delayExec( msParam_t *mPA, msParam_t *mPB, msParam_t *mPC, ruleExecInfo_t *r
 }
 
 std::map<std::string, std::vector<std::string>> getTaggedValues(const char *str);
+/// Extracts the plugin instance name from a delay-condition XML fragment.
 void set_plugin_instance_name(
     const char* _xml,
     char*       _plugin_name)
@@ -144,6 +145,7 @@ void set_plugin_instance_name(
     }
 } // set_plugin_instance_name
 
+/// Submits a delayed rule execution request to the server.
 int _delayExec(const char* inActionCall,
                const char* recoveryActionCall,
                const char* delayCondition,
@@ -191,6 +193,7 @@ int _delayExec(const char* inActionCall,
     return i;
 }
 
+/// Removes the most recently submitted delayed rule execution request.
 int recover_delayExec( msParam_t*, msParam_t*,  ruleExecInfo_t *rei ) {
 
     int i;
@@ -323,6 +326,7 @@ int remoteExec( msParam_t *mPD, msParam_t *mPA, msParam_t *mPB, msParam_t *mPC, 
     return i;
 }
 
+/// Cancels recovery tracking for a remotely executed rule request.
 int recover_remoteExec( msParam_t*, msParam_t*, char*, ruleExecInfo_t *rei ) {
     ruleExecDelInp_t ruleExecDelInp;
 
@@ -348,6 +352,7 @@ int recover_remoteExec( msParam_t*, msParam_t*, char*, ruleExecInfo_t *rei ) {
 }
 
 int
+/// rief Forks and executes a program with one argument after validating permissions.
 doForkExec( char *prog, char *arg1 ) {
     int pid, i;
 
@@ -428,6 +433,7 @@ msiGoodFailure( ruleExecInfo_t* ) {
 
 /* check that a file exists and is not writable by group or other */
 int
+/// rief Verifies that a file exists and is not writable by group or others.
 checkFilePerms( char *fileName ) {
     struct stat buf;
     if ( stat( fileName, &buf ) == -1 ) {
@@ -531,7 +537,7 @@ msiFreeBuffer( msParam_t* memoryParam, ruleExecInfo_t *rei ) {
  *
  * \param[in] secPtr - secPtr is a msParam of type STR_MS_T which is seconds
  * \param[in] microsecPtr - microsecPrt is a msParam of type STR_MS_T which is microseconds
- * \param[in,out] - The RuleExecInfo structure that is automatically
+ * \param[in,out] rei - The RuleExecInfo structure that is automatically
  *    handled by the rule engine. The user does not include rei as a
  *    parameter in the rule invocation.
  *
@@ -802,7 +808,7 @@ msiHumanToSystemTime( msParam_t* inpParam, msParam_t* outParam, ruleExecInfo_t *
  *
  * \param[in] str_msp - a STR_MS_T
  * \param[out] buf_msp - a BUF_LEN_MS_T
- * \param[in,out] - The RuleExecInfo structure that is automatically
+ * \param[in,out] rei - The RuleExecInfo structure that is automatically
  *    handled by the rule engine. The user does not include rei as a
  *    parameter in the rule invocation.
  *
@@ -867,7 +873,7 @@ msiStrToBytesBuf( msParam_t* str_msp, msParam_t* buf_msp, ruleExecInfo_t* ) {
  *
  * \param[in] buf_msp - a BUF_LEN_MS_T
  * \param[out] str_msp - a STR_MS_T
- * \param[in,out]  - The RuleExecInfo structure that is automatically
+ * \param[in,out] rei - The RuleExecInfo structure that is automatically
  *    handled by the rule engine. The user does not include rei as a
  *    parameter in the rule invocation.
  *
