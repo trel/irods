@@ -1,6 +1,8 @@
 #ifndef IRODS_RC_CONNECT_H
 #define IRODS_RC_CONNECT_H
 
+/// \file
+
 #include "irods/rodsDef.h"
 #include "irods/rodsError.h"
 #include "irods/rodsLog.h"
@@ -16,181 +18,188 @@
 #include <openssl/x509v3.h>
 #include <openssl/err.h>
 
-/* definition for the reconnFlag */
-#define NO_RECONN       0       /* no reconnection */
-#define RECONN_NOTUSED  1       /* this has been deprecated */
+/// Indicates that reconnection support is disabled.
+#define NO_RECONN       0
+/// Deprecated reconnection mode retained for compatibility.
+#define RECONN_NOTUSED  1
+/// Enables timeout-based reconnection handling.
 #define RECONN_TIMEOUT  200
 
-#define RECONN_TIMEOUT_TIME  600   /* re-connection timeout time in sec */
+/// Defines the reconnection timeout period in seconds.
+#define RECONN_TIMEOUT_TIME  600
 
-// Forward declaration of thread context.
+/// Forward declaration of per-thread connection state.
 struct thread_context;
 
+/// Identifies the current communication state of a process.
 typedef enum ProcState {
-    PROCESSING_STATE,    /* the process is not sending nor receiving */
-    RECEIVING_STATE,
-    SENDING_STATE,
-    CONN_WAIT_STATE
+    PROCESSING_STATE, /**< The process is idle with respect to I/O. */
+    RECEIVING_STATE,  /**< The process is receiving data. */
+    SENDING_STATE,    /**< The process is sending data. */
+    CONN_WAIT_STATE   /**< The process is waiting on a connection event. */
 } procState_t;
 
+/// Carries state exchanged during reconnection handling.
 typedef struct reconnMsg {
-    int status;
-    int cookie;
-    procState_t procState;
-    int flag;
+    int status;             /**< The status associated with the reconnection event. */
+    int cookie;             /**< The reconnection cookie used to match peers. */
+    procState_t procState;  /**< The process state observed during reconnection. */
+    int flag;               /**< Additional reconnection control flags. */
 } reconnMsg_t;
 
-/* one seq per thread */
+/// Describes a byte range assigned to a transfer thread.
 typedef struct dataSeg {
-    rodsLong_t len;
-    rodsLong_t offset;
+    rodsLong_t len;     /**< The length of the segment in bytes. */
+    rodsLong_t offset;  /**< The starting byte offset of the segment. */
 } dataSeg_t;
 
+/// Controls whether file restart support is enabled.
 typedef enum FileRestartFlag {
-    FILE_RESTART_OFF,
-    FILE_RESTART_ON
+    FILE_RESTART_OFF, /**< File restart support is disabled. */
+    FILE_RESTART_ON   /**< File restart support is enabled. */
 } fileRestartFlag_t;
 
+/// Reports whether a file transfer was restarted.
 typedef enum FileRestartStatus {
-    FILE_NOT_RESTART,
-    FILE_RESTARTED
+    FILE_NOT_RESTART, /**< The transfer has not been restarted. */
+    FILE_RESTARTED    /**< The transfer resumed from restart information. */
 } fileRestartStatus_t;
 
+/// Captures restart metadata for a single file transfer.
 typedef struct FileRestartInfo {
-    char fileName[MAX_NAME_LEN];        /* the local file name to restart */
-    char objPath[MAX_NAME_LEN];         /* the irodsPath */
-    int numSeg;         /* number of segments. should equal to num threads */
-    fileRestartStatus_t status;         /* restart status  */
-    rodsLong_t fileSize;
-    dataSeg_t dataSeg[MAX_NUM_CONFIG_TRAN_THR];
+    char fileName[MAX_NAME_LEN];                 /**< The local file path being restarted. */
+    char objPath[MAX_NAME_LEN];                  /**< The iRODS object path for the transfer. */
+    int numSeg;                                  /**< The number of transfer segments recorded. */
+    fileRestartStatus_t status;                  /**< The restart status for the transfer. */
+    rodsLong_t fileSize;                         /**< The total size of the file in bytes. */
+    dataSeg_t dataSeg[MAX_NUM_CONFIG_TRAN_THR];  /**< The saved segment layout per transfer thread. */
 } fileRestartInfo_t;
 
+/// Tracks restart settings and persisted state for a transfer.
 typedef struct FileRestart {
-    fileRestartFlag_t flags;
-    rodsLong_t writtenSinceUpdated;     /* bytes trans since last update */
-    char infoFile[MAX_NAME_LEN];        /* file containing restart info */
-    fileRestartInfo_t info;     /* must be the last item because of PI */
+    fileRestartFlag_t flags;             /**< Indicates whether restart handling is enabled. */
+    rodsLong_t writtenSinceUpdated;      /**< Bytes transferred since the restart file was updated. */
+    char infoFile[MAX_NAME_LEN];         /**< The path to the restart information file. */
+    fileRestartInfo_t info;              /**< Restart details. This must remain the final member. */
 } fileRestart_t;
 
+/// Indicates whether process logging has been completed.
 typedef enum ProcLogFlag {
-    PROC_LOG_NOT_DONE,  /* the proc logging in log/proc not done yet */
-    PROC_LOG_DONE       /* the proc logging in log/proc is done */
+    PROC_LOG_NOT_DONE, /**< Process logging has not completed yet. */
+    PROC_LOG_DONE      /**< Process logging has completed. */
 } procLogFlag_t;
 
-/* The client connection handle */
-
+/// Describes a client-side connection to an iRODS server.
 typedef struct RcComm {
-    irodsProt_t                irodsProt;
-    char                       host[NAME_LEN];
-    int                        sock;
-    int                        portNum;
-    int                        loggedIn;        /* already logged in ? */
-    struct sockaddr_in         localAddr;   /* local address */
-    struct sockaddr_in         remoteAddr;  /* remote address */
-    userInfo_t                 proxyUser;
-    userInfo_t                 clientUser;
-    version_t*                 svrVersion;      /* the server's version */
-    rError_t*                  rError;
-    int                        flag;
-    transferStat_t             transStat;
-    int                        apiInx;
-    int                        status;
-    int                        windowSize;
-    int                        reconnectedSock;
-    time_t                     reconnTime;
-    volatile int                       exit_flg;
-    struct thread_context*     thread_ctx;
-    procState_t                agentState;
-    procState_t                clientState;
-    procState_t                reconnThrState;
-    operProgress_t             operProgress;
+    irodsProt_t                irodsProt;             /**< The negotiated communication protocol. */
+    char                       host[NAME_LEN];        /**< The target host name. */
+    int                        sock;                  /**< The primary socket descriptor. */
+    int                        portNum;               /**< The target server port number. */
+    int                        loggedIn;              /**< Indicates whether authentication completed. */
+    struct sockaddr_in         localAddr;             /**< The local socket address. */
+    struct sockaddr_in         remoteAddr;            /**< The remote socket address. */
+    userInfo_t                 proxyUser;             /**< The proxy user identity. */
+    userInfo_t                 clientUser;            /**< The client user identity. */
+    version_t*                 svrVersion;            /**< The server version information. */
+    rError_t*                  rError;                /**< Collected remote error information. */
+    int                        flag;                  /**< General connection flags. */
+    transferStat_t             transStat;             /**< Transfer statistics for the connection. */
+    int                        apiInx;                /**< The current API number in use. */
+    int                        status;                /**< The last connection-related status. */
+    int                        windowSize;            /**< The negotiated transfer window size. */
+    int                        reconnectedSock;       /**< The socket descriptor used after reconnection. */
+    time_t                     reconnTime;            /**< The time reconnection handling started. */
+    volatile int               exit_flg;              /**< Signals shutdown to helper threads. */
+    struct thread_context*     thread_ctx;            /**< Per-thread connection context. */
+    procState_t                agentState;            /**< The observed state of the agent. */
+    procState_t                clientState;           /**< The observed state of the client. */
+    procState_t                reconnThrState;        /**< The state of the reconnection thread. */
+    operProgress_t             operProgress;          /**< Callback state for progress reporting. */
 
-    int  key_size;
-    int  salt_size;
-    int  num_hash_rounds;
-    char encryption_algorithm[ NAME_LEN ];
-    char negotiation_results[ MAX_NAME_LEN ];
-    unsigned char shared_secret[ NAME_LEN ];
+    int                        key_size;              /**< The negotiated encryption key size. */
+    int                        salt_size;             /**< The negotiated salt size. */
+    int                        num_hash_rounds;       /**< The negotiated hash round count. */
+    char                       encryption_algorithm[ NAME_LEN ]; /**< The negotiated encryption algorithm. */
+    char                       negotiation_results[ MAX_NAME_LEN ]; /**< Negotiation status details. */
+    unsigned char              shared_secret[ NAME_LEN ]; /**< The negotiated shared secret material. */
 
-    int                        ssl_on;
-    SSL_CTX*                   ssl_ctx;
-    SSL*                       ssl;
+    int                        ssl_on;                /**< Indicates whether SSL is enabled. */
+    SSL_CTX*                   ssl_ctx;               /**< The OpenSSL context for the connection. */
+    SSL*                       ssl;                   /**< The OpenSSL session object. */
 
-    // =-=-=-=-=-=-=-
-    // this struct needs to stay at the bottom of
-    // rcComm_t
-    fileRestart_t              fileRestart;
+    fileRestart_t              fileRestart;           /**< Restart metadata. This member must remain last. */
 
     // NOLINTNEXTLINE(cppcoreguidelines-avoid-magic-numbers, readability-magic-numbers)
-    char session_signature[33]; // NOLINT(cppcoreguidelines-avoid-c-arrays, modernize-avoid-c-arrays)
+    char session_signature[33]; /**< Hex-encoded 16-byte session signature plus terminator. */ // NOLINT(cppcoreguidelines-avoid-c-arrays, modernize-avoid-c-arrays)
 } rcComm_t;
 
+/// Collects counts for orphaned and non-orphaned operations.
 typedef struct PerfStat {
-    int orphanCnt;
-    int nonOrphanCnt;
+    int orphanCnt;     /**< The number of orphaned operations observed. */
+    int nonOrphanCnt;  /**< The number of non-orphaned operations observed. */
 } perfStat_t;
 
-/* the server connection handle. probably should go somewhere else */
+/// Describes a server-side connection and request context.
 typedef struct RsComm {
-    irodsProt_t irodsProt;
-    int sock;
-    int connectCnt;
-    struct sockaddr_in localAddr;           // local address
-    struct sockaddr_in remoteAddr;          // remote address
-    char clientAddr[NAME_LEN];              // str version of remoteAddr
-    userInfo_t proxyUser;
-    userInfo_t clientUser;
-    rodsEnv myEnv;                          // the local user
-    version_t cliVersion;                   // the client's version
-    char option[LONG_NAME_LEN];
-    procLogFlag_t procLogFlag;
-    rError_t rError;
-    portalOpr_t *portalOpr;
-    int apiInx;
-    int status;
-    perfStat_t perfStat;
-    int windowSize;
-    int reconnFlag;
-    int reconnSock;
-    int reconnPort;
-    int reconnectedSock;
-    char *reconnAddr;
-    int cookie;
+    irodsProt_t irodsProt;                  /**< The negotiated communication protocol. */
+    int sock;                               /**< The primary socket descriptor. */
+    int connectCnt;                         /**< The number of connection attempts made. */
+    struct sockaddr_in localAddr;           /**< The local socket address. */
+    struct sockaddr_in remoteAddr;          /**< The remote socket address. */
+    char clientAddr[NAME_LEN];              /**< The string form of the remote client address. */
+    userInfo_t proxyUser;                   /**< The proxy user identity. */
+    userInfo_t clientUser;                  /**< The client user identity. */
+    rodsEnv myEnv;                          /**< The local server environment. */
+    version_t cliVersion;                   /**< The client version information. */
+    char option[LONG_NAME_LEN];             /**< Option text associated with the connection. */
+    procLogFlag_t procLogFlag;              /**< Indicates whether process logging is complete. */
+    rError_t rError;                        /**< Error stack for the request. */
+    portalOpr_t *portalOpr;                 /**< Portal operation state for parallel transfer. */
+    int apiInx;                             /**< The current API number in use. */
+    int status;                             /**< The current request status. */
+    perfStat_t perfStat;                    /**< Performance counters for the request. */
+    int windowSize;                         /**< The transfer window size. */
+    int reconnFlag;                         /**< Reconnection mode for the server-side socket. */
+    int reconnSock;                         /**< The socket descriptor used for reconnection. */
+    int reconnPort;                         /**< The port used for reconnection. */
+    int reconnectedSock;                    /**< The socket descriptor accepted after reconnection. */
+    char *reconnAddr;                       /**< The address used for reconnection. */
+    int cookie;                             /**< The reconnection cookie. */
 
-    struct thread_context* thread_ctx;
+    struct thread_context* thread_ctx;      /**< Per-thread connection context. */
 
-    procState_t agentState;
-    procState_t clientState;
-    procState_t reconnThrState;
-    int gsiRequest;
-    char* auth_scheme;
+    procState_t agentState;                 /**< The observed state of the agent. */
+    procState_t clientState;                /**< The observed state of the client. */
+    procState_t reconnThrState;             /**< The state of the reconnection thread. */
+    int gsiRequest;                         /**< Indicates whether GSI authentication was requested. */
+    char* auth_scheme;                      /**< The active authentication scheme name. */
 
-    int ssl_on;
-    SSL_CTX *ssl_ctx;
-    SSL *ssl;
-    int ssl_do_accept;
-    int ssl_do_shutdown;
+    int ssl_on;                             /**< Indicates whether SSL is enabled. */
+    SSL_CTX *ssl_ctx;                       /**< The OpenSSL context for the connection. */
+    SSL *ssl;                               /**< The OpenSSL session object. */
+    int ssl_do_accept;                      /**< Indicates whether the SSL accept step is pending. */
+    int ssl_do_shutdown;                    /**< Indicates whether SSL shutdown is required. */
 
-    char negotiation_results[MAX_NAME_LEN];
-    unsigned char shared_secret[NAME_LEN];
+    char negotiation_results[MAX_NAME_LEN]; /**< Negotiation status details. */
+    unsigned char shared_secret[NAME_LEN];  /**< The negotiated shared secret material. */
 
-    int  key_size;
-    int  salt_size;
-    int  num_hash_rounds;
-    char encryption_algorithm[NAME_LEN];
+    int  key_size;                          /**< The negotiated encryption key size. */
+    int  salt_size;                         /**< The negotiated salt size. */
+    int  num_hash_rounds;                   /**< The negotiated hash round count. */
+    char encryption_algorithm[NAME_LEN];    /**< The negotiated encryption algorithm. */
 
-    // A key-value container that is available for general purpose
-    // use throughout server-side operations.
-    keyValPair_t session_props;
+    keyValPair_t session_props;             /**< General-purpose session-scoped properties. */
 } rsComm_t;
 
 #ifdef __cplusplus
 #include <fmt/format.h>
 #include <type_traits>
 
+/// Formats `ProcState` values using the underlying integer representation.
 template <>
 struct fmt::formatter<ProcState> : fmt::formatter<std::underlying_type_t<ProcState>>
 {
+    /// Writes the formatted enum value to the provided formatting context.
     constexpr auto format(const ProcState& e, format_context& ctx) const
     {
         return fmt::formatter<std::underlying_type_t<ProcState>>::format(
@@ -201,60 +210,77 @@ struct fmt::formatter<ProcState> : fmt::formatter<std::underlying_type_t<ProcSta
 extern "C" {
 #endif
 
+/// Connects to a server using the same proxy and client user identity.
 rcComm_t *
 rcConnect( const char *rodsHost, int rodsPort, const char *userName, const char *rodsZone,
            int reconnFlag, rErrMsg_t *errMsg );
 
+/// Connects to a server using explicit proxy and client user identities.
 rcComm_t *
 _rcConnect( const char *rodsHost, int rodsPort,
             const char *proxyUserName, const char *proxyRodsZone,
             const char *clientUserName, const char *clientRodsZone, rErrMsg_t *errMsg, int connectCnt,
             int reconnFlag );
 
+/// Populates proxy and client user structures from the provided names and zones.
 int
 setUserInfo(
     const char *proxyUserName, const char *proxyRodsZone,
     const char *clientUserName, const char *clientRodsZone,
     userInfo_t *clientUser, userInfo_t *proxyUser );
 
+/// Resolves and stores the remote host information for a client connection.
 int
 setRhostInfo( rcComm_t *conn, const char *rodsHost, int rodsPort );
+
+/// Populates a socket address structure for the provided host and port.
 int
 setSockAddr( struct sockaddr_in *remoteAddr, const char *rodsHost, int rodsPort );
 
+/// Sets authentication-related fields for the proxy and client user information.
 int setAuthInfo( char *rodsAuthScheme,
-                 char *authStr, char *rodsServerDn,
-                 userInfo_t *clientUser, userInfo_t *proxyUser, int flag );
+                  char *authStr, char *rodsServerDn,
+                  userInfo_t *clientUser, userInfo_t *proxyUser, int flag );
 
+/// Disconnects a client connection and releases associated network resources.
 int
 rcDisconnect( rcComm_t *conn );
+
+/// Frees a client connection structure and owned allocations.
 int
 freeRcComm( rcComm_t *conn );
+
+/// Resets the dynamic state held by a client connection structure.
 int
 cleanRcComm( rcComm_t *conn );
 
 // clang-format off
 #ifdef __cplusplus
+/// Authenticates a client connection using the configured authentication scheme.
 [[deprecated("Use irods::authentication::authenticate_client instead.")]]
 int clientLogin(rcComm_t* conn, const char* _context = nullptr, const char* _scheme_override = nullptr);
 #else
+/// Authenticates a client connection using the configured authentication scheme.
 __attribute__((deprecated("Use rc_authenticate_client instead.")))
 int clientLogin(rcComm_t* conn, const char* _context, const char* _scheme_override);
 #endif
 
+/// Authenticates using PAM with a password and TTL for the connected client.
 __attribute__((deprecated("Use rc_authenticate_client with pam_password scheme, and AUTH_PASSWORD_KEY and TTL_KEY in context.")))
 int clientLoginPam(rcComm_t* conn, char* password, int ttl);
 
-// This function does not actually authenticate. It requests a limited password for the connected client user and
-// then records it as an obfuscated password in the .irodsA file. This is used by iinit exclusively for native
-// authentication with TTL.
+/// Requests a limited password and stores it in the client's obfuscated password file.
+///
+/// This function does not authenticate the connection. It is used by `iinit` for native
+/// authentication with a TTL-limited password.
 __attribute__((deprecated("Native authentication plugin now handles limited passwords (i.e. TTL).")))
 int clientLoginTTL(rcComm_t* conn, int ttl);
 
-// This function only uses legacy native authentication.
+/// Authenticates using the legacy native password flow.
 __attribute__((deprecated("Use rc_authenticate_client with AUTH_PASSWORD_KEY in context.")))
 int clientLoginWithPassword(rcComm_t* conn, char* password);
 
+/// Returns the legacy client-side session signature buffer.
 __attribute__((deprecated("Use session_signature member variable in RcComm instance.")))
 char* getSessionSignatureClientside();
 // clang-format on
@@ -287,16 +313,27 @@ char* getSessionSignatureClientside();
 /// \since 4.3.1
 int set_session_signature_client_side(rcComm_t* _comm, const char* _buffer, size_t _buffer_size);
 
+/// Manages client-side reconnection for the provided connection.
 void
 cliReconnManager( rcComm_t *conn );
+
+/// Performs reconnection checks before sending data.
 int
 cliChkReconnAtSendStart( rcComm_t *conn );
+
+/// Performs reconnection checks after sending data.
 int
 cliChkReconnAtSendEnd( rcComm_t *conn );
+
+/// Performs reconnection checks before reading data.
 int
 cliChkReconnAtReadStart( rcComm_t *conn );
+
+/// Performs reconnection checks after reading data.
 int
 cliChkReconnAtReadEnd( rcComm_t *conn );
+
+/// Returns whether the provided IP address refers to a loopback interface.
 int
 isLoopbackAddress( const char* ip_address );
 
