@@ -210,7 +210,7 @@ namespace irods::experimental::io
 
         int file_descriptor() const noexcept
         {
-            return transport_->file_descriptor();;
+            return transport_->file_descriptor();
         }
 
         const root_resource_name& root_resource_name() const
