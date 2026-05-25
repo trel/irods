@@ -12,6 +12,7 @@
 #include <string>
 #include <string_view>
 
+/// Forward declaration of the legacy key-value pair structure.
 struct KeyValPair;
 
 namespace irods::experimental {
@@ -39,12 +40,12 @@ namespace irods::experimental {
     {
     public:
         // Aliases for various types used in key_value_proxy
-        using key_type = std::string_view;
-        using value_type = std::string_view;
-        using kvp_type = K;
-        using kvp_pointer_type = kvp_type*;
-        using size_type = int;
-        using pair_type = std::pair<key_type, value_type>;
+        using key_type = std::string_view; ///< Type used to represent keys.
+        using value_type = std::string_view; ///< Type used to represent values.
+        using kvp_type = K; ///< Underlying legacy key-value pair type.
+        using kvp_pointer_type = kvp_type*; ///< Pointer type to the wrapped legacy object.
+        using size_type = int; ///< Size and index type used by the wrapped legacy object.
+        using pair_type = std::pair<key_type, value_type>; ///< Key-value pair type accepted by insert operations.
 
         /// \brief Base class representing a handle for an entry with a particular key.
         /// \since 4.2.9
@@ -91,7 +92,7 @@ namespace irods::experimental {
             friend auto operator==(value_type s, const handle& h) -> bool { return s == h.value(); }
 
             /// \brief Returns the value for the handle's key in the kvp_type map
-            /// \returns const std::string&
+            /// \return The current value for the handle's key.
             /// \since 4.2.8
             operator const std::string&() const { return value(); }
 
@@ -141,8 +142,8 @@ namespace irods::experimental {
             /// key or value before an assignment is made will result in a std::out_of_range
             /// being thrown for many member methods.
             ///
-            /// \param[in] _key - Key for which the handle is being created
-            /// \param[in] _kvp - Reference to kvp into which the handle will reach
+            /// \param[in] key Key for which the handle is being created.
+            /// \param[in] kvp Reference to the wrapped key-value pair object.
             ///
             /// \throws std::out_of_range - If underlying struct is const and no such key is found
             ///
@@ -167,9 +168,8 @@ namespace irods::experimental {
             /// key or value before an assignment is made will result in a std::out_of_range
             /// being thrown for many member methods.
             ///
-            /// \param[in] insert_key - Tag struct which indicates that missing keys should be inserted
-            /// \param[in] _key - Key for which the handle is being created
-            /// \param[in] _kvp - Reference to kvp into which the handle will reach
+            /// \param[in] key Key for which the handle is being created.
+            /// \param[in] kvp Reference to the wrapped key-value pair object.
             ///
             /// \throws std::out_of_range - If underlying struct is const and no such key is found
             ///
@@ -185,8 +185,9 @@ namespace irods::experimental {
             }
 
             /// \brief Returns index of the specified key in the kvp_type array.
-            /// \returns size_type
-            /// \retval index of the specified key in the kvp_type if found; otherwise, -1.
+            /// \param[in] k The key to look up.
+            /// \param[in] kvp The wrapped key-value pair object to inspect.
+            /// \return The index of the specified key if found, otherwise `-1`.
             /// \since 4.2.9
             static auto index_of(key_type k, kvp_type& kvp) -> size_type
             {
@@ -215,11 +216,11 @@ namespace irods::experimental {
         class iterator {
         public:
             // iterator_traits: https://en.cppreference.com/w/cpp/iterator/iterator_traits
-            using value_type        = handle;
-            using pointer           = const value_type*;
-            using reference         = value_type;
-            using difference_type   = size_type;
-            using iterator_category = std::forward_iterator_tag;
+            using value_type        = handle; ///< Value type produced by dereferencing the iterator.
+            using pointer           = const value_type*; ///< Pointer type for the iterator.
+            using reference         = value_type; ///< Reference type for the iterator.
+            using difference_type   = size_type; ///< Signed type for iterator distances.
+            using iterator_category = std::forward_iterator_tag; ///< Iterator category tag.
 
             /// \brief Default constructor for iterator
             /// Initializes to invalid index and nullptr for kvp_type
@@ -231,6 +232,7 @@ namespace irods::experimental {
             }
 
             /// \brief Constructs iterator for array of kvps starting at index 0
+            /// \param[in] _kvp Wrapped key-value pair object to iterate over.
             /// \see https://en.cppreference.com/w/cpp/iterator/iterator
             /// \since 4.2.8
             explicit iterator(kvp_type& _kvp)
@@ -307,14 +309,14 @@ namespace irods::experimental {
             kvp_type* kvp_;
         }; // class iterator
 
-        /// \brief Constructs proxy using an existing kvp_type
+        /// \brief Constructs a proxy over an existing legacy key-value pair object.
         /// \since 4.2.8
         explicit key_value_proxy(kvp_type& _kvp)
             : kvp_{&_kvp}
         {
         }
 
-        /// \brief Move constructor
+        /// \brief Move-constructs a proxy from another proxy.
         /// \since 4.2.9
         key_value_proxy(key_value_proxy&& other)
             : kvp_{other.kvp_}
@@ -322,7 +324,7 @@ namespace irods::experimental {
             other.kvp_ = nullptr;
         }
 
-        /// \brief Move assignment operator
+        /// \brief Move-assigns this proxy from another proxy.
         /// \since 4.2.9
         key_value_proxy& operator=(key_value_proxy&& other)
         {
@@ -332,6 +334,7 @@ namespace irods::experimental {
         }
 
         // Element access
+        /// \brief Returns a mutable handle for an existing key.
         /// \see https://en.cppreference.com/w/cpp/container/map/at
         /// \param[in] _k - key for which to search in the kvp_type map
         /// \returns handle - See handle class for details.
@@ -348,6 +351,7 @@ namespace irods::experimental {
             throw std::out_of_range{fmt::format("key not found [{}]", _k)};
         }
 
+        /// \brief Returns a const handle for an existing key.
         /// \see https://en.cppreference.com/w/cpp/container/map/at
         /// \param[in] _k - key for which to search in the kvp_type map
         /// \returns const handle - See handle class for details.
@@ -361,6 +365,7 @@ namespace irods::experimental {
             throw std::out_of_range{fmt::format("key not found [{}]", _k)};
         }
 
+        /// \brief Returns a mutable handle for a key, inserting it if needed.
         /// \see https://en.cppreference.com/w/cpp/container/map/operator_at
         /// \param[in] _k - key for which to search in the kvp_type map
         /// \returns handle - See handle class for details.
@@ -372,12 +377,13 @@ namespace irods::experimental {
 
         /// \brief Access handle into struct for this key - does not insert if missing.
         /// \see https://en.cppreference.com/w/cpp/container/map/operator_at
-        /// \param[in] _k - key for which to search in the kvp_type map
+        /// \param[in] k - key for which to search in the kvp_type map
         /// \returns handle - See handle class for details.
         /// \since 4.2.8
         auto operator[](key_type k) const -> const handle { return {k, *kvp_}; }
 
         // Iterators
+        /// \brief Returns an iterator to the first element.
         /// \see https://en.cppreference.com/w/cpp/container/map/begin
         /// \since 4.2.8
         template<
@@ -385,14 +391,17 @@ namespace irods::experimental {
             typename = std::enable_if_t<!std::is_const_v<P>>>
         auto begin() -> iterator { return iterator{*kvp_}; }
 
+        /// \brief Returns a const iterator to the first element.
         /// \see https://en.cppreference.com/w/cpp/container/map/begin
         /// \since 4.2.9
         auto begin() const -> const iterator { return iterator{*kvp_}; }
 
+        /// \brief Returns a const iterator to the first element.
         /// \see https://en.cppreference.com/w/cpp/container/map/begin
         /// \since 4.2.8
         auto cbegin() const -> const iterator { return iterator{*kvp_}; }
 
+        /// \brief Returns an iterator one past the last element.
         /// \see https://en.cppreference.com/w/cpp/container/map/end
         /// \since 4.2.8
         template<
@@ -400,26 +409,31 @@ namespace irods::experimental {
             typename = std::enable_if_t<!std::is_const_v<P>>>
         auto end() -> iterator { return {}; }
 
+        /// \brief Returns a const iterator one past the last element.
         /// \see https://en.cppreference.com/w/cpp/container/map/end
         /// \since 4.2.9
         auto end() const -> const iterator { return {}; }
 
+        /// \brief Returns a const iterator one past the last element.
         /// \see https://en.cppreference.com/w/cpp/container/map/end
         ///
         /// \since 4.2.8
         auto cend() const -> const iterator { return {}; }
 
         // capacity
+        /// \brief Returns whether the proxy contains no entries.
         /// \see https://en.cppreference.com/w/cpp/container/map/empty
         ///
         /// \since 4.2.8
         auto empty() const noexcept -> bool { return 0 == size(); }
 
+        /// \brief Returns the number of entries in the proxy.
         /// \see https://en.cppreference.com/w/cpp/container/map/size
         ///
         /// \since 4.2.8
         auto size() const noexcept -> size_type { return kvp_->len; }
 
+        /// \brief Returns the maximum number of entries representable by the proxy.
         /// \see https://en.cppreference.com/w/cpp/container/map/max_size
         ///
         /// \since 4.2.8
@@ -429,6 +443,7 @@ namespace irods::experimental {
         }
 
         // Modifiers
+        /// \brief Removes all entries from the wrapped object.
         /// \see https://en.cppreference.com/w/cpp/container/map/clear
         ///
         /// \since 4.2.8
@@ -437,6 +452,7 @@ namespace irods::experimental {
             typename = std::enable_if_t<!std::is_const_v<P>>>
         auto clear() -> void { clearKeyVal(kvp_); }
 
+        /// \brief Inserts a new key-value pair if the key is not already present.
         /// \see https://en.cppreference.com/w/cpp/container/map/insert
         ///
         /// \since 4.2.8
@@ -454,6 +470,7 @@ namespace irods::experimental {
             return {find(k), true};
         }
 
+        /// \brief Inserts a key-value pair or overwrites the existing value.
         /// \see https://en.cppreference.com/w/cpp/container/map/insert_or_assign
         ///
         /// \since 4.2.8
@@ -469,6 +486,7 @@ namespace irods::experimental {
             return {find(k), insertion};
         }
 
+        /// \brief Erases the entry identified by `_k`.
         /// \see https://en.cppreference.com/w/cpp/container/map/erase
         ///
         /// \since 4.2.8
@@ -478,6 +496,7 @@ namespace irods::experimental {
         auto erase(key_type _k) -> void { rmKeyVal(kvp_, _k.data()); }
 
         // Lookup
+        /// \brief Returns an iterator to the matching key, if present.
         /// \see https://en.cppreference.com/w/cpp/container/map/find
         /// \since 4.2.8
         template<
@@ -495,6 +514,7 @@ namespace irods::experimental {
                                 });
         }
 
+        /// \brief Returns a const iterator to the matching key, if present.
         /// \see https://en.cppreference.com/w/cpp/container/map/find
         /// \since 4.2.8
         auto find(key_type _k) const -> iterator
@@ -509,6 +529,7 @@ namespace irods::experimental {
                                 });
         }
 
+        /// \brief Returns whether the proxy contains the specified key.
         /// \see https://en.cppreference.com/w/cpp/container/map/contains
         /// \since 4.2.8
         auto contains(key_type _k) const -> bool { return find(_k) != cend(); }
@@ -532,7 +553,7 @@ namespace irods::experimental {
         auto get() const -> const kvp_pointer_type { return kvp_; }
 
     private:
-        /// \brief Pointer to underlying kvp_type
+        /// \brief Pointer to the wrapped legacy key-value pair object.
         /// \since 4.2.8
         kvp_pointer_type kvp_;
 
@@ -540,11 +561,14 @@ namespace irods::experimental {
         friend handle::handle(struct insert_key, key_type _key, kvp_type& _kvp);
     }; // class key_value_proxy
 
+    /// Represents an owned key-value string pair.
     using key_value_pair = std::pair<std::string, std::string>;
 
+    /// Bundles a key-value proxy with the lifetime manager for its wrapped object.
     template<typename kvp_type>
     using key_value_proxy_pair = std::pair<key_value_proxy<kvp_type>, lifetime_manager<kvp_type>>;
 
+    /// Wraps an existing legacy key-value pair object in a proxy.
     template<typename kvp_type>
     static auto make_key_value_proxy(kvp_type& kvp) -> key_value_proxy<kvp_type>
     {

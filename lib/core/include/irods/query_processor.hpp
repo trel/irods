@@ -14,21 +14,24 @@
 
 namespace irods
 {
+    /// Executes query results as jobs on a thread pool.
     template <typename ConnectionType>
     class query_processor
     {
     public:
         // clang-format off
-        using error        = std::tuple<int, std::string>;
-        using errors       = std::vector<error>;
-        using result_row   = typename query<ConnectionType>::value_type;
-        using job          = std::function<void (const result_row&)>;
-        using query_type   = typename query<ConnectionType>::query_type;
+        using error        = std::tuple<int, std::string>; ///< Error code and message pair returned by a job.
+        using errors       = std::vector<error>; ///< Collection of job errors.
+        using result_row   = typename query<ConnectionType>::value_type; ///< Row type produced by the query.
+        using job          = std::function<void (const result_row&)>; ///< Callable invoked for each query row.
+        using query_type   = typename query<ConnectionType>::query_type; ///< Query type accepted by the underlying query API.
         // clang-format on
 
+        /// Collects asynchronous job completion state.
         class future
         {
         public:
+            /// Waits for all queued jobs and returns the failed ones.
             auto get() -> errors
             {
                 errors errs;
@@ -44,6 +47,7 @@ namespace irods
                 return errs;
             }
 
+            /// Returns the number of queued jobs.
             auto size() const noexcept -> std::uint32_t
             {
                 return promises.size();
@@ -52,14 +56,17 @@ namespace irods
             friend query_processor;
 
         private:
+            /// Adds a promise representing one queued job.
             auto push_back(std::shared_ptr<std::promise<error>> p) -> void
             {
                 promises.push_back(p);
             }
 
+            /// Promises tracking all queued jobs.
             std::vector<std::shared_ptr<std::promise<error>>> promises;
         }; // class future
 
+        /// Constructs a processor for the provided query and job.
         query_processor(const std::string& _query,
                         job _job,
                         uint32_t _limit = 0,
@@ -71,6 +78,7 @@ namespace irods
         {
         }
 
+        /// Constructs a processor using the deprecated nested `query_type` alias.
         [[deprecated("use irods::query_type")]]
         query_processor(const std::string& _query,
                         job _job,
@@ -85,9 +93,14 @@ namespace irods
         {
         }
 
+        /// Deletes copy construction.
         query_processor(const query_processor&) = delete;
+        /// Deletes copy assignment.
         query_processor& operator=(const query_processor&) = delete;
 
+        /// Executes the query and schedules one job per result row.
+        ///
+        /// \return A future used to wait for the scheduled jobs.
         auto execute(thread_pool& _thread_pool, ConnectionType& _conn) -> future
         {
             future f;
@@ -119,12 +132,11 @@ namespace irods
         }
 
     private:
-        std::string query_;
-        job job_;
-        uint32_t limit_;
-        irods::query_type type_;
+        std::string query_; ///< Query text to execute.
+        job job_; ///< Job invoked for each result row.
+        uint32_t limit_; ///< Maximum number of rows to process.
+        irods::query_type type_; ///< Query flavor used for execution.
     }; // class query_processor
 } // namespace irods
 
 #endif // IRODS_QUERY_PROCESSOR_HPP
-

@@ -39,15 +39,15 @@ namespace irods::experimental::io
     /// \since 4.2.9
     enum class parallel_transfer_error
     {
-        initialization,
-        progress_tracking,
-        stream_create,
-        stream_seek,
-        stream_read,
-        stream_write,
-        data_object_sync,
-        generic_exception,
-        unknown
+        initialization,    ///< Failure while initializing transfer state.
+        progress_tracking, ///< Failure while tracking transfer progress.
+        stream_create,     ///< Failure while constructing a stream.
+        stream_seek,       ///< Failure while seeking within a stream.
+        stream_read,       ///< Failure while reading from a source stream.
+        stream_write,      ///< Failure while writing to a sink stream.
+        data_object_sync,  ///< Failure while syncing a data object stream.
+        generic_exception, ///< Failure caused by a standard exception.
+        unknown            ///< Failure caused by an unknown exception.
     };
 
     /// An exception class used by the parallel_transfer_engine.
@@ -57,6 +57,7 @@ namespace irods::experimental::io
         : public std::runtime_error
     {
     public:
+        /// Inherits standard runtime-error constructors.
         using std::runtime_error::runtime_error;
     };
 
@@ -67,6 +68,7 @@ namespace irods::experimental::io
         : public std::runtime_error
     {
     public:
+        /// Inherits standard runtime-error constructors.
         using std::runtime_error::runtime_error;
     };
 
@@ -83,14 +85,14 @@ namespace irods::experimental::io
     {
     public:
         // clang-format off
-        using source_stream_type             = SourceStream;
-        using sink_stream_type               = SinkStream;
-        using error_type                     = std::vector<std::tuple<parallel_transfer_error, std::string>>;
-        using restart_handle_type            = std::string;
+        using source_stream_type             = SourceStream; ///< Source stream type used during the transfer.
+        using sink_stream_type               = SinkStream; ///< Sink stream type used during the transfer.
+        using error_type                     = std::vector<std::tuple<parallel_transfer_error, std::string>>; ///< Collection of transfer errors.
+        using restart_handle_type            = std::string; ///< Opaque handle referencing persisted restart state.
 
-        using source_stream_factory_type     = std::function<source_stream_type (std::ios_base::openmode, source_stream_type*)>;
-        using sink_stream_factory_type       = std::function<sink_stream_type (std::ios_base::openmode, sink_stream_type*)>;
-        using sink_stream_close_handler_type = std::function<void (sink_stream_type&, bool)>;
+        using source_stream_factory_type     = std::function<source_stream_type (std::ios_base::openmode, source_stream_type*)>; ///< Factory for source streams.
+        using sink_stream_factory_type       = std::function<sink_stream_type (std::ios_base::openmode, sink_stream_type*)>; ///< Factory for sink streams.
+        using sink_stream_close_handler_type = std::function<void (sink_stream_type&, bool)>; ///< Callback used to close sink streams.
         // clang-format on
 
         /// Constructs an instance of the parallel_transfer_engine and starts transferring data.
@@ -147,7 +149,7 @@ namespace irods::experimental::io
         /// \param[in] _restart_handle            A handle to transfer progress information. Restart handles should not
         ///                                       be used by more than one instance.
         /// \param[in] _source_stream_factory     The factory responsible for creating new source streams.
-        /// \param[in] _sink_stream_factory       The factory responsible for closing sink streams.
+        /// \param[in] _sink_stream_factory       The factory responsible for creating new sink streams.
         /// \param[in] _sink_stream_close_handler The handler responsible for closing sink streams.
         parallel_transfer_engine(const restart_handle_type& _restart_handle,
                                  source_stream_factory_type _source_stream_factory,
@@ -181,7 +183,9 @@ namespace irods::experimental::io
             start_transfer();
         }
 
+        /// Deletes copy construction.
         parallel_transfer_engine(const parallel_transfer_engine&) = delete;
+        /// Deletes copy assignment.
         auto operator=(const parallel_transfer_engine&) -> parallel_transfer_engine& = delete;
 
         /// Waits for the transfer to complete and if successful, removes the restart handle information
@@ -251,15 +255,19 @@ namespace irods::experimental::io
         }
 
         /// Returns the restart handle.
+        ///
+        /// eturn The restart handle for this transfer.
         auto restart_handle() const noexcept -> const restart_handle_type&
         {
             return restart_handle_;
         }
 
     private:
+        /// Coordinates the final sink close across transfer tasks.
         class latch
         {
         public:
+            /// Constructs a latch initialized with `_count` outstanding arrivals.
             explicit latch(int _count)
                 : count_{_count}
                 , mutex_{}
@@ -273,6 +281,7 @@ namespace irods::experimental::io
             latch(const latch&) = delete;
             auto operator=(const latch&) -> latch& = delete;
 
+            /// Decrements the outstanding arrival count.
             auto count_down() -> void
             {
                 std::unique_lock lock{mutex_};
@@ -286,6 +295,7 @@ namespace irods::experimental::io
                 }
             }
 
+            /// Waits until the outstanding arrival count reaches zero.
             auto wait() -> void
             {
                 std::unique_lock lock{mutex_};
@@ -293,31 +303,35 @@ namespace irods::experimental::io
             }
 
         private:
-            int count_;
-            std::mutex mutex_;
-            std::condition_variable cond_var_;
+            int count_; ///< Number of remaining arrivals.
+            std::mutex mutex_; ///< Protects the latch state.
+            std::condition_variable cond_var_; ///< Signals latch completion.
         }; // class latch
 
+        /// Header stored at the beginning of the restart file.
         struct restart_header
         {
-            std::int64_t total_bytes_to_transfer;
-            std::int64_t number_of_streams;
-            std::int64_t offset;
-            std::int64_t transfer_buffer_size;
+            std::int64_t total_bytes_to_transfer; ///< Total transfer size in bytes.
+            std::int64_t number_of_streams; ///< Number of channels used by the transfer.
+            std::int64_t offset; ///< Starting byte offset for the transfer.
+            std::int64_t transfer_buffer_size; ///< Per-stream transfer buffer size.
         };
 
+        /// Per-channel transfer progress persisted in the restart file.
         struct progress
         {
-            std::int64_t chunk_size;
-            std::int64_t sent;
+            std::int64_t chunk_size; ///< Number of bytes assigned to the channel.
+            std::int64_t sent; ///< Number of bytes already transferred.
         };
 
+        /// Associates a running task with its persisted progress entry.
         struct transfer_progress
         {
-            std::future<void>* running;
-            progress* progress;
+            std::future<void>* running; ///< Future tracking task completion.
+            progress* progress; ///< Persisted progress for the task.
         };
 
+        /// Opens or creates the restart file and returns its mapped base address.
         auto init_memory_mapped_progress_file(const std::string& _filename, bool _create_file) -> std::byte*
         {
             if (_create_file) {
@@ -341,6 +355,7 @@ namespace irods::experimental::io
             return base;
         }
 
+        /// Constructs the restart-file header in mapped storage.
         auto construct_progress_header(std::byte* _storage) -> restart_header*
         {
             auto* header = new (_storage) restart_header{};
@@ -353,12 +368,14 @@ namespace irods::experimental::io
             return header;
         }
 
+        /// Generates a unique restart handle path.
         auto make_restart_handle() -> std::string
         {
             namespace fs = boost::filesystem;
             return (fs::path{restart_file_dir_} / to_string(boost::uuids::random_generator{}())).generic_string();
         }
 
+        /// Ensures the restart-file directory exists.
         auto create_restart_file_directory() -> void
         {
             namespace fs = boost::filesystem;
@@ -371,6 +388,7 @@ namespace irods::experimental::io
             }
         }
 
+        /// Initializes transfer state, optionally from an existing restart handle.
         auto init_transfer_progress_state(bool _use_restart_handle = false) -> void
         {
             create_restart_file_directory();
@@ -418,6 +436,7 @@ namespace irods::experimental::io
             }
         }
 
+        /// Creates streams and schedules transfer work on the thread pool.
         auto start_transfer() -> void
         {
             // Triggering a restart means the caller has verified that the source object exists.
@@ -453,6 +472,7 @@ namespace irods::experimental::io
                                                   wait_for_sibling_tasks_to_finish);
         }
 
+        /// Creates and positions a source stream.
         auto create_source_stream(typename source_stream_type::off_type _offset,
                                   source_stream_type* _base = nullptr) -> source_stream_type
         {
@@ -469,6 +489,7 @@ namespace irods::experimental::io
             return in;
         }
 
+        /// Creates and positions a sink stream.
         auto create_sink_stream(std::ios_base::openmode _mode,
                                 typename sink_stream_type::off_type _offset,
                                 sink_stream_type* _base = nullptr) -> sink_stream_type
@@ -486,6 +507,7 @@ namespace irods::experimental::io
             return out;
         }
 
+        /// Schedules one transfer task on the thread pool.
         auto schedule_transfer_task_on_thread_pool(source_stream_type& _source_stream,
                                                    sink_stream_type& _sink_stream,
                                                    transfer_progress& _progress,
@@ -557,30 +579,30 @@ namespace irods::experimental::io
             irods::thread_pool::defer(*thread_pool_, [t = std::move(task)]() mutable { t(); });
         }
 
-        std::unique_ptr<irods::thread_pool> thread_pool_;
-        std::atomic<bool> stop_;
+        std::unique_ptr<irods::thread_pool> thread_pool_; ///< Thread pool running transfer tasks.
+        std::atomic<bool> stop_; ///< Stop flag observed by transfer tasks.
 
-        std::unique_ptr<boost::interprocess::file_mapping> file_mapping_;
-        std::unique_ptr<boost::interprocess::mapped_region> mapped_region_;
+        std::unique_ptr<boost::interprocess::file_mapping> file_mapping_; ///< Restart file mapping.
+        std::unique_ptr<boost::interprocess::mapped_region> mapped_region_; ///< Mapped restart file region.
 
-        std::vector<transfer_progress> progress_;
-        std::vector<std::future<void>> tasks_running_;
-        error_type errors_;
-        std::mutex errors_mutex_;
-        std::unique_ptr<latch> latch_;
+        std::vector<transfer_progress> progress_; ///< Per-task progress records.
+        std::vector<std::future<void>> tasks_running_; ///< Futures for running tasks.
+        error_type errors_; ///< Errors collected during the transfer.
+        std::mutex errors_mutex_; ///< Protects `errors_`.
+        std::unique_ptr<latch> latch_; ///< Coordinates final task shutdown.
 
-        source_stream_factory_type source_stream_factory_;
-        sink_stream_factory_type sink_stream_factory_;
-        sink_stream_close_handler_type sink_stream_close_handler_;
+        source_stream_factory_type source_stream_factory_; ///< Factory used to create source streams.
+        sink_stream_factory_type sink_stream_factory_; ///< Factory used to create sink streams.
+        sink_stream_close_handler_type sink_stream_close_handler_; ///< Callback used to close sink streams.
 
-        std::int64_t total_bytes_to_transfer_;
-        std::int64_t number_of_channels_;
-        std::int64_t offset_;
-        std::int64_t transfer_buffer_size_;
+        std::int64_t total_bytes_to_transfer_; ///< Total transfer size in bytes.
+        std::int64_t number_of_channels_; ///< Number of transfer channels.
+        std::int64_t offset_; ///< Starting byte offset.
+        std::int64_t transfer_buffer_size_; ///< Per-stream transfer buffer size.
 
-        std::string restart_file_dir_;
-        std::string restart_handle_;
-        bool restart_file_exists_;
+        std::string restart_file_dir_; ///< Directory used to store restart files.
+        std::string restart_handle_; ///< Path to the restart file for this transfer.
+        bool restart_file_exists_; ///< Indicates whether the restart file already existed.
     }; // class parallel_transfer_engine
 
     /// A class that makes construction of parallel transfer engine instances easier.
@@ -596,10 +618,10 @@ namespace irods::experimental::io
     {
     public:
         // clang-format off
-        using parallel_transfer_engine_type  = parallel_transfer_engine<SourceStream, SinkStream>;
-        using source_stream_factory_type     = typename parallel_transfer_engine_type::source_stream_factory_type;
-        using sink_stream_factory_type       = typename parallel_transfer_engine_type::sink_stream_factory_type;
-        using sink_stream_close_handler_type = typename parallel_transfer_engine_type::sink_stream_close_handler_type;
+        using parallel_transfer_engine_type  = parallel_transfer_engine<SourceStream, SinkStream>; ///< Engine type produced by the builder.
+        using source_stream_factory_type     = typename parallel_transfer_engine_type::source_stream_factory_type; ///< Source stream factory type.
+        using sink_stream_factory_type       = typename parallel_transfer_engine_type::sink_stream_factory_type; ///< Sink stream factory type.
+        using sink_stream_close_handler_type = typename parallel_transfer_engine_type::sink_stream_close_handler_type; ///< Sink close handler type.
         // clang-format on
 
         /// Constructs an instance of the builder with the minimum required information for constructing
@@ -624,13 +646,16 @@ namespace irods::experimental::io
         {
         }
 
+        /// Deletes copy construction.
         parallel_transfer_engine_builder(const parallel_transfer_engine_builder&) = delete;
+        /// Deletes copy assignment.
         auto operator=(const parallel_transfer_engine_builder&) -> parallel_transfer_engine_builder& = delete;
 
         /// \brief Sets the directory where restart information will be stored.
         ///
         /// Defaults to a folder under the temporary directory (e.g. /tmp/irods_parallel_transfer_engine_restart_files).
         ///
+        /// \param[in] _directory Directory used to store restart files.
         /// \return A reference to the builder object.
         auto restart_file_directory(const std::string& _directory) -> parallel_transfer_engine_builder&
         {
@@ -644,6 +669,7 @@ namespace irods::experimental::io
         ///
         /// \throws parallel_transfer_engine_builder_error If the value is less than or equal to zero.
         ///
+        /// \param[in] _number_of_channels Number of transfer channels to use.
         /// \return A reference to the builder object.
         auto number_of_channels(std::int16_t _number_of_channels) -> parallel_transfer_engine_builder&
         {
@@ -655,6 +681,7 @@ namespace irods::experimental::io
         ///
         /// \throws parallel_transfer_engine_builder_error If the value is less than zero.
         ///
+        /// \param[in] _total_bytes_to_transfer Total transfer size in bytes.
         /// \return A reference to the builder object.
         auto total_bytes_to_transfer(std::int64_t _total_bytes_to_transfer) -> parallel_transfer_engine_builder&
         {
@@ -668,6 +695,7 @@ namespace irods::experimental::io
         ///
         /// \throws parallel_transfer_engine_builder_error If the value is less than or equal to zero.
         ///
+        /// \param[in] _transfer_buffer_size Per-channel transfer buffer size in bytes.
         /// \return A reference to the builder object.
         auto transfer_buffer_size(std::int64_t _transfer_buffer_size) -> parallel_transfer_engine_builder&
         {
@@ -681,6 +709,7 @@ namespace irods::experimental::io
         ///
         /// \throws parallel_transfer_engine_builder_error If the value is less than zero.
         ///
+        /// \param[in] _offset Starting byte offset for the transfer.
         /// \return A reference to the builder object.
         auto offset(std::int64_t _offset) -> parallel_transfer_engine_builder&
         {
@@ -714,12 +743,14 @@ namespace irods::experimental::io
         }
 
     private:
+        /// Returns the default directory used to store restart files.
         auto default_restart_file_directory() const noexcept -> std::string
         {
             namespace fs = boost::filesystem;
             return (fs::temp_directory_path() / "irods_parallel_transfer_engine_restart_files").generic_string();
         }
 
+        /// Throws if `_s` is empty.
         auto throw_if_empty(std::string_view _s, std::string_view _name) const -> void
         {
             if (_s.empty()) {
@@ -727,6 +758,7 @@ namespace irods::experimental::io
             }
         }
 
+        /// Throws if `_i` is negative.
         auto throw_if_less_than_zero(std::int64_t _i, std::string_view _name) const -> void
         {
             if (_i < 0) {
@@ -734,6 +766,7 @@ namespace irods::experimental::io
             }
         }
 
+        /// Throws if `_i` is less than or equal to zero.
         auto throw_if_less_than_or_equal_to_zero(std::int64_t _i, std::string_view _name) const -> void
         {
             if (_i <= 0) {
@@ -741,16 +774,16 @@ namespace irods::experimental::io
             }
         }
 
-        source_stream_factory_type source_stream_factory_;
-        sink_stream_factory_type sink_stream_factory_;
-        sink_stream_close_handler_type sink_stream_close_handler_;
+        source_stream_factory_type source_stream_factory_; ///< Factory used to create source streams.
+        sink_stream_factory_type sink_stream_factory_; ///< Factory used to create sink streams.
+        sink_stream_close_handler_type sink_stream_close_handler_; ///< Callback used to close sink streams.
 
-        std::int64_t total_bytes_to_transfer_;
-        std::int64_t offset_;
-        std::int64_t transfer_buffer_size_;
-        std::int16_t number_of_channels_;
+        std::int64_t total_bytes_to_transfer_; ///< Total transfer size in bytes.
+        std::int64_t offset_; ///< Starting byte offset for the transfer.
+        std::int64_t transfer_buffer_size_; ///< Per-channel transfer buffer size.
+        std::int16_t number_of_channels_; ///< Number of transfer channels.
 
-        std::string restart_file_dir_;
+        std::string restart_file_dir_; ///< Directory used to store restart files.
     }; // class parallel_transfer_engine_builder
 } // namespace irods::experimental::io
 

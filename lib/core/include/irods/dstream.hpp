@@ -20,6 +20,7 @@ namespace irods::experimental::io
     //
     //      https://en.cppreference.com/w/cpp/io/basic_streambuf
     //
+    /// Stream buffer implementation for iRODS data object I/O.
     template <typename CharT,
               typename Traits = std::char_traits<CharT>>
     class basic_data_object_buf final
@@ -27,27 +28,28 @@ namespace irods::experimental::io
     {
     public:
         // clang-format off
-        using char_type   = CharT;
-        using traits_type = Traits;
-        using int_type    = typename traits_type::int_type;
-        using pos_type    = typename traits_type::pos_type;
-        using off_type    = typename traits_type::off_type;
+        using char_type   = CharT; ///< Character type handled by the buffer.
+        using traits_type = Traits; ///< Character traits type.
+        using int_type    = typename traits_type::int_type; ///< Integer type used by the traits.
+        using pos_type    = typename traits_type::pos_type; ///< Absolute stream position type.
+        using off_type    = typename traits_type::off_type; ///< Relative stream offset type.
         // clang-format on
 
         static_assert(std::is_same_v<char_type, char>, R"(character type must be "char")");
 
     private:
-        using base_type = std::basic_streambuf<CharT, Traits>;
+        using base_type = std::basic_streambuf<CharT, Traits>; ///< Base stream buffer type.
 
         // clang-format off
-        inline static constexpr auto buffer_size          = 4096;
+        inline static constexpr auto buffer_size          = 4096; ///< Size of the internal transfer buffer in characters.
 
         // Errors
-        inline static constexpr auto external_write_error = -1;
-        inline static const     auto seek_error           = pos_type{off_type{-1}};
+        inline static constexpr auto external_write_error = -1; ///< Sentinel returned when a transport write fails.
+        inline static const     auto seek_error           = pos_type{off_type{-1}}; ///< Sentinel returned when a seek fails.
         // clang-format on
 
     public:
+        /// Constructs a closed stream buffer.
         basic_data_object_buf()
             : base_type{}
             , buf_{}
@@ -75,6 +77,7 @@ namespace irods::experimental::io
             return *this;
         }
 
+        /// Destroys the stream buffer after attempting to close it.
         ~basic_data_object_buf()
         {
             close();
@@ -465,6 +468,7 @@ namespace irods::experimental::io
         }
 
     private:
+        /// Prepares the get area for reading.
         void prepare_for_input()
         {
             // Return if the pointers of "Get" area have already been set up.
@@ -481,6 +485,7 @@ namespace irods::experimental::io
             this->setg(pbase, pbase, pbase);
         }
 
+        /// Prepares the put area for writing.
         void prepare_for_output()
         {
             // Return if the pointers of "Put" area have already been set up.
@@ -496,6 +501,7 @@ namespace irods::experimental::io
             this->setp(pbase, pbase + buf_.size());
         }
 
+        /// Initializes the active stream area based on `_mode`.
         void init_get_or_put_area(std::ios_base::openmode _mode) noexcept
         {
             using std::ios_base;
@@ -510,6 +516,7 @@ namespace irods::experimental::io
             }
         }
 
+        /// Flushes buffered output through the transport.
         int flush_buffer()
         {
             const auto bytes_to_send = this->pptr() - this->pbase();
@@ -529,36 +536,44 @@ namespace irods::experimental::io
             return 0;
         }
 
-        std::array<char_type, buffer_size> buf_;
-        transport<char_type>* transport_;
+        std::array<char_type, buffer_size> buf_; ///< Internal transfer buffer.
+        transport<char_type>* transport_; ///< Transport used to reach the server.
     }; // basic_data_object_buf
 
     // Provides a default openmode for basic_dstream constructors and open()
     // member functions based on the type "T". "T" must be one of the general
     // stream types defined by the C++ standard (i.e. basic_istream, basic_ostream,
     // or basic_iostream).
+    /// Default open mode selected for a given standard stream type.
     template <typename>
     inline static constexpr std::ios_base::openmode default_openmode{};
 
+    /// Default open mode for input streams.
     template <typename T>
     inline static constexpr std::ios_base::openmode default_openmode<std::basic_istream<T>> = std::ios_base::in;
 
+    /// Default open mode for output streams.
     template <typename T>
     inline static constexpr std::ios_base::openmode default_openmode<std::basic_ostream<T>> = std::ios_base::out;
 
+    /// Default open mode for input/output streams.
     template <typename T>
     inline static constexpr std::ios_base::openmode default_openmode<std::basic_iostream<T>> = std::ios_base::in | std::ios_base::out;
 
     // mandatory_openmode used to be private members of basic_dstream, but due
     // to a bug in GCC (https://gcc.gnu.org/bugzilla/show_bug.cgi?id=90031),
     // it was moved outside of the class.
+    /// Details used by `basic_dstream` implementation.
     namespace detail {
+        /// Mandatory open mode bits for a given stream category.
         template <typename>
         inline static constexpr std::ios_base::openmode mandatory_openmode{};
 
+        /// Mandatory open mode bits for input streams.
         template <typename T>
         inline static constexpr std::ios_base::openmode mandatory_openmode<std::basic_istream<T>> = std::ios_base::in;
 
+        /// Mandatory open mode bits for output streams.
         template <typename T>
         inline static constexpr std::ios_base::openmode mandatory_openmode<std::basic_ostream<T>> = std::ios_base::out;
     }
@@ -567,21 +582,23 @@ namespace irods::experimental::io
     // The general stream used to instantiate this type must use "char" for the underlying
     // character type. Using wchar_t or anything else to instantiate this template is undefined.
     // This class is modeled after the C++ standard file stream classes.
+    /// Standard stream wrapper backed by an iRODS data object stream buffer.
     template <typename GeneralStream>
     class basic_dstream final
         : public GeneralStream
     {
     public:
         // clang-format off
-        using char_type   = typename GeneralStream::char_type;
-        using traits_type = typename GeneralStream::traits_type;
-        using int_type    = typename traits_type::int_type;
-        using pos_type    = typename traits_type::pos_type;
-        using off_type    = typename traits_type::off_type;
+        using char_type   = typename GeneralStream::char_type; ///< Character type handled by the stream.
+        using traits_type = typename GeneralStream::traits_type; ///< Character traits type.
+        using int_type    = typename traits_type::int_type; ///< Integer type used by the traits.
+        using pos_type    = typename traits_type::pos_type; ///< Absolute stream position type.
+        using off_type    = typename traits_type::off_type; ///< Relative stream offset type.
         // clang-format on
 
         static_assert(std::is_same_v<char_type, char>, R"(character type must be "char")");
 
+        /// Constructs a closed stream.
         basic_dstream()
             : GeneralStream{&buf_}
             , buf_{}
@@ -701,6 +718,7 @@ namespace irods::experimental::io
             return *this;
         }
 
+        /// Destroys the stream.
         ~basic_dstream() = default;
 
         /// Exchanges the state of this stream with another stream.
@@ -907,7 +925,7 @@ namespace irods::experimental::io
         }
 
     private:
-        basic_data_object_buf<char_type, traits_type> buf_;
+        basic_data_object_buf<char_type, traits_type> buf_; ///< Underlying data object stream buffer.
     }; // basic_dstream
 
     // clang-format off
@@ -919,10 +937,10 @@ namespace irods::experimental::io
     //    https://en.cppreference.com/w/cpp/io/basic_ifstream
     //    https://en.cppreference.com/w/cpp/io/basic_ofstream
     //
-    using data_object_buf = basic_data_object_buf<char>;
-    using idstream        = basic_dstream<std::basic_istream<char>>;
-    using odstream        = basic_dstream<std::basic_ostream<char>>;
-    using dstream         = basic_dstream<std::basic_iostream<char>>;
+    using data_object_buf = basic_data_object_buf<char>; ///< Stream buffer type for iRODS data objects.
+    using idstream        = basic_dstream<std::basic_istream<char>>; ///< Input stream type for iRODS data objects.
+    using odstream        = basic_dstream<std::basic_ostream<char>>; ///< Output stream type for iRODS data objects.
+    using dstream         = basic_dstream<std::basic_iostream<char>>; ///< Input/output stream type for iRODS data objects.
     // clang-format on
 } // namespace irods::experimental::io
 

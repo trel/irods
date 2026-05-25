@@ -147,21 +147,21 @@ namespace irods::experimental::log
     /// \p microservice logger should be used in microservice specific code. Choosing not to follow
     /// this recommendation will result in confusing log messages.
     ///@{
-    using legacy         = logger<category::legacy>;
-    using server         = logger<category::server>;
-    using agent_factory  = logger<category::agent_factory>;
-    using agent          = logger<category::agent>;
-    using delay_server   = logger<category::delay_server>;
-    using genquery1      = logger<category::genquery1>;
-    using genquery2      = logger<category::genquery2>;
-    using resource       = logger<category::resource>;
-    using database       = logger<category::database>;
-    using authentication = logger<category::authentication>;
-    using api            = logger<category::api>;
-    using microservice   = logger<category::microservice>;
-    using network        = logger<category::network>;
-    using rule_engine    = logger<category::rule_engine>;
-    using sql            = logger<category::sql>;
+    using legacy         = logger<category::legacy>; ///< Logger type for legacy log messages.
+    using server         = logger<category::server>; ///< Logger type for server log messages.
+    using agent_factory  = logger<category::agent_factory>; ///< Logger type for agent factory log messages.
+    using agent          = logger<category::agent>; ///< Logger type for agent log messages.
+    using delay_server   = logger<category::delay_server>; ///< Logger type for delay server log messages.
+    using genquery1      = logger<category::genquery1>; ///< Logger type for GenQuery1 log messages.
+    using genquery2      = logger<category::genquery2>; ///< Logger type for GenQuery2 log messages.
+    using resource       = logger<category::resource>; ///< Logger type for resource log messages.
+    using database       = logger<category::database>; ///< Logger type for database log messages.
+    using authentication = logger<category::authentication>; ///< Logger type for authentication log messages.
+    using api            = logger<category::api>; ///< Logger type for API log messages.
+    using microservice   = logger<category::microservice>; ///< Logger type for microservice log messages.
+    using network        = logger<category::network>; ///< Logger type for network log messages.
+    using rule_engine    = logger<category::rule_engine>; ///< Logger type for rule engine log messages.
+    using sql            = logger<category::sql>; ///< Logger type for SQL log messages.
     ///@}
     // clang-format on
 

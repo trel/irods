@@ -16,16 +16,19 @@ namespace irods::experimental::filesystem
     class path
     {
     public:
+        /// Iterates over the components of a path.
         class iterator;
+        /// Iterates over the components of a path in reverse order.
         class reverse_iterator;
 
         // clang-format off
-        using value_type                = char;
-        using string_type               = std::basic_string<value_type>;
-        using const_iterator            = iterator;
-        using const_reverse_iterator    = reverse_iterator;
+        using value_type                = char; ///< Character type used by the path representation.
+        using string_type               = std::basic_string<value_type>; ///< String type used to store the path.
+        using const_iterator            = iterator; ///< Constant iterator type for path components.
+        using const_reverse_iterator    = reverse_iterator; ///< Constant reverse iterator type for path components.
         // clang-format on
 
+        /// Preferred separator between path elements.
         inline static const value_type preferred_separator = '/';
 
     private:
@@ -376,6 +379,7 @@ namespace irods::experimental::filesystem
         auto rend() const -> reverse_iterator;
 
     private:
+        /// Appends a separator before `_p` when needed.
         void append_separator_if_needed(const path& _p);
 
         string_type value_;
@@ -386,11 +390,11 @@ namespace irods::experimental::filesystem
     {
     public:
         // clang-format off
-        using value_type        = const path;
-        using pointer           = value_type*;
-        using reference         = value_type&;
-        using difference_type   = std::ptrdiff_t;
-        using iterator_category = std::bidirectional_iterator_tag;
+        using value_type        = const path; ///< Value type produced by dereferencing the iterator.
+        using pointer           = value_type*; ///< Pointer type for the iterator.
+        using reference         = value_type&; ///< Reference type for the iterator.
+        using difference_type   = std::ptrdiff_t; ///< Signed type for iterator distances.
+        using iterator_category = std::bidirectional_iterator_tag; ///< Iterator category tag.
         // clang-format on
 
         /// Constructs a default iterator.
@@ -456,9 +460,9 @@ namespace irods::experimental::filesystem
     private:
         friend class path;
 
-        pointer path_ptr_;
-        path element_;
-        path::string_type::size_type pos_;
+        pointer path_ptr_; ///< The path being traversed.
+        path element_; ///< The current path component.
+        path::string_type::size_type pos_; ///< Offset of the current component within the path.
     }; // iterator
 
     /// Iterates over the individual components of a path in reverse order.
@@ -466,11 +470,11 @@ namespace irods::experimental::filesystem
     {
     public:
         // clang-format off
-        using value_type        = iterator::value_type;
-        using pointer           = iterator::pointer;
-        using reference         = iterator::reference;
-        using difference_type   = iterator::difference_type;
-        using iterator_category = iterator::iterator_category;
+        using value_type        = iterator::value_type; ///< Value type produced by dereferencing the iterator.
+        using pointer           = iterator::pointer; ///< Pointer type for the iterator.
+        using reference         = iterator::reference; ///< Reference type for the iterator.
+        using difference_type   = iterator::difference_type; ///< Signed type for iterator distances.
+        using iterator_category = iterator::iterator_category; ///< Iterator category tag.
         // clang-format on
 
         /// Constructs a default reverse iterator.
@@ -555,8 +559,8 @@ namespace irods::experimental::filesystem
         }
 
     private:
-        iterator it_;
-        path element_;
+        iterator it_; ///< The underlying forward iterator.
+        path element_; ///< The current path component.
     }; // reverse_iterator
 
     // clang-format off
