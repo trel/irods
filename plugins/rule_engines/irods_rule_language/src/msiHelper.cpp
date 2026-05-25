@@ -797,6 +797,7 @@ msiExit( msParam_t *inpParam1, msParam_t *inpParam2, ruleExecInfo_t *rei ) {
 }
 
 int
+/// rief Concatenates the source string parameter onto the target string parameter.
 msiStrCat( msParam_t *targParam, msParam_t *srcParam, ruleExecInfo_t *rei ) {
     char *targ, *src, *newTarg;
     int targLen, srcLen;
@@ -834,6 +835,7 @@ msiStrCat( msParam_t *targParam, msParam_t *srcParam, ruleExecInfo_t *rei ) {
     return 0;
 }
 int
+/// rief Splits an input path into parent and child components using the provided key.
 msiSplitPathByKey( msParam_t *inpPath,  msParam_t *inpKey, msParam_t *outParentColl,
                    msParam_t *outChildName, ruleExecInfo_t *rei ) {
     char parent[MAX_NAME_LEN], child[MAX_NAME_LEN];
@@ -873,5 +875,4 @@ msiSplitPathByKey( msParam_t *inpPath,  msParam_t *inpKey, msParam_t *outParentC
     }
     return rei->status;
 }
-
 
