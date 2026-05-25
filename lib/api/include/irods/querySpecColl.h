@@ -6,21 +6,38 @@
 #include "irods/rodsGenQuery.h"
 #include "irods/dataObjInpOut.h"
 
+/** Descriptor describing an open special collection query context. */
 typedef struct specCollDesc {
+    /** Low-level descriptor index associated with the special collection. */
     int l3descInx;
+    /** Non-zero when this descriptor slot is in use. */
     int inuseFlag;
+    /** Data object information associated with the special collection. */
     dataObjInfo_t *dataObjInfo;
+    /** Index of the parent special collection descriptor. */
     int parentInx;
 } specCollDesc_t;
 
+/** Maximum number of tracked special collection descriptors. */
 #define NUM_SPEC_COLL_DESC    100
+/** Maximum number of rows returned per special collection query. */
 #define MAX_SPEC_COLL_ROW     100
 
+/** Packing instruction string for the special collection query input. */
 #define QuerySpecCollInp_PI "str objPath[MAX_NAME_LEN]; int recurFlag; int type; int continueInx; struct SpecCollMeta_PI;"
 
 #ifdef __cplusplus
 extern "C"
 #endif
+/**
+ * Query the contents of a special collection.
+ *
+ * @param[in] conn Client connection handle.
+ * @param[in] querySpecCollInp Query input describing the target collection.
+ * @param[out] genQueryOut Query results for the special collection.
+ *
+ * @return Operation status.
+ */
 int rcQuerySpecColl( rcComm_t *conn, dataObjInp_t *querySpecCollInp, genQueryOut_t **genQueryOut );
 
 #endif
