@@ -29,20 +29,20 @@ struct RcComm;
 typedef struct RuleExecInfo {
     int status; ///< Status code associated with the current rule execution.
     char statusStr[MAX_NAME_LEN]; ///< Status text associated with `status`.
-    char ruleName[NAME_LEN];	/* name of rule */ ///< Name of the active rule.
+    char ruleName[NAME_LEN]; ///< Name of the active rule.
     RsComm *rsComm; ///< Server communication context.
     char pluginInstanceName[MAX_NAME_LEN]; ///< Rule engine plugin instance name.
     msParamArray_t *msParamArray; ///< Input parameter array.
     msParamArray_t inOutMsParamArray; ///< In-place input/output parameter array.
     int l1descInx; ///< L1 descriptor index used by the rule.
-    dataObjInp_t *doinp;	/* data object type input */ ///< Data object input.
+    dataObjInp_t *doinp; ///< Data object input.
     dataObjInfo_t *doi; ///< Data object metadata.
     char rescName[NAME_LEN]; ///< Resource name.
     // uoi => user object info
-    userInfo_t *uoic;  /* client XXXX should get this from rsComm->clientUser */ ///< Client user information.
+    userInfo_t *uoic; ///< Client user information.
     userInfo_t *uoip; ///< Proxy user information.
     collInfo_t *coi; ///< Collection information.
-    userInfo_t *uoio;     /* other user info */ ///< Other user information.
+    userInfo_t *uoio; ///< Other user information.
     keyValPair_t *condInputData; ///< Additional conditional input values.
     /****        IF YOU ARE MAKING CHANGES CHECK BELOW
                  OR ABOVE FOR IMPORTANT INFORMATION  ****/

@@ -383,7 +383,6 @@ namespace irods::experimental::replica
     /// \param[in] _comm connection object
     /// \param[in] _logical_path Logical path of the data object.
     /// \param[in] _replica_number Replica number identifying the target replica.
-    /// \param[in] _calculation Verification policy controlling checksum computation.
     ///
     /// \throws irods::exception If no replica information is found or query fails
     ///
@@ -408,7 +407,6 @@ namespace irods::experimental::replica
     /// \param[in] _comm connection object
     /// \param[in] _logical_path Logical path of the data object.
     /// \param[in] _leaf_resource_name Leaf resource hosting the target replica.
-    /// \param[in] _calculation Verification policy controlling checksum computation.
     ///
     /// \throws irods::exception If no replica information is found or query fails
     ///
@@ -576,6 +574,7 @@ namespace irods::experimental::replica
     /// \param[in] _comm connection object
     /// \param[in] _logical_path
     /// \param[in] _replica_number
+    /// \param[in] _calculation Verification policy controlling checksum computation.
     ///
     /// \throws filesystem_error if the path is empty or too long
     /// \throws irods::exception if the path does not refer to a data object or replica number is invalid
@@ -605,6 +604,7 @@ namespace irods::experimental::replica
     /// \param[in] _comm connection object
     /// \param[in] _logical_path
     /// \param[in] _leaf_resource_name
+    /// \param[in] _calculation Verification policy controlling checksum computation.
     ///
     /// \throws filesystem_error if the path is empty or too long
     /// \throws irods::exception if the path does not refer to a data object or resource is invalid
