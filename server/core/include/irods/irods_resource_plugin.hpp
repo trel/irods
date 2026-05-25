@@ -1,6 +1,8 @@
 #ifndef ___IRODS_RESC_PLUGIN_HPP__
 #define ___IRODS_RESC_PLUGIN_HPP__
 
+/// \file
+
 // =-=-=-=-=-=-=-
 #include "irods/irods_file_object.hpp"
 #include "irods/irods_plugin_base.hpp"
@@ -13,8 +15,11 @@
 
 namespace irods {
 
+    /// \brief Property key for the child resource map.
     const std::string RESC_CHILD_MAP_PROP( "resource_child_map_property" );
+    /// \brief Property key for the parent resource pointer.
     const std::string RESC_PARENT_PROP( "resource_parent_property" );
+    /// \brief Lookup table type used to store child resources by name.
     typedef lookup_table< std::pair< std::string, resource_ptr > > resource_child_map;
 
 // =-=-=-=-=-=-=-
@@ -134,8 +139,9 @@ namespace irods {
 
         protected:
             // =-=-=-=-=-=-=-
-            /// @brief Pointers to Child and Parent Resources
+            /// @brief Child resources keyed by hierarchy component.
             resource_child_map  children_;
+            /// @brief Parent resource for this resource instance.
             resource_ptr        parent_;
 
     }; // class resource
@@ -157,4 +163,3 @@ namespace irods {
 
 
 #endif // ___IRODS_RESC_PLUGIN_HPP__
-
