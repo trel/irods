@@ -11,6 +11,7 @@
 #include "irods/irods_server_properties.hpp"
 #include "irods/rcMisc.h"
 
+/// Breakpoint definition used by the rule-engine debugger.
 struct Breakpoint {
     char *actionName; ///< Rule action name that triggers the breakpoint.
     char *base; ///< Source base identifier associated with the breakpoint.

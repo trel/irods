@@ -570,8 +570,10 @@ irods::error native_auth_agent_start(
 // derive a new native_auth auth plugin from
 // the auth plugin base class for handling
 // native authentication
+/// Authentication plugin implementing legacy native authentication.
 class native_auth_plugin : public irods::auth {
     public:
+        /// Constructs the legacy native authentication plugin instance.
         native_auth_plugin(
             const std::string& _nm,
             const std::string& _ctx ) :

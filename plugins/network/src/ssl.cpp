@@ -1031,8 +1031,10 @@ irods::error ssl_success_stub(
 // derive a new ssl network plugin from
 // the network plugin base class for handling
 // ssl communications
+/// Network plugin implementing SSL communication.
 class ssl_network_plugin : public irods::network {
     public:
+        /// Constructs the SSL network plugin instance.
         ssl_network_plugin(
             const std::string& _nm,
             const std::string& _ctx ) :

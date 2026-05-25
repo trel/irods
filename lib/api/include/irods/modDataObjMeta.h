@@ -5,6 +5,9 @@ struct RcComm;
 struct DataObjInfo;
 struct KeyValPair;
 
+/**
+ * \brief Input for modifying data object metadata.
+ */
 typedef struct ModDataObjMetaInp {
     struct DataObjInfo* dataObjInfo; ///< Data object metadata to update.
     struct KeyValPair* regParam; ///< Registration parameters describing the update.

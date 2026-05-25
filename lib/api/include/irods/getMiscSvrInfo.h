@@ -10,6 +10,9 @@
 #define RCAT_NOT_ENABLED        0
 #define RCAT_ENABLED            1
 
+/**
+ * \brief Miscellaneous server information returned by `rcGetMiscSvrInfo`.
+ */
 typedef struct MiscSvrInfo {
     int serverType; ///< RCAT_ENABLED or RCAT_NOT_ENABLED.
     uint serverBootTime; ///< Server boot timestamp.

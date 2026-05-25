@@ -227,7 +227,9 @@ typedef enum OrphanPathType {
  *
  * \sa none
  */
-
+/**
+ * \brief Generic buffer of bytes.
+ */
 typedef struct BytesBuf {   /* have to add BytesBuf to get Doxygen working */
     int len;    ///< Length of the buffer in bytes.
     void *buf;  ///< Pointer to the buffer contents.

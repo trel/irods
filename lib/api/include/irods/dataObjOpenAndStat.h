@@ -5,6 +5,9 @@
 #include "irods/rcConnect.h"
 #include "irods/dataObjInpOut.h"
 
+/**
+ * \brief Replica status information returned by `rcDataObjOpenAndStat`.
+ */
 typedef struct OpenStat {
     rodsLong_t dataSize; ///< Size of the opened data object.
     char dataType[NAME_LEN]; ///< Data type associated with the opened replica.

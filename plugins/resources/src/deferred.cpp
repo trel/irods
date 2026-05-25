@@ -766,8 +766,10 @@ irods::error deferred_file_rebalance(irods::plugin_context& _ctx)
 //    necessary to do custom parsing of the context string to place
 //    any useful values into the property map for reference in later
 //    operations.  semicolon is the preferred delimiter
+/// Resource plugin implementing deferred resource behavior.
 class deferred_resource : public irods::resource {
     public:
+        /// Constructs the deferred resource plugin instance.
         deferred_resource(
             const std::string& _inst_name,
             const std::string& _context ) :

@@ -8,6 +8,7 @@
 #include <vector>
 #include <string>
 
+/// Singleton helper for accessing configured rule-engine namespaces.
 class NamespacesHelper {
 public:
     /// Returns the singleton namespace helper instance.
