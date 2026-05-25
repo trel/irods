@@ -38,7 +38,7 @@ extern Op new_ops[];
 typedef struct pointer {
     FILE *fp; ///< Backing file handle when parsing from a file.
     char buf[POINTER_BUF_SIZE]; ///< Character buffer.
-    unsigned int len; /* len of string in buf */ ///< Number of buffered characters.
+    unsigned int len; ///< Number of buffered characters.
     unsigned int p; /* pointer to next char in buf */ ///< Offset of the next buffered character.
     unsigned long fpos; /* position of the beginning of the buffer in file */ ///< File offset for the current buffer.
     unsigned int strp; /* pointer to next char in strbuf */ ///< Offset of the next character in `strbuf`.

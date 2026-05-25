@@ -64,7 +64,7 @@ int msiCutBufferInHalf( msParam_t* mPIn, ruleExecInfo_t *rei ) {
 }
 
 
-/**
+/*
  * \fn msiDoSomething(msParam_t *inParam, msParam_t *outParam, ruleExecInfo_t *rei)
  *
  * \brief Placeholder for microservice code to test.
@@ -107,7 +107,7 @@ int msiCutBufferInHalf( msParam_t* mPIn, ruleExecInfo_t *rei ) {
  * \pre None
  * \post None
  * \sa None
-**/
+ */
 int
 msiDoSomething( msParam_t *, msParam_t *outParam, ruleExecInfo_t * rei ) {
     keyValPair_t *myKeyVal;						/* will contain results */
@@ -146,4 +146,3 @@ msiTakeThreeArgumentsAndDoNothing(
 
     return 0;
 }
-
