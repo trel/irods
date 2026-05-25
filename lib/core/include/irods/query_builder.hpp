@@ -17,12 +17,18 @@ namespace irods::experimental
     class query_builder
     {
     public:
+        /// Sets the query API to use when building a query.
+        /// \param _v query type to execute.
+        /// \return reference to this builder.
         auto type(irods::query_type _v) noexcept -> query_builder&
         {
             type_ = _v;
             return *this;
         }
 
+        /// Sets the query API using the deprecated enum.
+        /// \param _v deprecated query type to execute.
+        /// \return reference to this builder.
         [[deprecated("use irods::query_type")]]
         auto type(
 #pragma GCC diagnostic push
@@ -35,42 +41,61 @@ namespace irods::experimental
             return type(static_cast<irods::query_type>(_v));
         }
 
+        /// Sets the zone hint applied to the query.
+        /// \param _v zone name hint.
+        /// \return reference to this builder.
         auto zone_hint(const std::string& _v) -> query_builder&
         {
             zone_hint_ = _v;
             return *this;
         }
 
+        /// Sets the maximum number of rows to expose.
+        /// \param _v row limit; zero means no limit.
+        /// \return reference to this builder.
         auto row_limit(std::uintmax_t _v) noexcept -> query_builder&
         {
             limit_ = _v;
             return *this;
         }
 
+        /// Sets the starting row offset.
+        /// \param _v zero-based row offset.
+        /// \return reference to this builder.
         auto row_offset(std::uintmax_t _v) noexcept -> query_builder&
         {
             offset_ = _v;
             return *this;
         }
 
+        /// Sets extra query option flags.
+        /// \param _v option bitmask passed to the query API.
+        /// \return reference to this builder.
         auto options(int _v) noexcept -> query_builder&
         {
             options_ = _v;
             return *this;
         }
 
+        /// Binds positional arguments for a specific query.
+        /// \param _args argument list kept by reference until build time.
+        /// \return reference to this builder.
         auto bind_arguments(const std::vector<std::string>& _args) -> query_builder&
         {
             args_ = &_args;
             return *this;
         }
 
+        /// Removes any previously bound specific-query arguments.
+        /// \return reference to this builder.
         auto clear_bound_arguments() noexcept -> query_builder&
         {
             args_ = nullptr;
             return *this;
         }
 
+        /// Restores default builder state.
+        /// \return reference to this builder.
         auto clear() -> query_builder&
         {
             args_ = nullptr;
@@ -83,6 +108,11 @@ namespace irods::experimental
             return *this;
         }
 
+        /// Builds and executes a query using the current builder state.
+        /// \param _conn connection used to execute the query.
+        /// \param _query general query text or specific query name.
+        /// \return configured `irods::query` instance.
+        /// \throws irods::exception if `_query` is empty.
         template <typename ConnectionType>
         auto build(ConnectionType& _conn, const std::string& _query) -> irods::query<ConnectionType>
         {
@@ -111,4 +141,3 @@ namespace irods::experimental
 } // namespace irods::experimental
 
 #endif // IRODS_QUERY_BUILDER_HPP
-
