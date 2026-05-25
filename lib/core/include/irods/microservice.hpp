@@ -45,6 +45,7 @@
 
 #define MICROSERVICE_HPP_
 #undef BOOST_PP_VARIADICS
+/// Ensures variadic macro support is enabled for Boost.Preprocessor.
 #define BOOST_PP_VARIADICS 1
 #include <boost/preprocessor/comparison/greater_equal.hpp>
 #include <boost/preprocessor/comparison/less_equal.hpp>

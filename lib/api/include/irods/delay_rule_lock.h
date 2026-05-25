@@ -41,6 +41,7 @@ typedef struct DelayRuleLockInput
 } delayRuleLockInp_t;
 
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+/// Packing instruction for `delayRuleLockInp_t`.
 #define DelayRuleLockInput_PI "str rule_id[32]; str lock_host[300]; int lock_host_pid; struct KeyValPair_PI;"
 
 #ifdef __cplusplus

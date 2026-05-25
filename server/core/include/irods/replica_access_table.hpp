@@ -141,7 +141,7 @@ namespace irods::experimental::replica_access_table
     /// \param[in] _token The replica token mapped to the replica.
     /// \param[in] _pid   The PID to remove.
     ///
-    /// \returns A \ref restorable_entry containing all information about the removed PID.
+    /// \returns A `restorable_entry` containing all information about the removed PID.
     ///
     /// \since 4.2.9
     auto erase_pid(replica_token_view_type _token, pid_t _pid) -> std::optional<restorable_entry>;

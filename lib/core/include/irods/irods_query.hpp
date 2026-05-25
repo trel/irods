@@ -508,7 +508,7 @@ namespace irods
             }
 
             /// Advances to the next row and returns the previous iterator state.
-            /// \param unused postfix increment selector.
+            /// \param unused Postfix increment selector.
             /// \return iterator state before advancing.
             iterator operator++(int) {
                 iterator ret = *this;
