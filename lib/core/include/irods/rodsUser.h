@@ -3,67 +3,66 @@
 
 #include "irods/rodsDef.h"
 
-/* definition for authScheme of authInfo_t */
-
+/// Authentication scheme value for password-based authentication.
 #define PASSWORD        0
 
+/// Keyword naming the password authentication scheme.
 #define PASSWORD_AUTH_KEYWD     "PASSWORD"
 
-/* env variable for overwriting clientUser */
+/// Keyword used to override the client user name.
 #define CLIENT_USER_NAME_KEYWD  "clientUserName"
+/// Keyword used to override the client zone name.
 #define CLIENT_RODS_ZONE_KEYWD  "clientRodsZone"
 
-/* definition for authFlag in authInfo_t */
-/* REMOTE or LOCAL refers to the Zone */
-/* priv or not indicates whether the user is iRODS Admin: privileged */
-#define NO_USER_AUTH            0       /* not authenticated yet */
-#define PUBLIC_USER_AUTH        1       /* not authenticated yet. Deprecated in 5.1.0. */
-#define REMOTE_USER_AUTH        2       /* authenticated as remote user */
-#define LOCAL_USER_AUTH         3       /* authenticated as local user */
-// Authenticated as a privileged remote user. This authentication level is reserved for iRODS
-// users from a remote zone which have been given administrative privileges in the local zone.
-// The authenticated privileged remote user can perform actions on behalf of a user from the
-// same remote zone in the local zone. Users with this level of authentication are not allowed
-// to perform actions on behalf of users from other zones and cannot perform certain privileged
-// actions in the local zone, which would require authentication level LOCAL_PRIV_USER_AUTH.
-#define REMOTE_PRIV_USER_AUTH   4       /* auth as a remote priv user */
-// Authenticated as a local privileged user. This authentication level is reserved for iRODS
-// administrators in the local zone. Users with this level of authentication are allowed to
-// perform almost any action within the system, including actions on behalf of other users.
-#define LOCAL_PRIV_USER_AUTH    5       /* auth as local priv user */
+/// Authentication has not completed.
+#define NO_USER_AUTH            0
+/// Deprecated public authentication state.
+#define PUBLIC_USER_AUTH        1
+/// Authenticated as a remote-zone user.
+#define REMOTE_USER_AUTH        2
+/// Authenticated as a local-zone user.
+#define LOCAL_USER_AUTH         3
+/// Authenticated as a privileged remote-zone user.
+#define REMOTE_PRIV_USER_AUTH   4
+/// Authenticated as a privileged local-zone user.
+#define LOCAL_PRIV_USER_AUTH    5
 
+/// Authentication details associated with a user.
 typedef struct AuthInfo {
-    char authScheme[NAME_LEN];     /* Authentication scheme */
-    int authFlag;                  /* the status of authentication */
-    int flag;
-    int ppid;                      /* session ppid */
-    char host[NAME_LEN];           /* session host */
-    char authStr[NAME_LEN];        /* for gsi, the dn */
+    char authScheme[NAME_LEN];     /**< Authentication scheme name. */
+    int authFlag;                  /**< Authentication status and privilege level. */
+    int flag;                      /**< Additional authentication flags. */
+    int ppid;                      /**< Session parent process identifier. */
+    char host[NAME_LEN];           /**< Session host name. */
+    char authStr[NAME_LEN];        /**< Authentication string, such as a GSI DN. */
 } authInfo_t;
 
+/// Auxiliary metadata recorded for a user.
 typedef struct UserOtherInfo {
-    char userInfo[NAME_LEN];
-    char userComments[NAME_LEN];
-    char userCreate[TIME_LEN];
-    char userModify[TIME_LEN];
+    char userInfo[NAME_LEN];       /**< User information string. */
+    char userComments[NAME_LEN];   /**< User comment string. */
+    char userCreate[TIME_LEN];     /**< User creation timestamp. */
+    char userModify[TIME_LEN];     /**< User modification timestamp. */
 } userOtherInfo_t;
 
-/* definition for flag in authInfo_t */
-#define AUTH_IN_FILE    0x1     /* the authStr is in a file */
+/// Indicates that `authStr` refers to data stored in a file.
+#define AUTH_IN_FILE    0x1
 
-/* definition for privFlag of userInfo_t */
+/// Regular user privilege level.
+#define REG_USER        0
+/// Privileged user in the local zone.
+#define LOC_PRIV_USER   1
+/// Privileged user from a remote zone.
+#define REM_PRIV_USER   2
 
-#define REG_USER        0       /* regular user */
-#define LOC_PRIV_USER   1       /* local zone privileged user */
-#define REM_PRIV_USER   2       /* remote zone privileged user */
-
+/// Core user account information.
 typedef struct UserInfo {
-    char userName[NAME_LEN];
-    char rodsZone[NAME_LEN];
-    char userType[NAME_LEN];
-    int sysUid;         /* the unix system uid */
-    authInfo_t authInfo;
-    userOtherInfo_t userOtherInfo;
+    char userName[NAME_LEN];       /**< User name. */
+    char rodsZone[NAME_LEN];       /**< User zone name. */
+    char userType[NAME_LEN];       /**< User type string. */
+    int sysUid;                    /**< Local system user identifier. */
+    authInfo_t authInfo;           /**< Authentication state for the user. */
+    userOtherInfo_t userOtherInfo; /**< Additional user metadata. */
 } userInfo_t;
 
 #endif /* RODS_USER_H__ */
