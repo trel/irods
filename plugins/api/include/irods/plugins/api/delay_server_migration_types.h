@@ -23,11 +23,10 @@
 /// \since 4.3.0
 typedef struct DelayServerMigrationInput
 {
-    char leader[2700];
-    char successor[2700];
+    char leader[2700]; ///< Hostname of the server that should become leader.
+    char successor[2700]; ///< Hostname of the server that should become successor.
 } delayServerMigrationInp_t;
 
 #define DelayServerMigrationInp_PI "str leader[2700]; str successor[2700];"
 
 #endif // IRODS_DELAY_SERVER_MIGRATION_TYPES_H
-

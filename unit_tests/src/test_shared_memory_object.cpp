@@ -6,9 +6,10 @@
 #include <thread>
 #include <chrono>
 
+/// Represents the integer payload stored in shared memory during the test.
 struct integer
 {
-    int value;
+    int value; ///< Value shared across processes or threads in the test.
 };
 
 TEST_CASE("shared_memory_object")
@@ -66,4 +67,3 @@ TEST_CASE("shared_memory_object")
         smo.remove();
     }
 }
-

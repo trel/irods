@@ -11,12 +11,13 @@
 
 namespace rat = irods::experimental::replica_access_table;
 
+/// Captures the fields needed for a replica access table test entry.
 struct access_info
 {
-    std::string token;
-    int data_id;
-    int replica_number;
-    pid_t pid;
+    std::string token; ///< Shared token identifying a replica access entry.
+    int data_id; ///< Catalog identifier of the data object under test.
+    int replica_number; ///< Replica number associated with the test entry.
+    pid_t pid; ///< Process identifier recorded against the entry.
 };
 
 auto insert_new_entry(access_info& info) -> void;
@@ -120,4 +121,3 @@ auto append_to_entry(access_info& info, const std::string& token) -> void
     info.token = token;
     rat::append_pid(info.token, info.data_id, info.replica_number, info.pid);
 }
-
