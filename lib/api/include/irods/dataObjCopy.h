@@ -22,9 +22,12 @@
  * \sa none
  */
 
+/**
+ * \brief Input passed to `rcDataObjCopy`.
+ */
 typedef struct DataObjCopyInp {
-    dataObjInp_t srcDataObjInp;
-    dataObjInp_t destDataObjInp;
+    dataObjInp_t srcDataObjInp;   ///< Source data object input parameters.
+    dataObjInp_t destDataObjInp; ///< Destination data object input parameters.
 } dataObjCopyInp_t;
 #define DataObjCopyInp_PI "struct DataObjInp_PI; struct DataObjInp_PI;"
 
