@@ -21,7 +21,7 @@ struct DataObjInfo;
 ///
 /// Operations that target a specific replica are allowed to operate on stale replicas.
 ///
-/// \param[in]  comm             The communication object.
+/// \param[in]  rsComm           The communication object.
 /// \param[in]  dataObjChksumInp \parblock
 /// The bundle of input arguments that dictate what happens.
 ///
@@ -111,23 +111,43 @@ int rsDataObjChksum(RsComm* rsComm,
                     DataObjInp* dataObjChksumInp,
                     char** outChksum);
 
+/// Internal implementation of `rsDataObjChksum`.
+///
+/// \param[in]  rsComm          The communication object.
+/// \param[in]  dataObjInp      The input describing the checksum operation.
+/// \param[out] outChksumStr    Receives the checksum or verification results.
+/// \param[out] dataObjInfoHead Receives the head of the targeted data object info list.
 int _rsDataObjChksum(RsComm* rsComm,
                      DataObjInp* dataObjInp,
                      char** outChksumStr,
                      DataObjInfo** dataObjInfoHead);
 
+/// Computes a checksum for a replica and registers it in the catalog.
+///
+/// \param[in]  rsComm       The communication object.
+/// \param[in]  dataObjInfo  The replica information.
+/// \param[out] outChksumStr Receives the computed checksum string.
 int dataObjChksumAndRegInfo(RsComm* rsComm,
-                            DataObjInfo* dataObjInfo,
-                            char** outChksumStr);
+                             DataObjInfo* dataObjInfo,
+                             char** outChksumStr);
 
+/// Verifies checksum information for a replica.
+///
+/// \param[in]  rsComm       The communication object.
+/// \param[in]  dataObjInfo  The replica information.
+/// \param[out] outChksumStr Receives checksum-related output for the caller.
 int verifyDataObjChksum(RsComm* rsComm,
+                         DataObjInfo* dataObjInfo,
+                         char** outChksumStr);
+
+__attribute__((deprecated("Use verifyDataObjChksum instead")))
+/// Deprecated spelling of `verifyDataObjChksum`.
+///
+/// \param[in]  rsComm       The communication object.
+/// \param[in]  dataObjInfo  The replica information.
+/// \param[out] outChksumStr Receives checksum-related output for the caller.
+int verifyDatObjChksum(RsComm* rsComm,
                         DataObjInfo* dataObjInfo,
                         char** outChksumStr);
 
-__attribute__((deprecated("Use verifyDataObjChksum instead")))
-int verifyDatObjChksum(RsComm* rsComm,
-                       DataObjInfo* dataObjInfo,
-                       char** outChksumStr);
-
 #endif // RS_DATA_OBJ_CHKSUM_HPP
-
