@@ -2,7 +2,7 @@
 #include "irods/procApiRequest.h"
 #include "irods/apiNumber.h"
 
-/**
+/*
  * \fn rcFileMkdir( rcComm_t *conn, fileMkdirInp_t *fileMkdirInp )
  *
  * \brief Make a directory.
@@ -18,7 +18,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 int
 rcFileMkdir( rcComm_t *conn, fileMkdirInp_t *fileMkdirInp ) {
     int status;

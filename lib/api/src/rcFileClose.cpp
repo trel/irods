@@ -2,7 +2,7 @@
 #include "irods/procApiRequest.h"
 #include "irods/apiNumber.h"
 
-/**
+/*
  * \fn rcFileClose( rcComm_t *conn, fileCloseInp_t *fileCloseInp )
  *
  * \brief Closes a file.
@@ -18,7 +18,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 int
 rcFileClose( rcComm_t *conn, fileCloseInp_t *fileCloseInp ) {
     int status;

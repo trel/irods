@@ -2,7 +2,7 @@
 #include "irods/procApiRequest.h"
 #include "irods/apiNumber.h"
 
-/**
+/*
  * \fn rcFileOpendir( rcComm_t *conn, fileOpendirInp_t *fileOpendirInp )
  *
  * \brief Open a directory.
@@ -18,7 +18,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 int
 rcFileOpendir( rcComm_t *conn, fileOpendirInp_t *fileOpendirInp ) {
     int status;
