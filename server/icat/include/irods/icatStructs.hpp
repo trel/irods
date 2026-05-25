@@ -16,7 +16,7 @@
 /// \brief Describes a database statement used by the ICAT layer.
 typedef struct {
     int status; ///< Statement execution status.
-    void*   stmtPtr;                            /* internal db statemnt handle */ ///< Internal database statement handle.
+    void*   stmtPtr; ///< Internal database statement handle.
     int     numOfCols;                          /* number of result columns */ ///< Number of result columns.
     char    *resultColName[MAX_NUM_OF_SELECT_ITEMS];  /* column names */ ///< Result column names.
     int     selectColIds[MAX_NUM_OF_SELECT_ITEMS];  /* rods-id to column in the
@@ -29,7 +29,7 @@ typedef struct {
 /// \brief Describes an ICAT database session and its active statements.
 typedef struct {
     int         status; ///< Session status.
-    void*       environPtr;       /* internal db environment handle */ ///< Internal database environment handle.
+    void*       environPtr; ///< Internal database environment handle.
     void*       connectPtr;       /* internal db connection handle */ ///< Internal database connection handle.
     icatStmtStrct* stmtPtr[MAX_NUM_OF_CONCURRENT_STMTS];  /* statement handles */ ///< Active statement handles.
     char databaseUsername[DB_USERNAME_LEN];  /* username for accessing the db */ ///< Database username.

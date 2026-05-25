@@ -73,7 +73,7 @@ struct Cache
     Region *coreRegion; ///< Core allocation region.
     Region *appRegion; ///< Application allocation region.
     Region *extRegion; ///< External allocation region.
-    int tvarNumber; /* counter for tvar generator */ ///< Counter for generated type variables.
+    int tvarNumber; ///< Counter for generated type variables.
     int clearDelayed; ///< Indicates whether deferred cleanup is pending.
     time_type timestamp; ///< Timestamp of the loaded configuration.
     int logging; ///< User logging preference.
