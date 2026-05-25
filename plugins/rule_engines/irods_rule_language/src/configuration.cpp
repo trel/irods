@@ -412,9 +412,11 @@ int hash_rules(const std::vector<std::string> &irbs, const int pid, std::string 
     return 0;
 }
 
+/// Holds rule base contents loaded into memory for hashing and reuse.
 class in_memory_rulebases
 {
   public:
+    /// Loads each requested rule base into memory.
     explicit in_memory_rulebases(const std::vector<std::string>& _irods_rule_bases)
     {
         for (auto const& irb : _irods_rule_bases) {
@@ -429,6 +431,7 @@ class in_memory_rulebases
         }
     }
 
+    /// Returns the in-memory contents for the named rule base.
     const std::string& get_rulebase(const std::string& irb)
     {
         return rule_bases_.at(irb);

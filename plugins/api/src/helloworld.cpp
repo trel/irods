@@ -17,15 +17,18 @@
 #include <string>
 #include <iostream>
 
+/// Input structure for the hello-world API example.
 typedef struct {
     int  _this; ///< Integer input used by the hello-world API example.
     char _that [64]; ///< String input used by the hello-world API example.
 } helloInp_t;
 
+/// Nested output structure for the hello-world API example.
 typedef struct {
     double _value; ///< Floating-point output value returned by the API example.
 } otherOut_t;
 
+/// Output structure for the hello-world API example.
 typedef struct {
     int  _this; ///< Integer output returned by the API example.
     char _that [64]; ///< String output returned by the API example.

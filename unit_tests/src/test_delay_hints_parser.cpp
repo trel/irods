@@ -10,12 +10,14 @@
 #include <string_view>
 #include <array>
 
+/// Input values supplied to the delay hint parser test helper.
 struct input
 {
     std::string current_time; ///< Starting timestamp passed to the parser.
     std::string frequency; ///< Frequency string passed to the parser.
 };
 
+/// Expected results returned by the delay hint parser test helper.
 struct output
 {
     int expected_action_code; ///< Expected action code returned by the parser.

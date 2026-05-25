@@ -919,6 +919,7 @@ msiSetPublicUserOpr( msParam_t *xoprList, ruleExecInfo_t *rei ) {
 }
 
 int
+/// rief Updates API permission requirements for proxy and client users.
 setApiPerm( int apiNumber, int proxyPerm, int clientPerm ) {
     int apiInx;
 
@@ -1325,4 +1326,3 @@ msiSetBulkPutPostProcPolicy( msParam_t *xflag, ruleExecInfo_t *rei ) {
     }
     return rei->status;
 }
-
