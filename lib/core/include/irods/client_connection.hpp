@@ -22,13 +22,13 @@ namespace irods::experimental
     /// authentication occurs.
     ///
     /// \since 4.2.9
-    inline const struct defer_connection {} defer_connection;
+    inline const struct defer_connection {} defer_connection; ///< Tag indicating that connection establishment should be deferred.
 
     /// A tag type that indicates whether or not a client connection
     /// should allow the user to control when the authentication occurs.
     ///
     /// \since 4.3.1
-    inline const struct defer_authentication {} defer_authentication;
+    inline const struct defer_authentication {} defer_authentication; ///< Tag indicating that authentication should be deferred.
 
     // clang-format on
 

@@ -168,11 +168,13 @@ int procApiRequest_raw(rcComm_t* conn,
                        void** outStruct,
                        bytesBuf_t* outBsBBuf);
 
+/// Sends an API request message to the server.
 int sendApiRequest(rcComm_t *conn,
                    int apiInx,
                    const void *inputStruct,
                    const bytesBuf_t *inputBsBBuf);
 
+/// Processes a reply for a previously-issued API request.
 int procApiReply(rcComm_t *conn,
                  int apiInx,
                  void **outStruct,
@@ -182,23 +184,28 @@ int procApiReply(rcComm_t *conn,
                  bytesBuf_t *myOutBsBBuf,
                  bytesBuf_t *errorBBuf);
 
+/// Reads and processes an API reply from the server.
 int readAndProcApiReply(rcComm_t *conn,
-                        int apiInx,
-                        void **outStruct,
-                        bytesBuf_t *outBsBBuf);
+                         int apiInx,
+                         void **outStruct,
+                         bytesBuf_t *outBsBBuf);
 
+/// Reads and processes an API reply from a branch connection.
 int branchReadAndProcApiReply(rcComm_t *conn,
                               int apiNumber,
                               void **outStruct,
                               bytesBuf_t *outBsBBuf);
 
+/// Retrieves collection-operation status from the server.
 int cliGetCollOprStat(rcComm_t *conn,
                       collOprStat_t *collOprStat,
                       int vFlag,
                       int retval);
 
+/// Internal helper for retrieving collection-operation status.
 int _cliGetCollOprStat(rcComm_t *conn, collOprStat_t **collOprStat);
 
+/// Looks up an API table entry by API number.
 int apiTableLookup(int apiNumber);
 
 #ifdef __cplusplus
