@@ -25,7 +25,7 @@ struct RsComm;
 /// - SQL keywords are case-insensitive
 /// - Federation
 /// - Escaping of single quotes
-/// - Bytes encoded as hexadecimal (e.g. \x21)
+/// - Bytes encoded as hexadecimal (e.g. `0x21`)
 ///
 /// Limitations:
 /// - Groups are not yet fully supported

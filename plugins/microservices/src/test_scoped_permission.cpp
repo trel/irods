@@ -268,6 +268,7 @@ namespace
 } // anonymous namespace
 
 /// Registers the `msi_test_scoped_permission` microservice.
+/// Registers the `msi_test_scoped_permission` microservice.
 extern "C" auto plugin_factory() -> irods::ms_table_entry*
 {
     return make_msi<>("msi_test_scoped_permission", msi_impl);
