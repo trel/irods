@@ -653,7 +653,7 @@ namespace irods::replica_state_table
         /// \brief Prepares the specified data object as input to data_object_finalize and updates the catalog
         ///
         /// \param[in,out] _comm iRODS server comm struct
-        /// \param[in] _ctx Context for publishing an RST entry (see #context for details)
+        /// \param[in] _ctx Context for publishing an RST entry (see `publish::context` for details)
         ///
         /// \return A tuple containing the JSON output and error code returned by `rs_data_object_finalize`.
         ///
