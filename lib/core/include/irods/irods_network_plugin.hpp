@@ -57,4 +57,3 @@ namespace irods {
 
 #endif // ___IRODS_NETWORK_PLUGIN_HPP__
 
-

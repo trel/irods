@@ -25,9 +25,11 @@
 
 namespace irods
 {
+    /// @brief Tracks queued delay rule identifiers.
     class delay_queue // NOLINT(cppcoreguidelines-special-member-functions)
     {
       public:
+        /// @brief Constructs a delay queue with an optional bounded memory pool.
         explicit delay_queue(std::int64_t _pool_size_in_bytes)
         {
             namespace bpmr = boost::container::pmr;
@@ -51,9 +53,13 @@ namespace irods
             }
         }
 
+        /// @brief Copy construction is disabled.
         delay_queue(const delay_queue&) = delete;
+
+        /// @brief Copy assignment is disabled.
         delay_queue& operator=(const delay_queue&) = delete;
 
+        /// @brief Returns whether the queue contains the provided rule identifier.
         bool contains_rule_id(const std::string& _rule_id)
         {
             std::lock_guard rules_lock{rules_mutex_};
@@ -62,12 +68,14 @@ namespace irods
             });
         }
 
+        /// @brief Adds a rule identifier to the queue.
         void enqueue_rule(const std::string& rule_id)
         {
             std::lock_guard rules_lock{rules_mutex_};
             queued_rules_->emplace_back(rule_id.data());
         }
 
+        /// @brief Removes a rule identifier from the queue.
         void dequeue_rule(const std::string& rule_id)
         {
             std::lock_guard rules_lock{rules_mutex_};
@@ -80,11 +88,17 @@ namespace irods
         }
 
       private:
+        /// @brief Protects access to the queued rule list.
         std::mutex rules_mutex_;
 #if BOOST_VERSION >= 107200
+        /// @brief Owns storage used by the fixed buffer memory resource.
         std::vector<std::byte> buffer_;
 #endif // BOOST_VERSION >= 107200
+
+        /// @brief Allocator backing the queue storage.
         std::unique_ptr<boost::container::pmr::memory_resource> allocator_;
+
+        /// @brief The queued rule identifiers.
         std::unique_ptr<boost::container::pmr::vector<boost::container::pmr::string>> queued_rules_;
     }; // delay_queue
 } // namespace irods

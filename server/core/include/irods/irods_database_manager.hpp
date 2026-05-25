@@ -15,11 +15,15 @@ namespace irods {
         public:
             // =-=-=-=-=-=-=-
             // constructors
+            /// @brief Constructs a database manager.
             database_manager();
+
+            /// @brief Copy-constructs a database manager.
             database_manager( const database_manager& );
 
             // =-=-=-=-=-=-=-
             // destructor
+            /// @brief Destroys a database manager.
             virtual ~database_manager();
 
             /// =-=-=-=-=-=-=-
@@ -39,6 +43,7 @@ namespace irods {
                 const std::string&,   // context
                 database_ptr& ); // plugin instance
 
+            /// @brief Loads a database plugin using the provided plugin information.
             error load_database_plugin(
                 database_ptr&,        // plugin
                 const std::string&,   // plugin name
@@ -48,16 +53,17 @@ namespace irods {
         private:
             // =-=-=-=-=-=-=-
             // attributes
+            /// @brief Stores loaded database plugins by instance name.
             lookup_table< database_ptr > plugins_;
 
     }; // class database_manager
 
+    /// @brief Global database manager instance.
     extern database_manager db_mgr;
 
 }; // namespace irods
 
 #endif // __IRODS_DATABASE_MANAGER_HPP__
-
 
 
 

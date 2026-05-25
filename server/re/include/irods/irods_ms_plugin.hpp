@@ -28,6 +28,7 @@ namespace irods {
     class ms_table_entry : public plugin_base {
         public:
 
+            /// @brief Function pointer type for a legacy microservice.
             typedef int ( *ms_func_ptr )( ... );
 
             // =-=-=-=-=-=-=-
@@ -35,16 +36,19 @@ namespace irods {
 
             // =-=-=-=-=-=-=-
             // Constructors
+            /// @brief Constructs an empty microservice table entry.
             ms_table_entry( );
 
             // =-=-=-=-=-=-=-
             // NOTE :: this ctor should be called by plugin authors
+            /// @brief Constructs a microservice table entry with an argument count.
             ms_table_entry(
                     int ); // num ms args
 
             // =-=-=-=-=-=-=-
             // NOTE :: called internally for static plugins
             //         with no type checking
+            /// @brief Constructs a microservice table entry for a static plugin.
             ms_table_entry(
                 const std::string&, // ms name
                 unsigned int,                // num ms args
@@ -52,14 +56,17 @@ namespace irods {
 
             // =-=-=-=-=-=-=-
             // copy ctor
+            /// @brief Copy-constructs a microservice table entry.
             ms_table_entry( const ms_table_entry& _rhs );
 
             // =-=-=-=-=-=-=-
             // Assignment Operator - necessary for stl containers
+            /// @brief Assigns one microservice table entry to another.
             ms_table_entry& operator=( const ms_table_entry& _rhs );
 
             // =-=-=-=-=-=-=-
             // Destructor
+            /// @brief Destroys a microservice table entry.
             virtual ~ms_table_entry();
 
             /// =-=-=-=-=-=-=-
@@ -86,6 +93,7 @@ namespace irods {
 
                 } // add_operation
 
+            /// @brief Invokes the currently selected microservice operation.
             template<typename... types_t>
                 int call_handler(types_t... _t ) {
                     if( !operations_.has_entry(operation_name_) ) {
@@ -114,27 +122,36 @@ namespace irods {
 
                 } // call_handler
 
+            /// @brief Invokes the microservice using the rule engine call interface.
             int call(ruleExecInfo_t*,std::vector<msParam_t*>&);
+
+            /// @brief Returns the configured number of microservice arguments.
             unsigned int num_args() { return num_args_; }
 
         private:
+            /// @brief Stores the active operation name.
             std::string operation_name_;
+
+            /// @brief Stores the expected number of microservice arguments.
             unsigned int num_args_;
 
     }; // class ms_table_entry
 
 // =-=-=-=-=-=-=-
 // create a lookup table for ms_table_entry value type
+    /// @brief Lookup table type for microservice table entries.
     typedef lookup_table<ms_table_entry*> ms_table;
 
 // =-=-=-=-=-=-=-
 // given the name of a microservice, try to load the shared object
 // and then register that ms with the table
+    /// @brief Loads and registers a microservice plugin by name.
     error load_microservice_plugin( ms_table& _table, const std::string& _ms );
 
 
 }; // namespace irods
 
+/// @brief Looks up an action table entry by action name.
 int actionTableLookUp( irods::ms_table_entry&, char *action );
 
 #endif // __IRODS_MS_PLUGIN_HPP__
