@@ -5,8 +5,7 @@
 
 /** Input for starting SSL negotiation on a client connection. */
 typedef struct {
-    /** Reserved argument for the SSL start request. */
-    char *arg0;
+    char *arg0; ///< Reserved argument for the SSL start request.
 } sslStartInp_t;
 /** Packing instruction string for ::sslStartInp_t. */
 #define sslStartInp_PI "str *arg0;"

@@ -8,14 +8,10 @@
 
 /** Descriptor describing an open special collection query context. */
 typedef struct specCollDesc {
-    /** Low-level descriptor index associated with the special collection. */
-    int l3descInx;
-    /** Non-zero when this descriptor slot is in use. */
-    int inuseFlag;
-    /** Data object information associated with the special collection. */
-    dataObjInfo_t *dataObjInfo;
-    /** Index of the parent special collection descriptor. */
-    int parentInx;
+    int l3descInx; ///< Low-level descriptor index associated with the special collection.
+    int inuseFlag; ///< Non-zero when this descriptor slot is in use.
+    dataObjInfo_t *dataObjInfo; ///< Data object information associated with the special collection.
+    int parentInx; ///< Index of the parent special collection descriptor.
 } specCollDesc_t;
 
 /** Maximum number of tracked special collection descriptors. */

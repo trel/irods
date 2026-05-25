@@ -7,21 +7,14 @@
 
 /** Input for executing a registered specific query. */
 typedef struct SpecificQueryInp {
-    /** Registered SQL alias or statement to execute. */
-    char *sql;
-    /** Optional bind variable arguments for the query. */
-    char *args[10];
+    char *sql; ///< Registered SQL alias or statement to execute.
+    char *args[10]; ///< Optional bind variable arguments for the query.
 
-    /** Maximum number of rows to return for this request. */
-    int maxRows;
-    /** Continuation index used to fetch additional rows. */
-    int continueInx;
-    /** Row offset for the query request. */
-    int rowOffset;
-    /** Bitmask of query options. */
-    int options;
-    /** Conditional input keywords for the specific query. */
-    keyValPair_t condInput;
+    int maxRows; ///< Maximum number of rows to return for this request.
+    int continueInx; ///< Continuation index used to fetch additional rows.
+    int rowOffset; ///< Row offset for the query request.
+    int options; ///< Bitmask of query options.
+    keyValPair_t condInput; ///< Conditional input keywords for the specific query.
 } specificQueryInp_t;
 /** Packing instruction string for ::specificQueryInp_t. */
 #define specificQueryInp_PI "str *sql; str *arg1; str *arg2; str *arg3; str *arg4; str *arg5; str *arg6; str *arg7; str *arg8; str *arg9; str *arg10; int maxRows; int continueInx; int rowOffset; int options; struct KeyValPair_PI;"

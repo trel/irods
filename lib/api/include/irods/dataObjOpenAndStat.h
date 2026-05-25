@@ -6,13 +6,13 @@
 #include "irods/dataObjInpOut.h"
 
 typedef struct OpenStat {
-    rodsLong_t dataSize;
-    char dataType[NAME_LEN];
-    char dataMode[SHORT_STR_LEN];
-    int l3descInx;
-    int replStatus;
-    int rescTypeInx;
-    int replNum;
+    rodsLong_t dataSize; ///< Size of the opened data object.
+    char dataType[NAME_LEN]; ///< Data type associated with the opened replica.
+    char dataMode[SHORT_STR_LEN]; ///< Mode string for the opened replica.
+    int l3descInx; ///< Level-3 descriptor index returned by the server.
+    int replStatus; ///< Replica status for the opened data object.
+    int rescTypeInx; ///< Resource type index for the opened replica.
+    int replNum; ///< Replica number for the opened data object.
 } openStat_t;
 #define OpenStat_PI "double dataSize; str dataType[NAME_LEN]; str dataMode[SHORT_STR_LEN]; int l3descInx; int replStatus; int rescTypeInx; int replNum;"
 
@@ -43,6 +43,15 @@ typedef struct OpenStat {
 #ifdef __cplusplus
 extern "C"
 #endif
+/**
+ * Open a data object and return replica status information.
+ *
+ * @param[in] conn Client connection handle.
+ * @param[in] dataObjInp Data object open request.
+ * @param[out] openStat Output structure describing the opened replica.
+ *
+ * @return Operation status.
+ */
 int rcDataObjOpenAndStat( rcComm_t *conn, dataObjInp_t *dataObjInp, openStat_t **openStat );
 
 #endif

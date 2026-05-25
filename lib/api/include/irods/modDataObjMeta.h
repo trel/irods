@@ -6,8 +6,8 @@ struct DataObjInfo;
 struct KeyValPair;
 
 typedef struct ModDataObjMetaInp {
-    struct DataObjInfo* dataObjInfo;
-    struct KeyValPair* regParam;
+    struct DataObjInfo* dataObjInfo; ///< Data object metadata to update.
+    struct KeyValPair* regParam; ///< Registration parameters describing the update.
 } modDataObjMeta_t;
 #define ModDataObjMeta_PI "struct *DataObjInfo_PI; struct *KeyValPair_PI;"
 
@@ -32,4 +32,3 @@ int rcModDataObjMeta(struct RcComm* _comm, struct ModDataObjMetaInp* _modDataObj
 #endif
 
 #endif // MOD_DATA_OBJ_META_H__
-

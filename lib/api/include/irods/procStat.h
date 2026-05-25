@@ -26,12 +26,9 @@
 
 /** Input for querying server process status information. */
 typedef struct {
-    /** Server address to query when targeting a specific host. */
-    char addr[LONG_NAME_LEN];
-    /** Zone containing the target server. */
-    char rodsZone[NAME_LEN];
-    /** Conditional input keywords for the process status query. */
-    keyValPair_t condInput;
+    char addr[LONG_NAME_LEN]; ///< Server address to query when targeting a specific host.
+    char rodsZone[NAME_LEN]; ///< Zone containing the target server.
+    keyValPair_t condInput; ///< Conditional input keywords for the process status query.
 } procStatInp_t;
 
 /** Packing instruction string for ::procStatInp_t. */

@@ -6,12 +6,9 @@
 
 /** Input for registering an existing replica in the catalog. */
 typedef struct {
-    /** Source replica metadata used as the registration template. */
-    dataObjInfo_t *srcDataObjInfo;
-    /** Destination replica metadata to register. */
-    dataObjInfo_t *destDataObjInfo;
-    /** Conditional input keywords for replica registration. */
-    keyValPair_t condInput;
+    dataObjInfo_t *srcDataObjInfo; ///< Source replica metadata used as the registration template.
+    dataObjInfo_t *destDataObjInfo; ///< Destination replica metadata to register.
+    keyValPair_t condInput; ///< Conditional input keywords for replica registration.
 } regReplica_t;
 /** Packing instruction string for ::regReplica_t. */
 #define RegReplica_PI "struct *DataObjInfo_PI; struct *DataObjInfo_PI; struct KeyValPair_PI;"

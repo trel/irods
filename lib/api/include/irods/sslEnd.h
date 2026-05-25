@@ -5,8 +5,7 @@
 
 /** Input for ending SSL negotiation on a client connection. */
 typedef struct {
-    /** Reserved argument for the SSL end request. */
-    char *arg0;
+    char *arg0; ///< Reserved argument for the SSL end request.
 } sslEndInp_t;
 /** Packing instruction string for ::sslEndInp_t. */
 #define sslEndInp_PI "str *arg0;"

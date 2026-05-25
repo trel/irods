@@ -11,12 +11,12 @@
 #define RCAT_ENABLED            1
 
 typedef struct MiscSvrInfo {
-    int serverType;     // RCAT_ENABLED or RCAT_NOT_ENABLED
-    uint serverBootTime;
-    char relVersion[NAME_LEN];    // the release version number
-    char apiVersion[NAME_LEN];    // the API version number
-    char rodsZone[NAME_LEN];      // the zone of this server
-    bytesBuf_t certinfo;
+    int serverType; ///< RCAT_ENABLED or RCAT_NOT_ENABLED.
+    uint serverBootTime; ///< Server boot timestamp.
+    char relVersion[NAME_LEN]; ///< Release version number.
+    char apiVersion[NAME_LEN]; ///< API version number.
+    char rodsZone[NAME_LEN]; ///< Zone served by this server.
+    bytesBuf_t certinfo; ///< Certificate information returned by the server.
 } miscSvrInfo_t;
 
 #define MiscSvrInfo_PI                                                                                               \
@@ -27,6 +27,14 @@ typedef struct MiscSvrInfo {
 extern "C" {
 #endif
 
+/**
+ * Query miscellaneous server information.
+ *
+ * @param[in] conn Client connection handle.
+ * @param[out] outSvrInfo Output structure describing the target server.
+ *
+ * @return Operation status.
+ */
 int rcGetMiscSvrInfo(rcComm_t* conn, miscSvrInfo_t** outSvrInfo);
 
 #ifdef __cplusplus
