@@ -497,6 +497,8 @@ FunctionDesc *newConstructorFD2( Node* type, Region *r );
 /// Allocates a deconstructor descriptor.
 FunctionDesc *newDeconstructorFD( char *type, int proj, Region *r );
 /// Allocates a rule-index-list descriptor.
+///
+/// The descriptor references a rule index list and its associated type information.
 FunctionDesc *newRuleIndexListFD( RuleIndexList *ruleIndexList, ExprType *, Region *r );
 
 /// Sets the source base for a node.

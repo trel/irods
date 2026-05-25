@@ -79,8 +79,16 @@ int applyRuleWithInOutVars(
 void freeCmdExecOut( execCmdOut_t *ruleExecOut );
 
 /// Applies the post-processing rule for data object reads.
+///
+/// \param[in] rsComm Server communication context.
+/// \param[in] dataObjReadOutBBuf Read output buffer.
+/// \param[in] objPath Path of the object that was read.
 int applyRuleForPostProcForRead( RsComm *rsComm, bytesBuf_t *dataObjReadOutBBuf, char *objPath );
 /// Applies the post-processing rule for data object writes.
+///
+/// \param[in] rsComm Server communication context.
+/// \param[in] dataObjWriteOutBBuf Write output buffer.
+/// \param[in] objPath Path of the object that was written.
 int applyRuleForPostProcForWrite( RsComm *rsComm, bytesBuf_t *dataObjWriteOutBBuf, char *objPath );
 /// Applies a rule using a raw argument vector.
 int applyRuleArg( const char *action, const char *args[MAX_NUM_OF_ARGS_IN_ACTION], int argc,
@@ -95,8 +103,16 @@ int initReiWithCollInp( ruleExecInfo_t *rei, RsComm *rsComm,
 
 
 /// Writes a string to the destination identified by `writeId`.
+///
+/// \param[in] writeId Identifier of the destination stream.
+/// \param[in] writeStr String to write.
+/// \param[in] rei Rule execution context.
 int _writeString( char *writeId, char *writeStr, ruleExecInfo_t *rei );
 /// Writes a string microservice output value.
+///
+/// \param[in] where Destination parameter.
+/// \param[in] inString Input string parameter.
+/// \param[in] rei Rule execution context.
 int writeString( msParam_t* where, msParam_t* inString, ruleExecInfo_t *rei );
 
 /// Returns tagged values parsed from a delimited string.
@@ -201,15 +217,23 @@ int copyKeyValPairStruct( keyValPair_t *from, keyValPair_t *to );
 int freeKeyValPairStruct( keyValPair_t *rs );
 
 /// Pushes a string value onto a `strArray_t` stack.
+///
+/// \param[in,out] strArray Stack to update.
+/// \param[in] value String to append.
 int pushStack( strArray_t *strArray, char *value );
 
 /// Pops a string value from a `strArray_t` stack.
+///
+/// \param[in,out] strArray Stack to update.
+/// \param[out] value Buffer receiving the removed string.
 int popStack( strArray_t *strArray, char *value );
 
 /// Clears msParam-related state stored in a rule execution context.
 int clearMsparamInRei( ruleExecInfo_t *rei );
 
 /// Allocates memory and zero-fills the result.
+///
+/// \param[in] s Number of bytes to allocate.
 void *mallocAndZero( int s );
 
 #endif // IRODS_RE_STRUCTS_HPP
