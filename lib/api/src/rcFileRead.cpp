@@ -2,7 +2,7 @@
 #include "irods/procApiRequest.h"
 #include "irods/apiNumber.h"
 
-/**
+/*
  * \fn rcFileRead( rcComm_t *conn, fileReadInp_t *fileReadInp, bytesBuf_t *fileReadOutBBuf )
  *
  * \brief Read a file.
@@ -19,7 +19,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 int
 rcFileRead( rcComm_t *conn, fileReadInp_t *fileReadInp,
             bytesBuf_t *fileReadOutBBuf ) {
@@ -30,4 +30,3 @@ rcFileRead( rcComm_t *conn, fileReadInp_t *fileReadInp,
 
     return status;
 }
-

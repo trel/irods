@@ -2,7 +2,7 @@
 #include "irods/procApiRequest.h"
 #include "irods/apiNumber.h"
 
-/**
+/*
  * \fn rcUnregDataObj( rcComm_t *conn, unregDataObj_t *unregDataObjInp )
  *
  * \brief Unregister a data object.
@@ -18,7 +18,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 int
 rcUnregDataObj( rcComm_t *conn, unregDataObj_t *unregDataObjInp ) {
     int status;
