@@ -686,6 +686,7 @@ irods::error mock_archive_file_rebalance(
 //    necessary to do custom parsing of the context string to place
 //    any useful values into the property map for reference in later
 //    operations.  semicolon is the preferred delimiter
+/// Resource plugin implementing the mock archive example resource.
 class mockarchive_resource : public irods::resource {
         // =-=-=-=-=-=-=-
         // 3a. create a class to provide maintenance operations, this is only for example
@@ -715,6 +716,7 @@ class mockarchive_resource : public irods::resource {
         }; // class maintenance_operation
 
     public:
+        /// Constructs the mock archive resource plugin instance.
         mockarchive_resource( const std::string& _inst_name,
                               const std::string& _context ) :
             irods::resource( _inst_name, _context ) {

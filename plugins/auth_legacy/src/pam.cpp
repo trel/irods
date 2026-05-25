@@ -489,8 +489,10 @@ irods::error pam_auth_client_response(
 // derive a new pam_auth auth plugin from
 // the auth plugin base class for handling
 // native authentication
+/// Authentication plugin implementing legacy PAM authentication.
 class pam_auth_plugin : public irods::auth {
     public:
+        /// Constructs the PAM authentication plugin instance.
         pam_auth_plugin(
             const std::string& _nm,
             const std::string& _ctx ) :

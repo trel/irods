@@ -1111,6 +1111,7 @@ irods::error non_blocking_file_rebalance(
 //    necessary to do custom parsing of the context string to place
 //    any useful values into the property map for reference in later
 //    operations.  semicolon is the preferred delimiter
+/// Resource plugin implementing non-blocking resource behavior.
 class non_blocking_resource : public irods::resource {
         // =-=-=-=-=-=-=-
         // 3a. create a class to provide maintenance operations, this is only for example
@@ -1141,6 +1142,7 @@ class non_blocking_resource : public irods::resource {
         }; // class maintenance_operation
 
     public:
+        /// Constructs the non-blocking resource plugin instance.
         non_blocking_resource(
             const std::string& _inst_name,
             const std::string& _context ) :
@@ -1319,4 +1321,3 @@ irods::resource* plugin_factory( const std::string& _inst_name, const std::strin
     return dynamic_cast<irods::resource*>( resc );
 
 } // plugin_factory
-

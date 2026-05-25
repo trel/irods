@@ -905,8 +905,10 @@ irods::error load_balanced_file_rebalance(irods::plugin_context& _ctx)
 //    necessary to do custom parsing of the context string to place
 //    any useful values into the property map for reference in later
 //    operations.  semicolon is the preferred delimiter
+/// Resource plugin implementing load-balanced resource behavior.
 class load_balanced_resource : public irods::resource {
     public:
+        /// Constructs the load-balanced resource plugin instance.
         load_balanced_resource(
             const std::string& _inst_name,
             const std::string& _context ) :
