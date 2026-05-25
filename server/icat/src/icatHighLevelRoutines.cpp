@@ -589,11 +589,7 @@ int chlRegReplica(
 
 } // chlRegReplica
 
-/// =-=-=-=-=-=-=-
-/// @brief unregDataObj - Unregister a data object
-/// @param[in] _comm The server communication handle.
-/// @param[in] _data_obj_info Information describing the data object to unregister.
-/// @param[in] _cond_input Conditional input controlling unregister behavior.
+// unregDataObj - Unregister a data object.
 int chlUnregDataObj(
     rsComm_t*      _comm,
     dataObjInfo_t* _data_obj_info,
@@ -806,10 +802,7 @@ int chlDelRuleExec(
 
 } // chlDelRuleExec
 
-/// =-=-=-=-=-=-=-
-/// @brief Adds the child, with context, to the resource all specified in the resc_input map
-/// @param[in] _comm The server communication handle.
-/// @param[in] _resc_input Resource properties describing the parent/child relationship.
+// Adds the child, with context, to the resource specified in the resc_input map.
 int chlAddChildResc(
     rsComm_t*   _comm,
     std::map<std::string, std::string>& _resc_input ) {
@@ -912,10 +905,7 @@ int chlRegResc(
 
 } // chlRegResc
 
-/// =-=-=-=-=-=-=-
-/// @brief Remove a child from its parent
-/// @param[in] _comm The server communication handle.
-/// @param[in] _resc_input Resource properties describing the parent/child relationship.
+// Removes a child from its parent.
 int chlDelChildResc(
     rsComm_t*   _comm,
     std::map<std::string, std::string>& _resc_input ) {
@@ -4225,11 +4215,7 @@ int chlGetDistinctDataObjsMissingFromChildGivenParent(
 
 } // chlGetDistinctDataObjsMissingFromChildGivenParent
 
-/// =-=-=-=-=-=-=-
-/// @brief Given a resource, resolves the hierarchy down to said resource
-/// @param[in] _resc_name The resource name to resolve.
-/// @param[in] _zone_name The zone containing the resource.
-/// @param[out] _hierarchy The resolved resource hierarchy.
+// Given a resource, resolves the hierarchy down to said resource.
 int chlGetHierarchyForResc(
     const std::string& _resc_name,
     const std::string& _zone_name,
@@ -4282,17 +4268,7 @@ int chlGetHierarchyForResc(
 
 } // chlGetHierarchyForResc
 
-/// =-=-=-=-=-=-=-
-/// @brief Administrative operations on a ticket.
-///        create, modify, and remove.
-///        ticketString is either the ticket-string or ticket-id.
-/// @param[in] _comm The server communication handle.
-/// @param[in] _op_name The administrative operation to perform.
-/// @param[in] _ticket_string The ticket identifier or ticket string.
-/// @param[in] _arg3 The first operation-specific argument.
-/// @param[in] _arg4 The second operation-specific argument.
-/// @param[in] _arg5 The third operation-specific argument.
-/// @param[in] _cond_input Optional conditional input for the ticket operation.
+// Administrative operations on a ticket: create, modify, and remove.
 int chlModTicket(
     rsComm_t*         _comm,
     const char*       _op_name,

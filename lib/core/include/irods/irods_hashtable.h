@@ -25,7 +25,7 @@ struct bucket {
 /// \brief Represents a hash table of string keys to opaque values.
 typedef struct hashtable {
     struct bucket **buckets; ///< Bucket array.
-    int size; /* capacity */  ///< Total bucket capacity.
+    int size;                 ///< Total bucket capacity.
     int len;                  ///< Number of stored entries.
     int dynamic;              ///< Indicates whether storage is dynamically managed.
     Region *bucketRegion;     ///< Region used for bucket allocation.

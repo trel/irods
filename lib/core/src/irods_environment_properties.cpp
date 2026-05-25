@@ -74,7 +74,7 @@ namespace irods {
         return instance;
     }
 
-    /* Doxygen should ignore the singleton constructor implementation. */
+    /// \cond IRODS_DOXYGEN_INTERNAL
     environment_properties::environment_properties() {
         capture();
     } // ctor
@@ -115,7 +115,7 @@ namespace irods {
         }
 
     } // capture_json
-    /* Doxygen should ignore the private JSON capture helper implementation. */
+    /// \endcond
 
     void environment_properties::remove(const std::string& _key ) {
         config_props_.remove(_key);

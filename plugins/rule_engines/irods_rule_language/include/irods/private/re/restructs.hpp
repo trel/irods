@@ -336,7 +336,7 @@ struct node {
     int ival; ///< Integer payload.
     /* when this node represents a type or a pattern, this field indicates whether the trailing subtree represents varargs */
     ExprType *exprType; ///< Inferred or declared expression type.
-    ExprType *coercionType; /* coercion type */ ///< Runtime coercion target type.
+    ExprType *coercionType; ///< Runtime coercion target type.
     char *text; ///< Text payload.
     rodsLong_t expr; ///< Source position or integer payload.
     struct node **subtrees; ///< Child node array.
