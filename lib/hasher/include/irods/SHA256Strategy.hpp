@@ -9,7 +9,9 @@
 #include <string_view>
 
 namespace irods {
+    /// Name of the SHA256 hashing strategy.
     extern const std::string SHA256_NAME;
+    /// Hash strategy implementation for SHA256 digests.
     class SHA256Strategy : public HashStrategy {
         public:
             SHA256Strategy() {};

@@ -9,7 +9,9 @@
 #include <string_view>
 
 namespace irods {
+    /// Name of the SHA512 hashing strategy.
     extern const std::string SHA512_NAME;
+    /// Hash strategy implementation for SHA512 digests.
     class SHA512Strategy : public HashStrategy {
         public:
             SHA512Strategy() {};

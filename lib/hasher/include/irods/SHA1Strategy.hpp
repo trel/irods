@@ -9,7 +9,9 @@
 #include <string_view>
 
 namespace irods {
+    /// Name of the SHA1 hashing strategy.
     extern const std::string SHA1_NAME;
+    /// Hash strategy implementation for SHA1 digests.
     class SHA1Strategy : public HashStrategy {
         public:
             SHA1Strategy() {};

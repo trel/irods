@@ -48,6 +48,7 @@ namespace
 namespace irods::experimental::log
 {
 #ifdef IRODS_ENABLE_SYSLOG
+    /// Sink used by tests to serialize log output through an IPC-backed file.
     class test_mode_ipc_sink // NOLINT(cppcoreguidelines-special-member-functions)
         : public spdlog::sinks::base_sink<spdlog::details::null_mutex>
     {
@@ -105,6 +106,7 @@ namespace irods::experimental::log
         const pid_t owner_pid_;
     }; // class test_mode_ipc_sink
 
+    /// Sink used to serialize writes to standard output across processes.
     class stdout_ipc_sink // NOLINT(cppcoreguidelines-special-member-functions)
         : public spdlog::sinks::base_sink<spdlog::details::null_mutex>
     {

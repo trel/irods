@@ -15,8 +15,10 @@
 
 namespace irods
 {
+    /// Name of the CRC64NVME hashing strategy.
     extern const std::string CRC64NVME_NAME;
 
+    /// Hash strategy implementation for CRC64NVME digests.
     class CRC64NVMEStrategy : public HashStrategy
     {
       public:
