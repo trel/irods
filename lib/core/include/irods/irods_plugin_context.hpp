@@ -140,10 +140,10 @@ namespace irods {
         protected:
             // =-=-=-=-=-=-=-
             // attributes
-            rsComm_t*                   comm_;      // server connection handle
-            irods::plugin_property_map* prop_map_;  // resource property map
-            first_class_object_ptr      fco_;       // first class object in question
-            std::string                 results_;   // results from the pre op rule call
+            rsComm_t*                   comm_;      ///< Server communication handle.
+            irods::plugin_property_map* prop_map_;  ///< Plugin property map.
+            first_class_object_ptr      fco_;       ///< First-class object bound to the operation.
+            std::string                 results_;   ///< Results returned by the pre-operation rule.
 
     }; // class plugin_context
 

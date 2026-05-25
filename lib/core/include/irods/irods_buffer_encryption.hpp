@@ -18,88 +18,84 @@
 
 namespace irods {
 
-/// =-=-=-=-=-=-=-
-/// @brief functor which manages buffer encryption
-///        used for parallel transfers.  based on
-///        SSL EVP library
+/// @brief Encrypts and decrypts transfer buffers using OpenSSL EVP.
     class buffer_crypt {
 
         public:
-            // =-=-=-=-=-=-=-
-            // typedef for bounded array
+            /// Byte buffer type used for keys, IVs, and payloads.
             typedef std::vector< unsigned char > array_t;
 
-            // =-=-=-=-=-=-=-
-            // con/de structors
+            /// Constructs a buffer encryptor using default settings.
             buffer_crypt();
+
+            /// Constructs a buffer encryptor using the provided algorithm settings.
             buffer_crypt(
                 int,           // key size in bytes
                 int,           // salt size in bytes
                 int,           // num hash rounds
                 const char* ); // algorithm
+
+            /// Destroys the buffer encryptor.
             ~buffer_crypt();
 
-            /// =-=-=-=-=-=-=-
-            /// @brief given a string, encrypt it
+            /// Encrypts a plaintext buffer using the provided key material.
             irods::error encrypt(
                 const array_t&, // key
                 const array_t&, // initialization vector
                 const array_t&, // plaintext buffer
                 array_t& );     // encrypted buffer
 
-            /// =-=-=-=-=-=-=-
-            /// @brief given a string, decrypt it
+            /// Decrypts a ciphertext buffer using the provided key material.
             irods::error decrypt(
                 const array_t&, // key
                 const array_t&, // initialization vector
                 const array_t&, // encrypted buffer
                 array_t& );     // plaintext buffer
 
-            /// =-=-=-=-=-=-=-
-            /// @brief given a key, create a hashed key and IV
+            /// Generates an initialization vector for the current configuration.
             irods::error initialization_vector(
                 array_t& );     // initialization vector
 
-            /// =-=-=-=-=-=-=-
-            /// @brief generate a random byte key
+            /// Generates a random byte key.
             static irods::error generate_key(
                 array_t&,       // random byte key
                 int );          // key size in bytes
 
-            /// =-=-=-=-=-=-=-
-            /// @brief hex encode buffer_crypt::array_t
+            /// Encodes a byte buffer as hexadecimal text.
             static irods::error hex_encode(
                 const array_t&,     // bytes to encode
                 std::string& );     // hex encoded bytes
 
-            /// =-=-=-=-=-=-=-
-            /// @brief accessors for attributes
+            /// Returns the configured key size in bytes.
             int         key_size()        {
                 return key_size_;
             };
+
+            /// Returns the configured salt size in bytes.
             int         salt_size()       {
                 return salt_size_;
             };
+
+            /// Returns the configured number of hash rounds.
             int         num_hash_rounds() {
                 return num_hash_rounds_;
             };
+
+            /// Returns the configured cipher algorithm name.
             std::string algorithm()       {
                 return algorithm_;
             };
 
         private:
-            // =-=-=-=-=-=-=-
-            // attributes
-            int         key_size_;
-            int         salt_size_;
-            int         num_hash_rounds_;
-            std::string algorithm_;
+            int         key_size_; ///< Configured key size in bytes.
+            int         salt_size_; ///< Configured salt size in bytes.
+            int         num_hash_rounds_; ///< Configured number of hash rounds.
+            std::string algorithm_; ///< Configured cipher algorithm name.
 
     }; // class buffer_crypt
 
 }; // namespace irods
 
 #endif // __IRODS_BUFFER_ENCRYPTION_HPP__
-
 
 

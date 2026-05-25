@@ -64,6 +64,7 @@ namespace irods
         class connection_proxy // NOLINT(cppcoreguidelines-special-member-functions)
         {
           public:
+            /// Allows connection_pool to construct and manage proxies directly.
             friend class connection_pool;
 
             /// Constructs an empty connection_proxy.
@@ -75,7 +76,10 @@ namespace irods
             /// \since 4.2.9
             connection_proxy();
 
+            /// Constructs a connection_proxy by moving another instance.
             connection_proxy(connection_proxy&&) noexcept;
+
+            /// Replaces this connection_proxy by moving another instance into it.
             connection_proxy& operator=(connection_proxy&&) noexcept;
 
             /// Destructs the connection_proxy and returns the underlying RcComm to the pool.
@@ -108,17 +112,24 @@ namespace irods
             /// Transfers ownership of the underlying RcComm from the connection_proxy and
             /// connection_pool to the caller.
             ///
+            /// \return The released connection pointer.
+            ///
             /// \since 4.2.7
             RcComm* release();
 
           private:
+            /// Constructs a proxy for a specific pooled connection.
+            ///
+            /// \param[in] _pool The owning connection pool.
+            /// \param[in] _conn The connection being proxied.
+            /// \param[in] _index The pool slot containing the connection.
             connection_proxy(connection_pool& _pool, RcComm& _conn, int _index) noexcept;
 
-            static constexpr int uninitialized_index = -1;
+            static constexpr int uninitialized_index = -1; ///< Sentinel value for an invalid slot index.
 
-            connection_pool* pool_;
-            RcComm* conn_;
-            int index_;
+            connection_pool* pool_; ///< Owning connection pool.
+            RcComm* conn_; ///< Proxied connection pointer.
+            int index_; ///< Pool slot index for the connection.
         }; // class connection_proxy
 
         /// Constructs a connection_pool.
@@ -187,7 +198,7 @@ namespace irods
         /// Constructs a connection_pool.
         ///
         /// Each connection in the pool is authenticated as \p _proxy_username if provided.
-        /// Otherwise, the connections are authenticated as \p _username. API oeprations are
+        /// Otherwise, the connections are authenticated as \p _username. API operations are
         /// always executed as \p _username.
         ///
         /// This constructor allows use of non-native authentication schemes (e.g. PAM, Kerberos, etc).
@@ -211,50 +222,77 @@ namespace irods
                         std::function<void(RcComm&)> _auth_func,
                         const connection_pool_options& _options = {});
 
+        /// Deletes copy construction.
         connection_pool(const connection_pool&) = delete;
+
+        /// Deletes copy assignment.
         connection_pool& operator=(const connection_pool&) = delete;
 
         /// Returns a connection from the pool.
         ///
         /// This function will block if all connections are in use.
         ///
+        /// \return A proxy managing the retrieved connection.
+        ///
         /// \since 4.2.5
         connection_proxy get_connection();
 
       private:
+        /// Unique pointer type used to manage pooled connections.
         using connection_pointer = std::unique_ptr<RcComm, int (*)(RcComm*)>;
 
+        /// Tracks state associated with a single pooled connection.
         struct connection_context
         {
-            std::mutex mutex{};
-            std::atomic<bool> in_use{};
-            bool refresh{};
-            connection_pointer conn{nullptr, rcDisconnect};
-            std::chrono::steady_clock::time_point creation_time;
-            std::string latest_resc_mtime;
-            std::int32_t resc_count{};
-            std::int16_t retrieval_count{};
+            std::mutex mutex{}; ///< Protects access to this connection context.
+            std::atomic<bool> in_use{}; ///< Indicates whether the connection is checked out.
+            bool refresh{}; ///< Indicates whether the connection should be refreshed.
+            connection_pointer conn{nullptr, rcDisconnect}; ///< Managed connection handle.
+            std::chrono::steady_clock::time_point creation_time; ///< Time the connection was created.
+            std::string latest_resc_mtime; ///< Latest observed resource modification timestamp.
+            std::int32_t resc_count{}; ///< Latest observed resource count.
+            std::int16_t retrieval_count{}; ///< Number of times the connection was retrieved.
         }; // struct connection_context
 
+        /// Creates or recreates the connection at the specified index.
+        ///
+        /// \param[in] _index Pool slot to populate.
+        /// \param[in] _on_connect_error Callback invoked on connection failure.
+        /// \param[in] _on_login_error Callback invoked on authentication failure.
         void create_connection(int _index,
                                const std::function<void()>& _on_connect_error,
                                const std::function<void()>& _on_login_error);
 
+        /// Refreshes the connection stored at the specified index.
+        ///
+        /// \param[in] _index Pool slot to refresh.
+        /// \return Pointer to the refreshed connection.
         RcComm* refresh_connection(int _index);
 
+        /// Verifies that the connection at the specified index is still usable.
+        ///
+        /// \param[in] _index Pool slot to inspect.
+        /// \retval true If the connection is valid.
+        /// \retval false Otherwise.
         bool verify_connection(int _index);
 
+        /// Returns a checked-out connection to the pool.
+        ///
+        /// \param[in] _index Pool slot to release.
         void return_connection(int _index);
 
+        /// Releases pool ownership of the connection at the specified index.
+        ///
+        /// \param[in] _index Pool slot to detach.
         void release_connection(int _index);
 
-        const std::string host_;
-        const int port_;
-        const std::optional<experimental::fully_qualified_username> proxy_username_;
-        const experimental::fully_qualified_username username_;
-        std::function<void(RcComm&)> auth_func_;
-        std::vector<connection_context> conn_ctxs_;
-        connection_pool_options options_;
+        const std::string host_; ///< Hostname for new pooled connections.
+        const int port_; ///< Server port for new pooled connections.
+        const std::optional<experimental::fully_qualified_username> proxy_username_; ///< Optional proxy identity.
+        const experimental::fully_qualified_username username_; ///< User identity for API execution.
+        std::function<void(RcComm&)> auth_func_; ///< Authentication callback for each connection.
+        std::vector<connection_context> conn_ctxs_; ///< State for all pooled connections.
+        connection_pool_options options_; ///< Active connection refresh options.
     }; // class connection_pool
 
     /// Constructs a connection_pool on the heap.

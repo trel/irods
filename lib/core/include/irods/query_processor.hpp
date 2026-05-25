@@ -53,6 +53,7 @@ namespace irods
                 return promises.size();
             }
 
+            /// Allows query_processor to append job promises.
             friend query_processor;
 
         private:
@@ -67,6 +68,11 @@ namespace irods
         }; // class future
 
         /// Constructs a processor for the provided query and job.
+        ///
+        /// \param[in] _query The query string to execute.
+        /// \param[in] _job The callable to invoke for each result row.
+        /// \param[in] _limit The maximum number of rows to process.
+        /// \param[in] _type The query flavor to execute.
         query_processor(const std::string& _query,
                         job _job,
                         uint32_t _limit = 0,
@@ -79,6 +85,11 @@ namespace irods
         }
 
         /// Constructs a processor using the deprecated nested `query_type` alias.
+        ///
+        /// \param[in] _query The query string to execute.
+        /// \param[in] _job The callable to invoke for each result row.
+        /// \param[in] _limit The maximum number of rows to process.
+        /// \param[in] _type The deprecated query flavor value.
         [[deprecated("use irods::query_type")]]
         query_processor(const std::string& _query,
                         job _job,
@@ -100,6 +111,8 @@ namespace irods
 
         /// Executes the query and schedules one job per result row.
         ///
+        /// \param[in] _thread_pool The pool used to execute row-processing jobs.
+        /// \param[in] _conn The connection used to run the query.
         /// \return A future used to wait for the scheduled jobs.
         auto execute(thread_pool& _thread_pool, ConnectionType& _conn) -> future
         {

@@ -36,7 +36,7 @@ namespace irods
         /// Constructs a parser by copying another parser.
         configuration_parser(const configuration_parser& _other);
 
-        /// Constructs a parser and associates it with a configuration file path.
+        /// Constructs a parser and associates it with the provided configuration file path.
         configuration_parser(const std::string&);
 
         /// Replaces this parser with a copy of another parser.
@@ -45,30 +45,33 @@ namespace irods
         /// Removes all stored configuration values.
         void clear();
 
-        /// Loads configuration data from a file.
+        /// Loads configuration data from the file identified by the argument.
         ///
-        /// eturn An error object describing the outcome.
+        /// \return An error object describing the outcome.
         error load(const std::string&);
 
-        /// Writes the configuration to a file.
+        /// Writes the configuration to the file identified by the argument.
         ///
-        /// eturn An error object describing the outcome.
+        /// \return An error object describing the outcome.
         error write(const std::string&);
 
         /// Writes the configuration to the previously associated file.
         ///
-        /// eturn An error object describing the outcome.
+        /// \return An error object describing the outcome.
         error write();
 
         /// Returns whether a top-level key exists.
         ///
-        /// eturn `true` if the key exists, otherwise `false`.
+        /// \param[in] _key The key to inspect.
+        /// \return `true` if the key exists, otherwise `false`.
         bool has_entry(const std::string_view _key) const;
 
         /// Sets the value for a top-level key.
         ///
-        /// 	param T The value type to store.
-        /// eturn A reference to the stored value.
+        /// \tparam T The value type to store.
+        /// \param[in] _key The key to update.
+        /// \param[in] _val The value to store.
+        /// \return A reference to the stored value.
         template <typename T>
         T& set(const std::string& _key, const T& _val)
         {
@@ -78,8 +81,10 @@ namespace irods
 
         /// Sets the value identified by a nested key path.
         ///
-        /// 	param T The value type to store.
-        /// eturn A reference to the stored value.
+        /// \tparam T The value type to store.
+        /// \param[in] _keys The nested key path to update.
+        /// \param[in] _val The value to store.
+        /// \return A reference to the stored value.
         template <typename T>
         T& set(const key_path_t& _keys, const T& _val)
         {
@@ -113,8 +118,9 @@ namespace irods
 
         /// Returns the value stored at a top-level key.
         ///
-        /// 	param T The requested value type.
-        /// eturn A reference to the stored value.
+        /// \tparam T The requested value type.
+        /// \param[in] _key The key to inspect.
+        /// \return A reference to the stored value.
         template <typename T>
         T& get(const std::string& _key)
         {
@@ -131,8 +137,9 @@ namespace irods
 
         /// Returns the value stored at a nested key path.
         ///
-        /// 	param T The requested value type.
-        /// eturn A reference to the stored value.
+        /// \tparam T The requested value type.
+        /// \param[in] _keys The nested key path to inspect.
+        /// \return A reference to the stored value.
         template <typename T>
         T& get(const key_path_t& _keys)
         {
@@ -170,8 +177,9 @@ namespace irods
 
         /// Removes a top-level key and returns its value.
         ///
-        /// 	param T The expected value type.
-        /// eturn The removed value.
+        /// \tparam T The expected value type.
+        /// \param[in] _key The key to remove.
+        /// \return The removed value.
         template <typename T>
         T remove(const std::string& _key)
         {
@@ -185,11 +193,13 @@ namespace irods
         }
 
         /// Removes a top-level key without returning its value.
+        ///
+        /// \param[in] _key The key to remove.
         void remove(const std::string& _key);
 
         /// Returns the underlying top-level configuration map.
         ///
-        /// eturn The root configuration map.
+        /// \return The root configuration map.
         std::unordered_map<std::string, boost::any>& map()
         {
             return root_;
@@ -197,14 +207,27 @@ namespace irods
 
     private:
         /// Loads configuration data from a JSON file.
+        ///
+        /// \param[in] _filename Path to the JSON file.
+        /// \return An error object describing the outcome.
         error load_json_object(const std::string& _filename);
-        /// Loads configuration data from a JSON object.
+
+        /// Loads configuration data from an in-memory JSON object.
+        ///
+        /// \param[in] _json JSON object to convert.
+        /// \return An error object describing the outcome.
         error load_json_object(const nlohmann::json& _json);
 
         /// Converts a JSON value into its internal representation.
+        ///
+        /// \param[in] _json JSON value to convert.
+        /// \return Converted configuration value.
         boost::any convert_json(const nlohmann::json& _json);
 
         /// Replaces the current configuration map using copy-and-swap.
+        ///
+        /// \param[in] _object_to_swap_in New root object to adopt.
+        /// \return An error object describing the outcome.
         error copy_and_swap(const std::unordered_map<std::string, boost::any>& _object_to_swap_in);
 
         std::string file_name_; ///< Full path to the associated configuration file.
@@ -212,6 +235,8 @@ namespace irods
     }; // class configuration_parser
 
     /// Converts a configuration key into its environment-variable form.
+    ///
+    /// \return The environment-variable representation of the provided key.
     std::string to_env( const std::string& );
 } // namespace irods
 
