@@ -17,8 +17,11 @@
 // Server-side communication object.
 struct RsComm;
 #else
+/// Selects the client-side namespace implementation.
 #  define NAMESPACE_IMPL client
+/// Aliases the client-side communication type.
 #  define RxComm         RcComm
+/// Aliases the client-side GeneralAdmin API.
 #  define rxGeneralAdmin rcGeneralAdmin
 
 #  include "irods/generalAdmin.h"

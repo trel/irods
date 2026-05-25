@@ -13,7 +13,9 @@
 // Server-side communication object.
 struct RsComm;
 #else
+/// Aliases the client-side communication type.
 #    define RxComm         RcComm
+/// Selects the client-side namespace implementation.
 #    define NAMESPACE_IMPL client
 
 // Client-side communication object.
