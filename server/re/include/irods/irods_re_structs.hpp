@@ -40,7 +40,7 @@ typedef struct RuleExecInfo {
     char rescName[NAME_LEN]; ///< Resource name.
     // uoi => user object info
     userInfo_t *uoic;  /* client XXXX should get this from rsComm->clientUser */ ///< Client user information.
-    userInfo_t *uoip;  /* proxy XXXX should get this from rsComm->proxyUser */ ///< Proxy user information.
+    userInfo_t *uoip; ///< Proxy user information.
     collInfo_t *coi; ///< Collection information.
     userInfo_t *uoio;     /* other user info */ ///< Other user information.
     keyValPair_t *condInputData; ///< Additional conditional input values.

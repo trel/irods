@@ -70,7 +70,7 @@ struct l1desc
     [[deprecated]] dataObjInfo_t* otherDataObjInfo; ///< Deprecated pointer to secondary replica information.
     int copiesNeeded; ///< Number of additional copies required.
     rodsLong_t bytesWritten; ///< Number of bytes written through this descriptor.
-    rodsLong_t dataSize; /* this is the target size. The size in dataObjInfo is the registered size */ ///< Target size expected at close.
+    rodsLong_t dataSize; ///< Target size expected at close.
     int replStatus; /* the replica status */ ///< Replica status to apply on close.
     int chksumFlag; /* parsed from condition */ ///< Checksum operation requested for the replica.
     int srcL1descInx; ///< Source L1 descriptor index for related operations.
