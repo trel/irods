@@ -47,6 +47,7 @@ namespace
 
 namespace irods
 {
+    /// Serializes a C-style argument vector into a JSON array.
     auto to_json(char* _p[], int _size) -> nlohmann::json
     {
         auto argv = json::array();
@@ -58,6 +59,7 @@ namespace irods
         return argv;
     }
 
+    /// Serializes a key-value pair structure into a JSON object.
     auto to_json(const KeyValPair* _p) -> nlohmann::json
     {
         if (!_p) {
@@ -73,6 +75,7 @@ namespace irods
         return json_object;
     }
 
+    /// Serializes authentication information into JSON.
     auto to_json(const AuthInfo* _p) -> nlohmann::json
     {
         if (!_p) {
@@ -89,6 +92,7 @@ namespace irods
         };
     }
 
+    /// Serializes user supplemental information into JSON.
     auto to_json(const UserOtherInfo* _p) -> nlohmann::json
     {
         if (!_p) {
@@ -103,6 +107,7 @@ namespace irods
         };
     }
 
+    /// Serializes a user information structure into JSON.
     auto to_json(const UserInfo* _p) -> nlohmann::json
     {
         if (!_p) {
@@ -119,6 +124,7 @@ namespace irods
         };
     }
 
+    /// Serializes a microservice parameter into JSON.
     auto to_json(const MsParam* _p) -> nlohmann::json
     {
         if (!_p) {
@@ -176,6 +182,7 @@ namespace irods
         return param;
     }
 
+    /// Serializes a microservice parameter array into JSON.
     auto to_json(const MsParamArray* _p) -> nlohmann::json
     {
         if (!_p) {
@@ -197,6 +204,7 @@ namespace irods
         return param_array;
     }
 
+    /// Serializes rule execution state into JSON.
     auto to_json(const RuleExecInfo* _p) -> nlohmann::json
     {
         if (!_p) {
@@ -215,4 +223,3 @@ namespace irods
         };
     }
 } // namespace irods
-

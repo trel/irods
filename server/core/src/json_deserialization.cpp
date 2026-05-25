@@ -11,6 +11,7 @@ using json   = nlohmann::json;
 
 namespace irods
 {
+    /// Deserializes a JSON object into a key-value pair structure.
     auto to_key_value_pair(const nlohmann::json& _json) -> KeyValPair*
     {
         if (_json.is_null()) {
@@ -48,6 +49,7 @@ namespace irods
         return p;
     }
 
+    /// Deserializes a JSON value into a microservice parameter.
     auto to_ms_param(const nlohmann::json& _json) -> MsParam*
     {
         if (_json.is_null()) {
@@ -107,6 +109,7 @@ namespace irods
         return p;
     }
 
+    /// Deserializes a JSON array into a microservice parameter array.
     auto to_ms_param_array(const nlohmann::json& _json) -> MsParamArray*
     {
         if (_json.is_null()) {
@@ -130,6 +133,7 @@ namespace irods
         return p;
     }
 
+    /// Deserializes JSON into an authentication information structure.
     auto to_auth_info(const nlohmann::json& _json) -> AuthInfo
     {
         AuthInfo info{};
@@ -145,6 +149,7 @@ namespace irods
         return info;
     }
 
+    /// Deserializes JSON into user supplemental information.
     auto to_user_other_info(const nlohmann::json& _json) -> UserOtherInfo
     {
         UserOtherInfo info{};
@@ -157,6 +162,7 @@ namespace irods
         return info;
     }
 
+    /// Deserializes JSON into a heap-allocated user information structure.
     auto to_user_info(const nlohmann::json& _json) -> UserInfo*
     {
         if (_json.is_null()) {
@@ -178,6 +184,7 @@ namespace irods
         return p;
     }
 
+    /// Deserializes JSON text into a rule execution information structure.
     auto to_rule_execution_info(const std::string_view _json_string) -> RuleExecInfo
     {
         try {
@@ -202,4 +209,3 @@ namespace irods
         }
     }
 } // namespace irods
-

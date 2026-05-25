@@ -453,6 +453,7 @@ void reIterable_genQuery_finalize( ReIterableData *itrData, Region* r ) {
 }
 
 /* list iterable */
+/// Iteration state for traversing a list result.
 typedef struct reIterable_list_data {
     Res **elems; ///< Elements being iterated.
     int i; ///< Current element index.
@@ -487,6 +488,7 @@ void reIterable_list_finalize( ReIterableData *itrData, Region* ) {
 }
 
 /* intArray strArray genQueryOut iterable */
+/// Iteration state for traversing iRODS collection-like values.
 typedef struct reIterable_irods_data {
     int i; ///< Current element index.
     int n; ///< Total number of elements.
@@ -519,11 +521,12 @@ void reIterable_irods_finalize( ReIterableData *itrData, Region* ) {
 }
 
 /* path/collection iterable */
+/// Iteration state for traversing collections via server APIs.
 typedef struct reIterable_collection_data {
-    collInp_t *collInp;		/* input for rsOpenCollection */
-    collEnt_t *collEnt;						/* input for rsReadCollection */
-    int handleInx;							/* collection handler */
-    dataObjInp_t *dataObjInp;				/* will contain pathnames for each object (one at a time) */
+    collInp_t *collInp; ///< Input passed to `rsOpenCollection`.
+    collEnt_t *collEnt; ///< Entry buffer populated by `rsReadCollection`.
+    int handleInx; ///< Collection handle returned by the server.
+    dataObjInp_t *dataObjInp; ///< Per-entry data object input carrying discovered paths.
 } ReIterable_collection_data;
 
 void reIterable_collection_init( ReIterableData *itrData, Region* r ) {
