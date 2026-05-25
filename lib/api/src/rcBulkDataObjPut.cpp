@@ -4,7 +4,7 @@
 
 #include <cstring>
 
-/**
+/*
  * \fn rcBulkDataObjPut (rcComm_t *conn, bulkOprInp_t *bulkOprInp,
  *       bytesBuf_t *bulkOprInpBBuf)
  *
@@ -131,7 +131,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 
 int
 rcBulkDataObjPut( rcComm_t *conn, bulkOprInp_t *bulkOprInp,

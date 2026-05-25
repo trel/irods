@@ -5,7 +5,7 @@
 #include "irods/procApiRequest.h"
 #include "irods/apiNumber.h"
 
-/**
+/*
  * \fn rcAuthCheck( rcComm_t *conn, authCheckInp_t *authCheckInp, authCheckOut_t **authCheckOut )
  *
  * \brief Connect to the ICAT-enabled server to verify a user's login
@@ -31,7 +31,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 
 int
 rcAuthCheck( rcComm_t *conn, authCheckInp_t *authCheckInp,
