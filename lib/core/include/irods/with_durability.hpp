@@ -196,7 +196,8 @@ namespace irods::experimental
         struct last_type
         {
             /// Helper tag carrying one type from the pack.
-            template <typename T> struct tag { using type = T; };
+            template <typename T> struct tag { using type = T; ///< Stored type carried by the helper tag.
+            };
             /// Final type selected from the parameter pack.
             using type = typename decltype((tag<Ts>{}, ...))::type;
         };
