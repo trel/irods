@@ -51,9 +51,11 @@
 
 #if FMT_VERSION >= 100000
 #  include <fmt/chrono.h>
+#  /// Indicates whether fmt's chrono formatter support is available.
 #  define IRODS_CHRONO_FORMATTER_FMT 1
 #else
 #  include <ctime>
+#  /// Indicates whether fmt's chrono formatter support is available.
 #  define IRODS_CHRONO_FORMATTER_FMT 0
 #endif
 

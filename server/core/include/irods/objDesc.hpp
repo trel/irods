@@ -72,7 +72,7 @@ struct l1desc
     rodsLong_t bytesWritten; ///< Number of bytes written through this descriptor.
     rodsLong_t dataSize; ///< Target size expected at close.
     int replStatus; ///< Replica status to apply on close.
-    int chksumFlag; /* parsed from condition */ ///< Checksum operation requested for the replica.
+    int chksumFlag; ///< Checksum operation requested for the replica.
     int srcL1descInx; ///< Source L1 descriptor index for related operations.
     char chksum[CHKSUM_LEN]; ///< Input checksum value.
     int remoteL1descInx; ///< Remote L1 descriptor index for redirected operations.
