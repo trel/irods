@@ -24,42 +24,68 @@
 #include <thread>
 
 #include <nlohmann/json.hpp>
+/// @brief JSON type used by the experimental API framework.
 using json = nlohmann::json;
 
 namespace irods::experimental::api {
+    /// @brief Atomic flag type used to coordinate long-running operations.
     using flag_type = std::atomic_bool;
 
+    /// @brief Status strings published by experimental API operations.
     namespace states {
+        /// @brief Operation is paused.
         const std::string paused{"paused"};
+        /// @brief Operation failed.
         const std::string failed{"failed"};
+        /// @brief Operation is currently running.
         const std::string running{"running"};
+        /// @brief Operation state is not yet known.
         const std::string unknown{"unknown"};
+        /// @brief Operation completed successfully.
         const std::string complete{"complete"};
     }; // states
 
+    /// @brief Command strings accepted by experimental API operations.
     namespace commands {
+        /// @brief Requests that an operation pause.
         const std::string pause{"pause"};
+        /// @brief Requests that an operation resume.
         const std::string resume{"resume"};
+        /// @brief Requests that an operation cancel.
         const std::string cancel{"cancel"};
+        /// @brief Key naming the requested action.
         const std::string request{"request"};
+        /// @brief Requests the latest progress update.
         const std::string progress{"progress"};
     }; // commands
 
+    /// @brief Endpoint names exposed by experimental API plugins.
     namespace endpoints {
+        /// @brief Command-handling endpoint name.
         const std::string command{"command"};
+        /// @brief Primary operation endpoint name.
         const std::string operation{"operation"};
     }; // endpoints
 
+    /// @brief Common JSON field names used by the framework.
     namespace constants {
+        /// @brief Error-code field name.
         const std::string code{"code"};
+        /// @brief Operation-status field name.
         const std::string status{"status"};
+        /// @brief Plugin-name field name.
         const std::string plugin{"plugin"};
+        /// @brief Error-payload field name.
         const std::string errors{"errors"};
+        /// @brief Command field name.
         const std::string command{"command"};
+        /// @brief Error-message field name.
         const std::string message{"message"};
+        /// @brief Progress field name.
         const std::string progress{"progress"};
     }; // constants
 
+    /// @brief Forward declaration for the experimental API plugin base class.
     class base;
 
     namespace {
@@ -96,11 +122,12 @@ namespace irods::experimental::api {
             return json::parse(buf, buf + resp->len);
         } // invoke
 
-        template<typename T>
         /// @brief Returns a required value from a JSON document.
+        /// @tparam T Value type to extract.
         /// @param[in] n Name of the JSON field to read.
         /// @param[in] p JSON document containing the field.
         /// @return Value converted to type `T`.
+        template<typename T>
         auto get(const std::string& n, const json& p)
         {
             if(!p.contains(n)) {
@@ -113,12 +140,13 @@ namespace irods::experimental::api {
             return p.at(n).get<T>();
         } // get
 
-        template<typename T>
         /// @brief Returns an optional value from a JSON document.
+        /// @tparam T Value type to extract.
         /// @param[in] n Name of the JSON field to read.
         /// @param[in] p JSON document containing the field.
         /// @param[in] d Default value returned when the field is missing.
         /// @return Value converted to type `T` or `d`.
+        template<typename T>
         auto get(const std::string& n, const json& p, T d)
         {
             if(!p.contains(n)) {
@@ -223,11 +251,15 @@ namespace irods::experimental::api {
         }
 
     private:
+        /// @brief Stored JSON content.
         json       c_;
+
+        /// @brief Mutex protecting access to the stored JSON content.
         std::mutex m_;
 
     }; // locking_json
 
+    /// @brief Callback invoked with serialized progress updates.
     using progress_handler_type = std::function<void(const std::string&)>;
 
     /// @brief Client-side helper for invoking experimental API plugins.
@@ -339,9 +371,16 @@ namespace irods::experimental::api {
         bool complete() const { return count_ >= total_; }
 
     private:
+        /// @brief Shared exit flag observed by the tracking task.
         flag_type&           exit_flag_;
+
+        /// @brief Number of completed work items.
         std::atomic_uint64_t count_;
+
+        /// @brief Total number of work items expected.
         std::atomic_uint64_t total_;
+
+        /// @brief Blackboard updated with percent-complete information.
         locking_json&        blackboard_;
     }; // class progress_handler
 
@@ -383,8 +422,13 @@ namespace irods::experimental::api {
         } // ctor
 
     private:
+        /// @brief Shared exit flag set when cancellation is requested.
         flag_type&              exit_flag_;
+
+        /// @brief Blackboard containing commands and status.
         locking_json&           blackboard_;
+
+        /// @brief Progress handler used to determine whether work is complete.
         const progress_handler& p_handler_;
     }; // class cancellation_handler
 
@@ -392,18 +436,21 @@ namespace irods::experimental::api {
     class base : public irods::plugin_base
     {
     protected:
+        /// @brief Single-thread pool used to run asynchronous operations.
         thread_pool async_pool{1};
 
+        /// @brief Wraps a member function in the operation-table signature.
         #define WRAPPER(C, F) \
         std::function<json(C*, const json&)>([&](C* c, const json& j) -> json { \
                 return F(c, j);})
 
-        template<typename COMM_T>
         /// @brief Executes a registered operation immediately.
+        /// @tparam COMM_T Communication object type.
         /// @param[in] comm Communication object passed to the operation.
         /// @param[in] n Operation table key.
         /// @param[in] req Request JSON for the operation.
         /// @return JSON response produced by the operation.
+        template<typename COMM_T>
         json sync(COMM_T* comm, const std::string& n, const json& req)
         {
             if(operations_.find(n) == operations_.end()) {
@@ -416,15 +463,16 @@ namespace irods::experimental::api {
             auto op = boost::any_cast<fcn_t&>(operations_[n]);
 
             return op(comm, req);
-
+        
         } // sync
 
-        template<typename COMM_T>
         /// @brief Schedules a registered operation on the async pool.
+        /// @tparam COMM_T Communication object type.
         /// @param[in] comm Communication object passed to the operation.
         /// @param[in] n Operation table key.
         /// @param[in] req Request JSON for the operation.
         /// @return JSON status indicating the request is running.
+        template<typename COMM_T>
         json async(COMM_T* comm, const std::string& n, const json& req)
         {
             if(operations_.find(n) == operations_.end()) {
@@ -446,6 +494,7 @@ namespace irods::experimental::api {
 
         } // call
 
+        /// @brief Shared state exchanged with command requests.
         locking_json blackboard{{constants::status, states::unknown}};
 
     public:
@@ -463,12 +512,13 @@ namespace irods::experimental::api {
             async_pool.join();
         }
 
-        template<typename COMM_T>
         /// @brief Dispatches a request to the named plugin operation.
+        /// @tparam COMM_T Communication object type.
         /// @param[in] comm Communication object passed to the operation.
         /// @param[in] n Operation table key.
         /// @param[in] req Request JSON for the operation.
         /// @return JSON response produced synchronously or asynchronously.
+        template<typename COMM_T>
         auto call(COMM_T* comm, const std::string& n, const json& req)
         {
             auto op = get<std::string>(commands::request, req);
