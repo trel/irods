@@ -14,6 +14,7 @@
 #include <string>
 
 // persistent L1 object descriptor table
+/// Global L1 descriptor table inspected by this microservice.
 extern l1desc_t L1desc[NUM_L1_DESC];
 
 namespace
@@ -63,6 +64,7 @@ namespace
 } // anonymous namespace
 
 extern "C"
+/// Registers the `msi_get_open_data_obj_l1desc_index` microservice.
 auto plugin_factory() -> irods::ms_table_entry*
 {
     return make_msi<msParam_t*, msParam_t*>("msi_get_open_data_obj_l1desc_index", msi_impl);

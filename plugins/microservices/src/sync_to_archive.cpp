@@ -18,6 +18,7 @@
 #include <vector>
 
 
+/// Resolves the compound resource referenced by the given hierarchy.
 irods::error find_compound_resource_in_hierarchy(
     const std::string&   _hier,
     irods::resource_ptr& _resc ) {
@@ -210,6 +211,7 @@ int msisync_to_archive(
 }
 
 extern "C"
+/// Registers the `msisync_to_archive` microservice.
 irods::ms_table_entry* plugin_factory() {
     irods::ms_table_entry* msvc = new irods::ms_table_entry(3);
     msvc->add_operation("msisync_to_archive",

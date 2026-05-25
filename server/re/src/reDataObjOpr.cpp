@@ -43,6 +43,7 @@
 #include <string>
 #include <vector>
 
+/// Logger alias used by data-object microservices in this file.
 using msi_log = irods::experimental::log::microservice;
 
 /**
@@ -2642,6 +2643,7 @@ msiCollRsync( msParam_t *inpParam1, msParam_t *inpParam2,
 }
 
 int
+/// rief Recursively synchronizes one collection into another collection.
 _rsCollRsync( rsComm_t *rsComm, dataObjInp_t *dataObjInp,
               char *srcColl, char *destColl ) {
     collInp_t openCollInp;

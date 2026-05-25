@@ -39,6 +39,7 @@
 #include <sstream>
 #include <string>
 
+/// Stores the session signature for the client-side native authentication flow.
 void setSessionSignatureClientside(char* _sig);
 #ifdef RODS_SERVER
 int get64RandomBytes(char* buf);
@@ -677,8 +678,9 @@ namespace irods::authentication
 
 // clang-format off
 extern "C"
+/// Constructs the native authentication plugin instance.
 auto plugin_factory([[maybe_unused]] const std::string& _instance_name,
-                    [[maybe_unused]] const std::string& _context) -> irods_auth::native_authentication*
+                     [[maybe_unused]] const std::string& _context) -> irods_auth::native_authentication*
 {
     return new irods_auth::native_authentication{}; // NOLINT(cppcoreguidelines-owning-memory)
 } // plugin_factory

@@ -23,6 +23,7 @@ namespace
     using log_svr = irods::experimental::log::server;
 } // anonymous namespace
 
+/// Tracks liveness of rule-engine worker threads by server index.
 std::int16_t threadIsAlive[MAX_NSERVERS]; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 int checkHostAccessControl(const std::string& _user_name,
