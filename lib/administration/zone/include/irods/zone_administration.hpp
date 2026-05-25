@@ -22,8 +22,11 @@
 struct RsComm;
 #else
 // NOLINTBEGIN(cppcoreguidelines-macro-usage)
+/// Selects the client-side namespace implementation.
 #  define NAMESPACE_IMPL client
+/// Aliases the client-side communication type.
 #  define RxComm         RcComm
+/// Aliases the client-side GeneralAdmin API.
 #  define rxGeneralAdmin rcGeneralAdmin
 // NOLINTEND(cppcoreguidelines-macro-usage)
 

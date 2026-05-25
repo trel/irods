@@ -22,8 +22,10 @@
 
 #include "irods/irods_error.hpp"
 
+/// Alias for the resource-manager leaf bundle type used by ICAT helpers.
 using leaf_bundle_t = irods::resource_manager::leaf_bundle_t;
 
+/// Global ICAT session state.
 extern icatSessionStruct icss;
 
 /// \brief Opens the catalog connection.
