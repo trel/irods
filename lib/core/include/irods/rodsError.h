@@ -1,6 +1,9 @@
 #ifndef RODS_ERROR_H__
 #define RODS_ERROR_H__
 
+/// \file
+/// \brief Declares error stack types and helpers.
+
 #ifdef __cplusplus
 #  include <cstdio>
 #  include <string>
@@ -8,10 +11,12 @@
 #  include <stdio.h>
 #endif
 
+/// \brief Maximum length of an individual error message.
 #define ERR_MSG_LEN             1024
+/// \brief Maximum number of messages stored in an error stack.
 #define MAX_ERROR_MESSAGES      100
 
-// Special status that suppresses reError header printing
+/// \brief Special status that suppresses error stack header printing.
 static const int STDOUT_STATUS = 1000000;
 
 #ifdef __cplusplus

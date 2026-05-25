@@ -1,6 +1,9 @@
 #ifndef ___IRODS_NETWORK_PLUGIN_HPP__
 #define ___IRODS_NETWORK_PLUGIN_HPP__
 
+/// \file
+/// \brief Declares the base type for network plugins.
+
 // =-=-=-=-=-=-=-
 #include "irods/irods_plugin_base.hpp"
 #include "irods/irods_network_types.hpp"
@@ -12,13 +15,11 @@ namespace irods {
 // =-=-=-=-=-=-=-
     /**
      * \author Jason M. Coposky
-     * \brief
-     *
+     * \brief Base class for network plugins.
      **/
     class network : public plugin_base {
         public:
-            // =-=-=-=-=-=-=-
-            // public - ctor
+            /// \brief Constructs a network plugin instance.
             network(
                     const std::string& _inst,
                     const std::string& _ctx ) :
@@ -27,19 +28,16 @@ namespace irods {
                         _ctx ) {
                 } // ctor
 
-            // =-=-=-=-=-=-=-
-            // public - dtor
+            /// \brief Destroys the network plugin.
             virtual ~network( ) {
             } // dtor
 
-            // =-=-=-=-=-=-=-
-            // public - cctor
+            /// \brief Copy-constructs a network plugin.
             network(const network& _rhs) :
                 plugin_base( _rhs ) {
                 } // cctor
 
-            // =-=-=-=-=-=-=-
-            // public - assignment
+            /// \brief Assigns one network plugin to another.
             network& operator=(
                     const network& _rhs ) {
                 if ( &_rhs == this ) {
@@ -58,6 +56,5 @@ namespace irods {
 
 
 #endif // ___IRODS_NETWORK_PLUGIN_HPP__
-
 
 

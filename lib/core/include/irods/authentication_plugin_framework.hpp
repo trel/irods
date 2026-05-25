@@ -25,14 +25,20 @@
 
 /// \file
 
+/// \brief Alias for the JSON type used by the authentication framework.
 using json = nlohmann::json;
 
 namespace irods::authentication
 {
+    /// \brief Response value indicating that the authentication flow completed successfully.
     static const char* const flow_complete{"authentication_flow_complete"};
+    /// \brief JSON key containing the next operation name.
     static const char* const next_operation{"next_operation"};
+    /// \brief JSON key requesting that the client prompt for a password.
     static const char* const force_password_prompt{"force_password_prompt"};
+    /// \brief JSON key indicating whether to write authentication state to disk.
     static const char* const record_auth_file{"record_auth_file"};
+    /// \brief JSON key naming the authentication scheme.
     static const char* const scheme_name{"scheme"};
 
     /// \brief Base class for authentication plugin implementations.
@@ -41,7 +47,9 @@ namespace irods::authentication
     class authentication_base : public irods::plugin_base
     {
     public:
+        /// \cond IRODS_DOXYGEN_INTERNAL
         #define OPERATION(C, F) std::function<json(C&, const json&)>([&](C& c, const json& j) -> json {return F(c, j);})
+        /// \endcond
 
         /// \brief Constructor for the authentication plugin base class.
         ///
@@ -81,9 +89,9 @@ namespace irods::authentication
 
         /// \brief Invoke the operation at key \p n.
         ///
-        /// param[in/out] _comm iRODS communication object.
-        /// param[in] n Key associated with the operation being invoked.
-        /// param[in] req JSON payload including the data for the operation.
+        /// \param[in,out] _comm iRODS communication object.
+        /// \param[in] n Key associated with the operation being invoked.
+        /// \param[in] req JSON payload including the data for the operation.
         ///
         /// \throws irods::exception If there is no key \p n in the operations map.
         ///
@@ -289,7 +297,7 @@ namespace irods::authentication
 
     /// \brief Convenience function for invoking the authentication API endpoint.
     ///
-    /// \param[in/out] _comm
+    /// \param[in,out] _comm iRODS communication object.
     /// \param[in] _msg JSON-based request message to send to the server.\parblock
     ///
     /// Depending on the step in the authentication flow for the given plugin, certain keys

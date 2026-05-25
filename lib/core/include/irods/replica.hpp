@@ -42,14 +42,19 @@
 #include <string_view>
 #include <variant>
 
+/// \cond IRODS_DOXYGEN_INTERNAL
 struct DataObjInfo;
+/// \endcond
 
 namespace irods::experimental::replica
 {
+    /// \brief Type used to identify a replica by replica number.
     using replica_number_type = int;
 
+    /// \brief Type used to identify a replica by leaf resource name.
     using leaf_resource_name_type = std::string_view;
 
+    /// \brief Result type returned by replica metadata queries.
     using query_value_type = std::vector<std::vector<std::string>>;
 
     /// \brief Describes whether the catalog should be updated when calculating a replica's checksum
@@ -57,8 +62,8 @@ namespace irods::experimental::replica
     /// \since 4.2.9
     enum class verification_calculation
     {
-        if_empty,
-        always
+        if_empty, ///< Register the checksum only if the catalog value is empty.
+        always    ///< Always register the newly calculated checksum.
     };
 
     /// \brief GenQuery columns which represent a replica
@@ -66,34 +71,35 @@ namespace irods::experimental::replica
     /// \since 4.2.9
     enum genquery_column_index : std::size_t
     {
-        DATA_ID,
-        DATA_COLL_ID,
-        DATA_NAME,
-        DATA_REPL_NUM,
-        DATA_VERSION,
-        DATA_TYPE_NAME,
-        DATA_SIZE,
-        DATA_RESC_NAME,
-        DATA_PATH,
-        DATA_OWNER_NAME,
-        DATA_OWNER_ZONE,
-        DATA_REPL_STATUS,
-        DATA_STATUS,
-        DATA_CHECKSUM,
-        DATA_EXPIRY,
-        DATA_MAP_ID,
-        DATA_COMMENTS,
-        DATA_ACCESS_TIME,
-        DATA_CREATE_TIME,
-        DATA_MODIFY_TIME,
-        DATA_MODE,
-        DATA_RESC_HIER,
-        DATA_RESC_ID,
-        COLL_NAME
+        DATA_ID,          ///< Data object identifier.
+        DATA_COLL_ID,     ///< Collection identifier.
+        DATA_NAME,        ///< Data object name.
+        DATA_REPL_NUM,    ///< Replica number.
+        DATA_VERSION,     ///< Data object version string.
+        DATA_TYPE_NAME,   ///< Data type name.
+        DATA_SIZE,        ///< Replica size in bytes.
+        DATA_RESC_NAME,   ///< Leaf resource name.
+        DATA_PATH,        ///< Physical path.
+        DATA_OWNER_NAME,  ///< Owner user name.
+        DATA_OWNER_ZONE,  ///< Owner zone name.
+        DATA_REPL_STATUS, ///< Replica status value.
+        DATA_STATUS,      ///< Data status value.
+        DATA_CHECKSUM,    ///< Stored checksum.
+        DATA_EXPIRY,      ///< Expiration timestamp.
+        DATA_MAP_ID,      ///< Data map identifier.
+        DATA_COMMENTS,    ///< Comment string.
+        DATA_ACCESS_TIME, ///< Last access timestamp.
+        DATA_CREATE_TIME, ///< Creation timestamp.
+        DATA_MODIFY_TIME, ///< Last modification timestamp.
+        DATA_MODE,        ///< Mode bits.
+        DATA_RESC_HIER,   ///< Resource hierarchy.
+        DATA_RESC_ID,     ///< Resource identifier.
+        COLL_NAME         ///< Collection name.
     };
 
     namespace detail
     {
+        /// \brief Throws if the logical path does not identify a data object.
         /// \param[in] _comm connection object
         /// \param[in] _logical_path
         ///
@@ -372,7 +378,7 @@ namespace irods::experimental::replica
         } // get_replica_size_from_storage_impl
     } // namespace detail
 
-    /// \brief Gets a row from r_data_main using irods::query
+    /// \brief Gets replica metadata for the given replica number.
     ///
     /// \param[in] _comm connection object
     /// \param[in] _logical_path
@@ -396,7 +402,7 @@ namespace irods::experimental::replica
         return detail::get_data_object_info_impl(_comm, _logical_path, qstr);
     } // get_data_object_info
 
-    /// \brief Gets a row from r_data_main using irods::query
+    /// \brief Gets replica metadata for the given leaf resource.
     ///
     /// \param[in] _comm connection object
     /// \param[in] _logical_path
@@ -420,7 +426,7 @@ namespace irods::experimental::replica
         return detail::get_data_object_info_impl(_comm, _logical_path, qstr);
     } // get_data_object_info
 
-    /// \brief Gets a row from r_data_main using irods::query
+    /// \brief Gets replica metadata for all replicas of a data object.
     ///
     /// \param[in] _comm connection object
     /// \param[in] _logical_path
@@ -438,10 +444,10 @@ namespace irods::experimental::replica
         return detail::get_data_object_info_impl(_comm, _logical_path);
     } // get_data_object_info
 
-    /// \brief Gets a row from r_data_main using irods::query
+    /// \brief Gets replica metadata for the data object identified by \p _data_id.
     ///
     /// \param[in] _comm connection object
-    /// \param[in] _logical_path
+    /// \param[in] _data_id data identifier
     ///
     /// \throws irods::exception If no replica information is found or query fails
     ///
@@ -472,6 +478,7 @@ namespace irods::experimental::replica
         return detail::get_data_object_info_impl(_comm, logical_path);
     } // get_data_object_info
 
+    /// \brief Returns the size of the replica identified by replica number.
     /// \param[in] _comm connection object
     /// \param[in] _logical_path
     /// \param[in] _replica_number
@@ -496,6 +503,7 @@ namespace irods::experimental::replica
         return static_cast<std::uintmax_t>(std::stoull(size.data()));
     } // replica_size
 
+    /// \brief Returns the size of the replica hosted on the given leaf resource.
     /// \param[in] _comm connection object
     /// \param[in] _logical_path
     /// \param[in] _leaf_resource_name
@@ -520,6 +528,7 @@ namespace irods::experimental::replica
         return static_cast<std::uintmax_t>(std::stoull(size.data()));
     } // replica_size
 
+    /// \brief Returns whether the replica identified by replica number is empty.
     /// \param[in] _comm connection object
     /// \param[in] _logical_path
     /// \param[in] _replica_number
@@ -540,6 +549,7 @@ namespace irods::experimental::replica
         return replica_size(_comm, _logical_path, _replica_number) == 0;
     } // is_replica_empty
 
+    /// \brief Returns whether the replica hosted on the given leaf resource is empty.
     /// \param[in] _comm connection object
     /// \param[in] _logical_path
     /// \param[in] _leaf_resource_name
@@ -560,6 +570,7 @@ namespace irods::experimental::replica
         return replica_size(_comm, _logical_path, _leaf_resource_name) == 0;
     } // is_replica_empty
 
+    /// \brief Calculates the checksum for the replica identified by replica number.
     /// \param[in] _comm connection object
     /// \param[in] _logical_path
     /// \param[in] _replica_number
@@ -588,6 +599,7 @@ namespace irods::experimental::replica
         return detail::replica_checksum_impl(_comm, input, _logical_path, _calculation);
     } // replica_checksum
 
+    /// \brief Calculates the checksum for the replica hosted on the given leaf resource.
     /// \param[in] _comm connection object
     /// \param[in] _logical_path
     /// \param[in] _leaf_resource_name
@@ -618,6 +630,7 @@ namespace irods::experimental::replica
 
     /// \brief Returns timestamp of last time this replica was written to
     ///
+    /// \brief Returns whether a replica exists on the given leaf resource.
     /// \param[in] _comm connection object
     /// \param[in] _logical_path
     /// \param[in] _replica_number
@@ -646,6 +659,7 @@ namespace irods::experimental::replica
 
     /// \brief Returns timestamp of last time this replica was written to
     ///
+    /// \brief Returns whether the replica identified by replica number exists.
     /// \param[in] _comm connection object
     /// \param[in] _logical_path
     /// \param[in] _leaf_resource_name
@@ -674,6 +688,7 @@ namespace irods::experimental::replica
 
     /// \brief Sets value of the timestamp of last time this replica was written to
     ///
+    /// \brief Returns the status for the replica identified by replica number.
     /// \param[in] _comm connection object
     /// \param[in] _logical_path
     /// \param[in] _replica_number
@@ -699,6 +714,7 @@ namespace irods::experimental::replica
 
     /// \brief Sets value of the timestamp of last time this replica was written to
     ///
+    /// \brief Returns the status for the replica hosted on the given leaf resource.
     /// \param[in] _comm connection object
     /// \param[in] _logical_path
     /// \param[in] _leaf_resource_name
@@ -724,6 +740,7 @@ namespace irods::experimental::replica
 
     /// \brief Get the leaf resource name for a replica based on the provided replica number.
     ///
+    /// \brief Returns the physical size for the replica identified by replica number.
     /// \param[in] _comm connection object
     /// \param[in] _logical_path
     /// \param[in] _replica_number
@@ -755,6 +772,7 @@ namespace irods::experimental::replica
 
     /// \brief Get the replica number for a replica based on the provided leaf resource name.
     ///
+    /// \brief Returns the physical size for the replica hosted on the given leaf resource.
     /// \param[in] _comm connection object
     /// \param[in] _logical_path
     /// \param[in] _leaf_resource_name
@@ -784,6 +802,7 @@ namespace irods::experimental::replica
         }
     } // to_replica_number
 
+    /// \brief Returns the physical size for a replica using explicit storage details.
     /// \param[in] _comm connection object
     /// \param[in] _logical_path
     /// \param[in] _leaf_resource_name
