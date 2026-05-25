@@ -5,9 +5,10 @@
 
 namespace irods::experimental::genquery
 {
+    /// \brief Describes a graph vertex used when building joins.
     struct vertex_property
     {
-        std::string_view table_name;
+        std::string_view table_name; ///< The table name represented by the vertex.
     }; // struct vertex_property
 } // namespace irods::experimental::genquery
 

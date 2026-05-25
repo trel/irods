@@ -42,8 +42,10 @@
 /// \since 4.2.6
 namespace irods::experimental::filesystem
 {
+    /// \brief Forward declaration of the logical path type.
     class path;
 
+    /// \brief Represents catalog timestamps with one-second resolution.
     using object_time_type = std::chrono::time_point<std::chrono::system_clock, std::chrono::seconds>;
 
 #ifndef IRODS_FILESYSTEM_FILESYSTEM_COMMON_TYPES_AND_OBJECTS
@@ -55,31 +57,34 @@ namespace irods::experimental::filesystem
     // These symbols MUST NOT be introduced into the space more than once!
     //
 
+    /// \brief Selects optional behaviors for remove operations.
     enum class remove_options
     {
-        none,
-        no_trash
+        none,     ///< Use default removal behavior.
+        no_trash  ///< Remove without moving to trash.
     }; // enum class remove_options
 
+    /// \brief Holds extended options for remove operations.
     struct extended_remove_options
     {
-        bool no_trash = false;
-        bool verbose = false;
-        bool progress = false;
-        bool recursive = false;
-        bool unregister = false;
+        bool no_trash = false;   ///< Remove without moving to trash.
+        bool verbose = false;    ///< Request verbose removal output.
+        bool progress = false;   ///< Request progress reporting.
+        bool recursive = false;  ///< Remove nested contents recursively.
+        bool unregister = false; ///< Unregister catalog entries without deleting data.
     }; // struct extended_remove_options
 
+    /// \brief Represents a metadata attribute-value-units tuple.
     struct metadata
     {
-        std::string attribute;
-        std::string value;
-        std::string units;
+        std::string attribute; ///< The metadata attribute.
+        std::string value;     ///< The metadata value.
+        std::string units;     ///< The metadata units.
     }; // struct metadata
 
     // clang-format off
-    /// A tag type used to instruct an operation to run in administrator mode.
-    const inline struct admin_tag {} admin;
+    /// \brief Tag type used to request administrator mode operations.
+    const inline struct admin_tag {} admin; ///< Requests administrator mode operations.
     // clang-format on
 #endif // IRODS_FILESYSTEM_FILESYSTEM_COMMON_TYPES_AND_OBJECTS
 
@@ -87,14 +92,21 @@ namespace irods::experimental::filesystem
     {
         // Operational functions
 
+        /// \brief Copies a collection or data object.
         auto copy(rxComm& _comm, const path& _from, const path& _to, copy_options _options = copy_options::none) -> void;
+        /// \brief Copies a data object.
         auto copy_data_object(rxComm& _comm, const path& _from, const path& _to, copy_options _options = copy_options::none) -> bool;
 
+        /// \brief Creates a collection at the given path.
         auto create_collection(rxComm& _comm, const path& _p) -> bool;
+        /// \brief Creates a collection by cloning an existing collection's registration.
         auto create_collection(rxComm& _comm, const path& _p, const path& _existing_p) -> bool;
+        /// \brief Creates all missing collections in the given path.
         auto create_collections(rxComm& _comm, const path& _p) -> bool;
 
+        /// \brief Returns whether a status object represents an existing object.
         auto exists(const object_status& _s) noexcept -> bool;
+        /// \brief Returns whether a path exists in the catalog.
         auto exists(rxComm& _comm, const path& _p) -> bool;
 
         /// \brief Checks if the path is registered in the catalog as a collection.
@@ -117,6 +129,7 @@ namespace irods::experimental::filesystem
         /// \return A boolean indicating whether the data object is registered.
         auto is_data_object_registered(rxComm& _comm, const path& _p) -> bool;
 
+        /// \brief Returns whether two paths identify the same catalog object.
         auto equivalent(rxComm& _comm, const path& _p1, const path& _p2) -> bool;
 
         /// \brief Returns the size of the latest good replica.
@@ -130,7 +143,9 @@ namespace irods::experimental::filesystem
         /// \return An integer representing the size of the data object.
         auto data_object_size(rxComm& _comm, const path& _p) -> std::uintmax_t;
 
+        /// \brief Returns whether a status object represents a collection.
         auto is_collection(const object_status& _s) noexcept -> bool;
+        /// \brief Returns whether a path refers to a collection.
         auto is_collection(rxComm& _comm, const path& _p) -> bool;
 
         /// \brief Checks if the path points to a special collection.
@@ -145,12 +160,17 @@ namespace irods::experimental::filesystem
         /// \return A boolean indicating whether the collection is special.
         auto is_special_collection(rxComm& _comm, const path& _p) -> bool;
 
+        /// \brief Returns whether a collection or data object has no contents.
         auto is_empty(rxComm& _comm, const path& _p) -> bool;
 
+        /// \brief Returns whether a status object represents an unsupported object type.
         auto is_other(const object_status& _s) noexcept -> bool;
+        /// \brief Returns whether a path refers to an unsupported object type.
         auto is_other(rxComm& _comm, const path& _p) -> bool;
 
+        /// \brief Returns whether a status object represents a data object.
         auto is_data_object(const object_status& _s) noexcept -> bool;
+        /// \brief Returns whether a path refers to a data object.
         auto is_data_object(rxComm& _comm, const path& _p) -> bool;
 
         /// \brief Returns the mtime of the latest good replica or a collection.
@@ -176,11 +196,16 @@ namespace irods::experimental::filesystem
         /// \return An object_time_type representing the mtime.
         auto last_write_time(rxComm& _comm, const path& _p, object_time_type _new_time) -> void;
 
+        /// \brief Removes a collection or data object.
         auto remove(rxComm& _comm, const path& _p, remove_options _opts = remove_options::none) -> bool;
+        /// \brief Removes a collection or data object using extended options.
         auto remove(rxComm& _comm, const path& _p, extended_remove_options _opts) -> bool;
+        /// \brief Removes a collection tree or data object and returns the number removed.
         auto remove_all(rxComm& _comm, const path& _p, remove_options _opts = remove_options::none) -> std::uintmax_t;
+        /// \brief Removes a collection tree or data object using extended options.
         auto remove_all(rxComm& _comm, const path& _p, extended_remove_options _opts) -> std::uintmax_t;
 
+        /// \brief Modifies the permissions of a collection or data object.
         auto permissions(rxComm& _comm, const path& _p, const std::string& _user_or_group, perms _prms) -> void;
 
         /// \brief Modifies the permissions of a collection or data object.
@@ -224,10 +249,13 @@ namespace irods::experimental::filesystem
         /// \since 4.2.11
         auto enable_inheritance(admin_tag _admin, rxComm& _comm, const path& _p, bool _value) -> void;
 
+        /// \brief Renames or moves a collection or data object.
         auto rename(rxComm& _comm, const path& _from, const path& _to) -> void;
 
+        /// \brief Returns the status of a collection or data object.
         auto status(rxComm& _comm, const path& _p) -> object_status;
 
+        /// \brief Returns whether the status object contains a known type.
         auto status_known(const object_status& _s) noexcept -> bool;
 
         /// \brief Returns the checksum of the latest good replica.
@@ -308,6 +336,7 @@ namespace irods::experimental::filesystem
 
         namespace detail
         {
+            /// \brief Applies a metadata operation over a range of AVUs.
             template <typename Iterator>
             auto do_metadata_op(
                 bool _add_admin_flag,
