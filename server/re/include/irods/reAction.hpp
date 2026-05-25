@@ -157,12 +157,13 @@ int msiSetReplComment( msParam_t *inpParam1, msParam_t *inpParam2, msParam_t *in
                        msParam_t *inpParam4, ruleExecInfo_t *rei );
 int
 msiSetBulkPutPostProcPolicy( msParam_t *xflag, ruleExecInfo_t *rei );
-/// rief Splits an input buffer into two smaller buffers.
+/// \brief Splits an input buffer into two smaller buffers.
 int msiCutBufferInHalf( msParam_t* mPIn, ruleExecInfo_t *rei );
+/// \brief Placeholder microservice used for ad hoc rule-engine testing.
 int msiDoSomething( msParam_t *inParam, msParam_t *outParam, ruleExecInfo_t *rei );
 int msiString2StrArray( msParam_t *inBufferP, msParam_t* outStrArrayP, ruleExecInfo_t *rei );
 
-/// rief Test microservice that accepts three arguments and performs no work.
+/// \brief Test microservice that accepts three arguments and performs no work.
 int msiTakeThreeArgumentsAndDoNothing(msParam_t *arg1, msParam_t *arg2, msParam_t *arg3, ruleExecInfo_t *rei);
 
 namespace irods

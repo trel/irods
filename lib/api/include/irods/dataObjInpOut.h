@@ -54,6 +54,9 @@ typedef struct PortList {
  * \sa none
  */
 
+/**
+ * \brief Input for data object operations.
+ */
 typedef struct DataObjInp {
     char objPath[MAX_NAME_LEN]; ///< Full path to the data object.
     int createMode;            ///< Mode used when creating a new object.
@@ -93,6 +96,9 @@ typedef struct DataObjInp {
  * \sa none
  */
 
+/**
+ * \brief Input for operations on already opened data objects.
+ */
 typedef struct OpenedDataObjInp {
     int l1descInx;             ///< Opened descriptor index.
     int len;                   ///< Length of the read or write operation.
@@ -148,6 +154,9 @@ typedef struct DataOprInp {
  * \sa none
  */
 
+/**
+ * \brief Input for collection operations.
+ */
 typedef struct CollInp {
     char collName[MAX_NAME_LEN]; ///< Full collection path.
     int flags;                   ///< Collection operation flags.

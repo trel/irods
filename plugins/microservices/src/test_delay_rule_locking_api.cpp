@@ -281,6 +281,7 @@ namespace
     } // make_msi
 } // anonymous namespace
 
+/// Registers the `msi_test_delay_rule_locking_api` microservice.
 extern "C" auto plugin_factory() -> irods::ms_table_entry*
 {
     return make_msi<>("msi_test_delay_rule_locking_api", msi_impl);
