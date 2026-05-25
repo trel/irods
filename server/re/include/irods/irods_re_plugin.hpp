@@ -65,27 +65,31 @@ namespace irods {
 
 */
     template<typename T>
+    /// Returns a copy of the provided value.
     T clone(T& a) {
 
         return a;
     }
 
-    // the unpack constructor tell pluggable rule engine interface that the intention is to unpack the packed parameter list and call another rule
-    // when the rule engine interface tries to pack the parameters again, it will instead pass them on to the plugin
+    /// Marks a packed argument list for forwarding without repacking.
     class unpack {
     public:
+        /// Wraps an existing packed argument list.
         unpack(std::list<boost::any> &_l);
-        std::list<boost::any> &l_;
+        std::list<boost::any> &l_; ///< Referenced argument list.
     };
 
+    /// Appends zero or more values to a packed argument list.
     void var_arg_to_list(std::list<boost::any>& _l);
 
     template<typename... As>
+    /// Forwards an unpack marker into the list-building overload set.
     void var_arg_to_list(std::list<boost::any>& _l, unpack &&_p, As &&... _ps) {
         var_arg_to_list(_l, _p, std::forward<As>(_ps)...);
     }
 
     template<typename... As>
+    /// Appends the contents of an existing packed list.
     void var_arg_to_list(std::list<boost::any>& _l, unpack &_p, As &&... _ps) {
         for (auto itr = begin (_p.l_) ; itr != end(_p.l_);++itr) {
             _l.push_back(boost::any(*itr));
@@ -95,14 +99,17 @@ namespace irods {
     }
 
     template<typename A, typename... As>
+    /// Appends one value and continues packing the remaining arguments.
     void var_arg_to_list(std::list<boost::any>& _l,A&& _p, As&&... _ps) {
         _l.push_back(boost::any(_p));
         var_arg_to_list(_l, std::forward<As>(_ps)...);
     }
 
+    /// Extracts packed values into output arguments.
     error list_to_var_arg(std::list<boost::any>& _l);
 
     template<typename A, typename... As>
+    /// Extracts one packed value and continues unpacking the rest.
     error list_to_var_arg(std::list<boost::any>& _l, A&& _p, As&&... _ps) {
         if(_l.empty()) {
             return ERROR(RE_TYPE_ERROR, "arg list mismatch");
@@ -115,49 +122,55 @@ namespace irods {
     }
 
     template<typename... As>
+    /// Packs a variadic argument list into a `std::list<boost::any>`.
     std::list<boost::any> pack(As &&... _ps) {
         std::list<boost::any> l;
         var_arg_to_list(l, std::forward<As>(_ps)...);
         return l;
     }
 
-    // microservice manager
+    /// Default microservice manager placeholder.
     template<typename C>
     class default_microservice_manager {
     };
 
+    /// Alias for the active microservice manager implementation.
     template<typename C>
     using microservice_manager = default_microservice_manager<C>;
 
+    /// Controls whether rule execution is audited.
     enum rule_execution_manager_pack{
-        AUDIT_RULE,
-        DONT_AUDIT_RULE
+        AUDIT_RULE, ///< Enable rule auditing.
+        DONT_AUDIT_RULE ///< Disable rule auditing.
     };
 
+    /// Forward declaration for the rule execution context manager.
     template<typename T, typename C, rule_execution_manager_pack Audit>
     class rule_engine_context_manager;
 
-    // callback
-    // before we have concepts, we need to tightly couple this with rule_engine_context_manager to ensure typechecking
+    /// Adapts a rule execution context manager into a callback object.
     class callback final {
     public:
         template<typename T, typename C, rule_execution_manager_pack Audit>
+        /// Captures a callback target.
         callback(rule_engine_context_manager<T,C,Audit>& _callback_hdlr) : callback_hdlr_(&_callback_hdlr) {}
 
         template<typename... As>
+        /// Invokes the captured callback target.
         error operator()(const std::string& _rn, As&&... _ps);
     protected:
-        boost::any callback_hdlr_;
+        boost::any callback_hdlr_; ///< Stored callback target.
     };
 
-    // serialize wraps a function so that it can be called at runtime without prior knowledge of original parameter types
-    // only when the parameter type matches the original does the call succeed
+    /// Type-erases a callable while preserving its expected signature.
     class serialize final {
     public:
         template<typename... As>
+        /// Stores the callable and its display name.
         serialize(std::function<error(As ...)> _op, const std::string& _op_name = "<unknown>") : op_(_op), op_name_(_op_name) { }
 
         template<typename... Bs>
+        /// Invokes the stored callable if the argument types match.
         error operator()(Bs&&... _ps) {
             if(typeid(std::function<error(Bs...)>) == op_.type()) {
                 return boost::any_cast<std::function<error(Bs...)> >(op_)(std::forward<Bs>(_ps)...);
@@ -166,22 +179,26 @@ namespace irods {
             }
         }
     protected:
-        boost::any op_;
-        std::string op_name_;
+        boost::any op_; ///< Stored callable.
+        std::string op_name_; ///< Display name used in errors.
     };
 
     template <typename T>
+    /// Function pointer type exported by rule engine plugins.
     using re_plugin_operation = error(*) (T&, ...);
 
 
+    /// Wraps a rule engine plugin instance and its exported operations.
     template<typename T>
     class pluggable_rule_engine final {
     public:
 
+        /// Constructs a plugin wrapper for one instance name.
         pluggable_rule_engine(const std::string &_in, const std::string &_context) : instance_name_(_in) {
         }
 
         template<typename... types_t>
+        /// Registers a named operation exposed by the plugin.
         error add_operation(
                 const std::string& _op,
                 std::function<error(types_t...)> _f ) {
@@ -195,6 +212,7 @@ namespace irods {
 
         }
 
+        /// Invokes the plugin setup hook.
         error setup_operation(T& _in)
         {
             try {
@@ -213,6 +231,7 @@ namespace irods {
             }
         } // setup_operation
 
+        /// Invokes the plugin teardown hook.
         error teardown_operation(T& _in)
         {
             try {
@@ -233,6 +252,7 @@ namespace irods {
             }
         } // teardown_operation
 
+        /// Invokes the plugin start hook.
         error start_operation(T& _in) {
             try {
                 auto fcn = boost::any_cast<std::function<error(T&,const std::string&)>>( operations_["start"] );
@@ -242,6 +262,7 @@ namespace irods {
             }
         }
 
+        /// Invokes the plugin stop hook.
         error stop_operation(T& _in) {
             try {
                 auto fcn = boost::any_cast<std::function<error(T&,const std::string&)>>( operations_["stop"] );
@@ -251,6 +272,7 @@ namespace irods {
             }
         }
 
+        /// Checks whether the plugin defines the named rule.
         error rule_exists(const std::string& _rn, T& _re_ctx, bool& _out) {
             try {
                 auto fcn = boost::any_cast<std::function<error(T&,const std::string&,bool&)>>( operations_["rule_exists"] );
@@ -260,6 +282,7 @@ namespace irods {
             }
         }
 
+        /// Appends this plugin's rule names to the provided vector.
         error list_rules(T& _re_ctx, std::vector<std::string>& _rule_vec) {
             try {
                 auto fcn = boost::any_cast<std::function<error(T&,std::vector<std::string>&)>>( operations_["list_rules"] );
@@ -270,6 +293,7 @@ namespace irods {
         }
 
         template<typename ...As>
+        /// Executes a named rule through the plugin.
         error exec_rule(const std::string& _rn, T& _re_ctx, As&&... _ps, callback _callback) {
             try {
                 auto l = pack(std::forward<As>(_ps)...);
@@ -280,6 +304,7 @@ namespace irods {
             }
         }
 
+        /// Executes rule text through the plugin.
         error exec_rule_text(
                 T&                 _re_ctx,
                 const std::string& _rt,
@@ -296,6 +321,7 @@ namespace irods {
             }
         }
 
+        /// Executes a rule expression through the plugin.
         error exec_rule_expression(
                 T&                 _re_ctx,
                 const std::string& _rt,
@@ -312,22 +338,27 @@ namespace irods {
         }
 
     private:
+        /// Loads one exported operation from a shared library handle.
         error load_operation(void *handle, std::string _fcn, std::string _key);
-        irods::lookup_table< boost::any > operations_;
-        std::string instance_name_;
+        irods::lookup_table< boost::any > operations_; ///< Registered plugin operations.
+        std::string instance_name_; ///< Plugin instance name.
     };
 
+    /// Forward declaration for the rule execution context manager.
     template<typename T, typename C, rule_execution_manager_pack Audit>
     class rule_engine_context_manager;
 
+    /// Executes operations while preserving rule engine context.
     template<typename T, typename C, rule_execution_manager_pack Audit>
     class dynamic_operation_execution_manager final {
     public:
 
+        /// Stores a shared rule execution manager.
         dynamic_operation_execution_manager(
             std::shared_ptr<rule_engine_context_manager<T,C,Audit> > _re_mgr  // rule engine manager
         ) : re_mgr_{_re_mgr} { }
 
+        /// Executes rule text against the selected plugin instance.
         error exec_rule_text(
             const std::string& _instance_name,
             const std::string& _rule_text,
@@ -337,6 +368,7 @@ namespace irods {
             return re_mgr_->exec_rule_text(_instance_name, _rule_text, _ms_params, _out_desc);
         }
 
+        /// Executes a rule expression against the selected plugin instance.
         error exec_rule_expression(
             const std::string& _instance_name,
             const std::string& _rule_text,
@@ -346,6 +378,7 @@ namespace irods {
         }
 
         template<typename OP, typename... As >
+        /// Executes one dynamic operation exactly once with forwarded arguments.
         error call(
             const std::string& _instance_name,
             const std::string& _operation_name,
@@ -375,32 +408,36 @@ namespace irods {
 
     protected:
 
-        std::shared_ptr<rule_engine_context_manager<T,C,Audit> >re_mgr_;
+        std::shared_ptr<rule_engine_context_manager<T,C,Audit> >re_mgr_; ///< Shared execution manager.
 
     }; // class dynamic_operation_execution_manager
 
-
-    // DONE
+    /// Describes one configured rule engine plugin instance.
     template<typename T>
     struct re_pack_inp final {
-        std::string instance_name_;
-        std::string plugin_name_;
-        T re_ctx_;
-        pluggable_rule_engine<T> *re_;
+        std::string instance_name_; ///< Rule engine instance name.
+        std::string plugin_name_; ///< Shared library plugin name.
+        T re_ctx_; ///< Per-plugin rule execution context.
+        pluggable_rule_engine<T> *re_; ///< Resolved plugin instance.
+        /// Constructs a rule engine plugin description.
         re_pack_inp(const std::string& _instance_name, const std::string& _plugin_name, T _re_ctx) : instance_name_(_instance_name), plugin_name_(_plugin_name), re_ctx_(_re_ctx) { }
     };
 
-    // load rule engines from plugins DONE
+    /// Lazily resolves and caches pluggable rule engine instances.
     template<typename T>
     class rule_engine_plugin_manager final {
     public:
+        /// Returns the plugin manager interface version.
         double interface_version() { return 1.0; }
+        /// Stores the plugin directory to search.
         rule_engine_plugin_manager(const std::string& _dir) : dir_(_dir) { }
 
+        /// Releases cached plugin instances.
         ~rule_engine_plugin_manager() {
             for (auto itr = begin(re_plugin_map_);itr != end(re_plugin_map_); ++itr) delete itr->second;
         }
 
+        /// Resolves a plugin instance by name, loading it on first use.
         error resolve(std::string& _plugin_name, const std::string& _inst_name, pluggable_rule_engine<T> *& _re_ptr) {
             auto itr = re_plugin_map_.find(_inst_name);
 
@@ -420,17 +457,18 @@ namespace irods {
             return SUCCESS();
         }
 
-        std::map<std::string, pluggable_rule_engine<T> *> re_plugin_map_;
+        std::map<std::string, pluggable_rule_engine<T> *> re_plugin_map_; ///< Cached plugins by instance name.
 
     protected:
-        std::string dir_;
+        std::string dir_; ///< Plugin search directory.
 
     };
 
-    // load rule engines from plugins DONE
+    /// Owns the active set of configured rule engine instances.
     template<typename T, typename C>
     class rule_engine_manager final {
     public:
+        /// Initializes all configured rule engine instances.
         rule_engine_manager(rule_engine_plugin_manager <T>& _re_plugin_mgr, std::vector<re_pack_inp<T> > &_re_packs, microservice_manager<C> &_ms_mgr) : ms_mgr_(_ms_mgr), re_plugin_mgr_(_re_plugin_mgr) {
             std::for_each(begin(_re_packs), end(_re_packs), [this](re_pack_inp<T> &_inp) {
                 error err = this->init_rule_engine(_inp);
@@ -440,9 +478,11 @@ namespace irods {
             });
         }
 
+        /// Destructor.
         ~rule_engine_manager() {
         }
 
+        /// Adds one configured rule engine instance to the manager.
         error init_rule_engine(re_pack_inp<T>& _inp) {
             pluggable_rule_engine<T>* pre = NULL;
             error err;
@@ -458,6 +498,7 @@ namespace irods {
             return SUCCESS();
         }
 
+        /// Calls setup on all configured plugins.
         void call_setup_operations()
         {
             std::for_each(begin(re_packs_), end(re_packs_), [](re_pack_inp<T>& _inp) {
@@ -465,6 +506,7 @@ namespace irods {
             });
         }
 
+        /// Calls teardown on all configured plugins.
         void call_teardown_operations()
         {
             std::for_each(begin(re_packs_), end(re_packs_), [](re_pack_inp<T>& _inp) {
@@ -472,25 +514,28 @@ namespace irods {
             });
         }
 
+        /// Calls start on all configured plugins.
         void call_start_operations() {
             std::for_each(begin(re_packs_), end(re_packs_), [](re_pack_inp<T> &_inp) {
                 _inp.re_->start_operation(_inp.re_ctx_);
             });
         }
 
+        /// Calls stop on all configured plugins.
         void call_stop_operations() {
             std::for_each(begin(re_packs_), end(re_packs_), [](re_pack_inp<T> &_inp) {
                 _inp.re_->stop_operation(_inp.re_ctx_);
             });
         }
 
-        microservice_manager<C> &ms_mgr_;
-        std::list<re_pack_inp<T> > re_packs_;
+        microservice_manager<C> &ms_mgr_; ///< Microservice execution manager.
+        std::list<re_pack_inp<T> > re_packs_; ///< Active rule engine instances.
     protected:
-        rule_engine_plugin_manager<T> &re_plugin_mgr_;
+        rule_engine_plugin_manager<T> &re_plugin_mgr_; ///< Plugin loader and cache.
 
     };
 
+    /// Returns true if the error code requests continued rule processing.
     inline bool is_continuation_code(int _error_code)
     {
         // Continue to the next rule engine plugin if the current REP
@@ -504,6 +549,7 @@ namespace irods {
                            [_error_code](auto _ec) { return _ec == _error_code; });
     }
 
+    /// Logs a rule engine plugin return code at debug or error level.
     inline void log_error_code(const error& IRODS_SERVER_ONLY(e))
     {
         IRODS_SERVER_ONLY(
@@ -523,6 +569,7 @@ namespace irods {
     }
 
     template <typename ER, typename EM, typename T, typename ...As>
+    /// Dispatches a rule to rule engines first and microservices second.
     inline error control(std::list<re_pack_inp<T> >& _re_packs, ER _er, EM _em, const std::string& _rn, As &&... _ps) {
         // "unsafe_ms_ctx" is a special keyword that must be processed by the microservice
         // handler, "_em". If this keyword is seen, the REPs should be skipped.
@@ -565,14 +612,18 @@ namespace irods {
         return _em(_rn, std::forward<As>(_ps)...);
     }
 
+    /// Provides a shared implementation of `rule_exists` queries.
     template<typename T, typename C>
     class rule_exists_manager {
     public:
+        /// Stores a reference to the owning rule engine manager.
         rule_exists_manager(rule_engine_manager<T,C>& _re_mgr) :
                 re_mgr_{_re_mgr} {}
 
+        /// Destructor.
         virtual ~rule_exists_manager() {}
 
+        /// Returns whether a rule exists in any configured rule engine.
         error rule_exists(const std::string& _rn, bool& ret) {
             auto er = [&ret] (re_pack_inp<T>&, const std::string&) {
                 ret = true;
@@ -587,17 +638,19 @@ namespace irods {
             return control(re_mgr_.re_packs_, er, em, _rn);
         }
     protected:
-        rule_engine_manager<T,C> &re_mgr_;
+        rule_engine_manager<T,C> &re_mgr_; ///< Owning rule engine manager.
     };
 
-    // rule_engine_manager + ctx DONE
+    /// Primary template for rule execution contexts.
     template<typename T, typename C, rule_execution_manager_pack Audit>
     class rule_engine_context_manager {};
 
+    /// Audited rule execution context.
     template<typename T, typename C>
     class rule_engine_context_manager<T,C,AUDIT_RULE> final : public rule_exists_manager<T,C>
     {
     public:
+        /// Builds an audited rule execution context.
         rule_engine_context_manager(rule_engine_manager<T,C>& _re_mgr, C _ctx)
             : rule_exists_manager<T,C>{_re_mgr}
             , ctx_{_ctx}
@@ -606,6 +659,7 @@ namespace irods {
         }
 
         template <typename ...As>
+        /// Executes a named rule with auditing enabled.
         error exec_rule(const std::string& _rn, As &&... _ps) {
             auto er = [this](re_pack_inp<T>& _itr, const std::string& _rn, decltype(_ps)... _ps) {
                 using func_t = std::function<error(const std::string&, re_pack_inp<T>&, decltype(_ps)...)>;
@@ -640,7 +694,7 @@ namespace irods {
             return control(this->re_mgr_.re_packs_, er, em, _rn, std::forward<As>(_ps)...);
         }
 
-        //TODO: Add auditing via rex_mgr_ call
+        /// Executes rule text against one or all configured plugin instances.
         error exec_rule_text(
                 const std::string& _instance_name,
                 const std::string& _rt,
@@ -668,6 +722,7 @@ namespace irods {
             return ERROR(SYS_INVALID_INPUT_PARAM, msg);
         }
 
+        /// Executes a rule expression against one or all configured plugin instances.
         error exec_rule_expression(
                 const std::string& _instance_name,
                 const std::string& _rt,
@@ -694,24 +749,28 @@ namespace irods {
             return ERROR(SYS_INVALID_INPUT_PARAM, msg);
         }
 
+        /// Appends rule names from all configured plugins.
         error list_rules(std::vector< std::string >& rule_vec) {
             return this->rex_mgr_.list_rules( rule_vec );
         }
 
     protected:
-        C ctx_;
-        dynamic_operation_execution_manager<T,C,DONT_AUDIT_RULE> rex_mgr_;
+        C ctx_; ///< Microservice execution context.
+        dynamic_operation_execution_manager<T,C,DONT_AUDIT_RULE> rex_mgr_; ///< Helper for nested execution.
     };
 
+    /// Non-audited rule execution context.
     template<typename T, typename C>
     class rule_engine_context_manager<T,C,DONT_AUDIT_RULE> final : public rule_exists_manager<T,C>
     {
     public:
+        /// Builds a non-audited rule execution context.
         rule_engine_context_manager(rule_engine_manager<T,C>& _re_mgr, C _ctx) :
                 rule_exists_manager<T,C>{_re_mgr},
                 ctx_{_ctx} {}
 
         template <typename ...As>
+        /// Executes a named rule without auditing.
         error exec_rule(const std::string& _rn, As &&... _ps) {
             auto er = [this](re_pack_inp<T>& _itr, const std::string& _rn, decltype(_ps)... _ps) {
                 return _itr.re_->template exec_rule<As...>( _rn, _itr.re_ctx_, std::forward<As>(_ps)..., callback(*this));
@@ -724,6 +783,7 @@ namespace irods {
             return control(this->re_mgr_.re_packs_, er, em, _rn, std::forward<As>(_ps)...);
         }
 
+        /// Executes rule text against one or all configured plugin instances.
         error exec_rule_text(
                 const std::string& _instance_name,
                 const std::string& _rt,
@@ -751,6 +811,7 @@ namespace irods {
             return ERROR(SYS_INVALID_INPUT_PARAM, msg);
         }
 
+        /// Executes a rule expression against one or all configured plugin instances.
         error exec_rule_expression(
                 const std::string& _instance_name,
                 const std::string& _rt,
@@ -777,6 +838,7 @@ namespace irods {
             return ERROR(SYS_INVALID_INPUT_PARAM, msg);
         }
 
+        /// Appends rule names from all configured plugins.
         error list_rules(std::vector< std::string >& rule_vec) {
             for( auto itr  = begin(this->re_mgr_.re_packs_);
                       itr != end(this->re_mgr_.re_packs_);
@@ -792,10 +854,11 @@ namespace irods {
         }
 
     protected:
-        C ctx_;
+        C ctx_; ///< Microservice execution context.
     };
 
     template<typename T>
+    /// Resolves and stores one plugin operation by name.
     error pluggable_rule_engine<T>::load_operation(void *_handle, std::string _fcn, std::string _key) {
         dlerror();
         re_plugin_operation<T> plugin_op_ptr = reinterpret_cast< re_plugin_operation<T> > (dlsym(_handle, _fcn.c_str()));
@@ -806,18 +869,25 @@ namespace irods {
 	return SUCCESS();
     }
 
+    /// Alias for an empty rule engine context type.
     using unit = std::tuple<>;
+    /// Convenience macro for a default-constructed `unit` value.
 #define UNIT unit()
 
+    /// Default rule engine context type.
     using default_re_ctx = unit;
+    /// Default microservice execution context type.
     using default_ms_ctx = ruleExecInfo_t *;
 
     template<>
+    /// Microservice manager specialization for rule execution contexts.
     class default_microservice_manager<default_ms_ctx> {
     public:
+        /// Executes a microservice from a packed argument list.
         error exec_microservice_adapter(std::string _msn, default_ms_ctx _ctx, std::list<boost::any>&);
 
         template<typename... As>
+        /// Executes a microservice with forwarded arguments.
         error exec_microservice(std::string _msn, default_ms_ctx _ctx, As&&... _ps) {
             // =-=-=-=-=-=-=-
             // debug message for creating dynPEP rules
@@ -839,6 +909,7 @@ namespace irods {
     };
 
     template<typename... As>
+    /// Dispatches a callback into the stored rule execution context manager.
     error callback::operator()(const std::string& _rn,  As&& ... _ps) {
         if(callback_hdlr_.type() == typeid(rule_engine_context_manager<default_re_ctx, default_ms_ctx, AUDIT_RULE> *)) {
             auto cb = boost::any_cast<rule_engine_context_manager<default_re_ctx, default_ms_ctx, AUDIT_RULE> *>(callback_hdlr_);
@@ -858,10 +929,13 @@ namespace irods {
         }
     }
 
+    /// Converts a packed value into an `msParam_t`.
     error convertToMsParam(boost::any &itr, msParam_t *t);
+    /// Converts an `msParam_t` into a packed value.
     error convertFromMsParam(boost::any& itr, msParam_t *t);
 
     template <typename T>
+    /// Extracts a typed value from `boost::any`, or calls a fallback.
     T any_extract(boost::any _p, std::function<T()> f) {
         if(_p.type() == typeid(T*)) {
             return *boost::any_cast<T*>(_p);
@@ -876,6 +950,7 @@ namespace irods {
     }
 
     template <typename T>
+    /// Writes a value back through a `boost::any` pointer payload when possible.
     void any_update(boost::any& _p, T _p2) {
         if(_p.type() == typeid(T*)) {
             *boost::any_cast<T*>(_p) = _p2;
@@ -883,6 +958,7 @@ namespace irods {
     }
 
     template<typename S, typename T, typename F>
+    /// Iterates over two containers in lockstep.
     void foreach2(S&& a, T&& b, F&& f) {
         typename std::remove_reference<S>::type::iterator itr = a.begin();
         typename std::remove_reference<T>::type::iterator itr2 = b.begin();
@@ -892,27 +968,33 @@ namespace irods {
     }
 
     template< typename InputC, typename OutputC, typename UnaryOperation >
+    /// Applies a unary transform into an existing output container.
     void transform(const InputC &ic, OutputC &oc, UnaryOperation func) {
         std::transform(ic.begin(), ic.end(), oc.begin(), func);
     }
 
     template< typename InputC, typename OutputC, typename UnaryOperation >
+    /// Applies a unary transform and returns a new output container.
     OutputC transform(const InputC &ic,  UnaryOperation func) {
         OutputC oc;
         std::transform(ic.begin(), ic.end(), oc.begin(), func);
         return oc;
     }
 
+    /// Initializes the global list of configured rule engine packs.
     std::vector<re_pack_inp<default_re_ctx> > init_global_re_packs();
+    /// Holds process-wide rule engine globals.
     struct global_re_plugin_mgr {
-        microservice_manager<default_ms_ctx> global_ms_mgr;
-        std::vector<re_pack_inp<default_re_ctx> > global_re_packs = init_global_re_packs();
-        rule_engine_plugin_manager<default_re_ctx> global_re_plugin_mgr = rule_engine_plugin_manager<default_re_ctx>(KW_CFG_PLUGIN_TYPE_RULE_ENGINE);
-        rule_engine_manager<default_re_ctx, default_ms_ctx> global_re_mgr = rule_engine_manager<default_re_ctx, default_ms_ctx>(global_re_plugin_mgr, global_re_packs, global_ms_mgr);
+        microservice_manager<default_ms_ctx> global_ms_mgr; ///< Global microservice manager.
+        std::vector<re_pack_inp<default_re_ctx> > global_re_packs = init_global_re_packs(); ///< Global rule engine pack list.
+        rule_engine_plugin_manager<default_re_ctx> global_re_plugin_mgr = rule_engine_plugin_manager<default_re_ctx>(KW_CFG_PLUGIN_TYPE_RULE_ENGINE); ///< Global plugin manager.
+        rule_engine_manager<default_re_ctx, default_ms_ctx> global_re_mgr = rule_engine_manager<default_re_ctx, default_ms_ctx>(global_re_plugin_mgr, global_re_packs, global_ms_mgr); ///< Global rule engine manager.
     };
 
+    /// Process-wide rule engine globals.
     extern std::unique_ptr<struct irods::global_re_plugin_mgr> re_plugin_globals;
 }
+/// Defines the standard exported rule engine plugin factory functions.
 #define DEFINE_FACTORY \
     irods::pluggable_rule_engine<irods::default_re_ctx>* plugin_factory(const std::string& _inst_name, const std::string& _context) { \
         return new irods::pluggable_rule_engine<irods::default_re_ctx>( _inst_name , _context); \
