@@ -1,6 +1,8 @@
 #ifndef __IRODS_FILE_OBJECT_HPP__
 #define __IRODS_FILE_OBJECT_HPP__
 
+/// \file
+
 // =-=-=-=-=-=-=-
 // irods includes
 #include "irods/fileCreate.h"
@@ -23,6 +25,7 @@
 
 namespace irods {
 
+    /// Represents a file-backed data object and its known replicas.
     class file_object : public data_object {
         public:
             // =-=-=-=-=-=-=-
@@ -258,18 +261,29 @@ namespace irods {
             // NOTE :: These are not guaranteed to be properly populated right now
             //      :: that will need be done later when these changes are pushed
             //      :: higher in the original design
+            /// Connection associated with the file object.
             rsComm_t*                      comm_;            // connection to irods session
+            /// Full logical path from the catalog.
             std::string                    logical_path_;    // full logical path from icat
+            /// Data type string for the data object.
             std::string                    data_type_;       // data type as described in objInfo.h:32
+            /// File descriptor for in-flight operations.
             int                            file_descriptor_; // file descriptor, if the file is in flight
+            /// Index into the iRODS L1 descriptor table.
             int                            l1_desc_idx_;     // index into irods L1 file descriptor table
+            /// Size of the file in bytes.
             rodsLong_t                     size_;            // size of the file in bytes
+            /// Requested replica number.
             int                            repl_requested_;  // requested replica number
+            /// Hierarchy marker indicating operations from within a PDMO.
             std::string                    in_pdmo_;         // hierarchy indicating the current operations are
             // occurring from within a pdmo
             // call made from within the hierarchy
+            /// Replica descriptions discovered for the data object.
             std::vector< physical_object > replicas_;        // structures holding replica info initialized
+            /// Data object identifier.
             long                           data_id_;
+            /// Collection identifier.
             long                           coll_id_;
             // by factory fcn from
             // dataObjInfoHead
@@ -278,6 +292,7 @@ namespace irods {
 
 /// =-=-=-=-=-=-=-
 /// @brief typedef for managed file object ptr
+    /// Shared pointer to a file object.
     typedef boost::shared_ptr< file_object > file_object_ptr;
 
 // =-=-=-=-=-=-=-

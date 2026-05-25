@@ -1,6 +1,8 @@
 #ifndef PLUGIN_TABLE_HPP
 #define PLUGIN_TABLE_HPP
 
+/// \file
+
 // =-=-=-=-=-=-=-
 // irods includes
 #include "irods/rodsErrorTable.h"
@@ -22,26 +24,38 @@
 namespace irods
 {
 
-    // =-=-=-=-=-=-=-
-    // class to manage tables of plugins.  employing a class in order to use
-    // RAII for adding entries to the table now that it is not a static array
+    /// A hash-backed lookup table.
+    ///
+    /// \tparam ValueType Type stored in the table.
+    /// \tparam KeyType Type used as the key.
+    /// \tparam HashType Hash functor used by the underlying map.
     template <typename ValueType, typename KeyType = std::string, typename HashType = irods_string_hash>
     class lookup_table
     {
       protected:
+        /// Underlying associative container type.
         using irods_hash_map = HASH_TYPE<KeyType, ValueType, HashType>;
 
+        /// Stores table entries.
         irods_hash_map table_;
 
       public:
         // clang-format off
+        /// Key type used by the table.
         using key_type                     = typename irods_hash_map::key_type;
+        /// Value type stored in the table.
         using value_type                   = typename irods_hash_map::mapped_type;
+        /// Size type used by the table.
         using size_type                    = typename irods_hash_map::size_type;
+        /// Hash functor type used by the table.
         using hasher                       = typename irods_hash_map::hasher;
+        /// Mutable iterator type.
         using iterator                     = typename irods_hash_map::iterator;
+        /// Iterator value type.
         using iterator_value_type          = typename irods_hash_map::value_type;
+        /// Const iterator type.
         using const_iterator               = typename irods_hash_map::const_iterator;
+        /// Const iterator value type.
         using const_iterator_value_type    =    const iterator_value_type;
         // clang-format on
 
@@ -194,25 +208,33 @@ namespace irods
     }; // class lookup_table
 
 
-    // =-=-=-=-=-=-=-
-    // partial specialization created to support templating the get/set
-    // functions which need to manage exception handling etc from
-    // a boost::any_cast
+    /// Partial specialization supporting typed access to `boost::any` values.
+    ///
+    /// \tparam KeyType Type used as the key.
+    /// \tparam HashType Hash functor used by the underlying map.
     template <typename KeyType, typename HashType>
     class lookup_table<boost::any, KeyType, HashType>
     {
       protected:
+        /// Underlying associative container type.
         using irods_hash_map = HASH_TYPE<KeyType, boost::any, HashType>;
 
+        /// Stores table entries.
         irods_hash_map table_;
 
       public:
         // clang-format off
+        /// Key type used by the table.
         using key_type                     = typename irods_hash_map::key_type;
+        /// Value type stored in the table.
         using value_type                   = typename irods_hash_map::mapped_type;
+        /// Size type used by the table.
         using size_type                    = typename irods_hash_map::size_type;
+        /// Hash functor type used by the table.
         using hasher                       = typename irods_hash_map::hasher;
+        /// Mutable iterator type.
         using iterator                     = typename irods_hash_map::iterator;
+        /// Iterator value type.
         using iterator_value_type          = typename irods_hash_map::value_type;
         // clang-format on
 
@@ -343,6 +365,7 @@ namespace irods
 
     }; // class lookup_table
 
+    /// Property map used to attach arbitrary plugin state.
     using plugin_property_map = lookup_table<boost::any>;
 
 }; // namespace irods

@@ -42,8 +42,11 @@ struct RcComm;
 namespace irods::experimental::administration
 {
     // clang-format off
+    /// Identifies a resource by ID.
     using resource_id_type   = std::string_view;
+    /// Identifies a resource by name.
     using resource_name_type = std::string_view;
+    /// Represents resource timestamps rounded to whole seconds.
     using resource_time_type = std::chrono::time_point<std::chrono::system_clock, std::chrono::seconds>;
     // clang-format on
 
@@ -53,6 +56,10 @@ namespace irods::experimental::administration
     // Forward declaration for "resource_info" class.
     namespace NAMESPACE_IMPL
     {
+        /// Retrieves information about a resource.
+        /// \param[in] _comm Communication object used to execute the request.
+        /// \param[in] _name Name of the resource.
+        /// \return Resource information if the resource exists.
         auto resource_info(RxComm&, const resource_name_type) -> std::optional<class resource_info>;
     } // namespace NAMESPACE_IMPL
 
@@ -60,17 +67,17 @@ namespace irods::experimental::administration
     namespace resource_type
     {
         // clang-format off
-        inline constexpr const char* compound       = "compound";
-        inline constexpr const char* deferred       = "deferred";
-        inline constexpr const char* load_balanced  = "load_balanced";
-        inline constexpr const char* mockarchive    = "mockarchive";
-        inline constexpr const char* nonblocking    = "nonblocking";
-        inline constexpr const char* passthrough    = "passthru";
-        inline constexpr const char* random         = "random";
-        inline constexpr const char* replication    = "replication";
-        inline constexpr const char* struct_file    = "structfile";
-        inline constexpr const char* universal_mss  = "univmss";
-        inline constexpr const char* unixfilesystem = "unixfilesystem";
+        inline constexpr const char* compound       = "compound";       ///< Compound resource type.
+        inline constexpr const char* deferred       = "deferred";       ///< Deferred resource type.
+        inline constexpr const char* load_balanced  = "load_balanced";  ///< Load-balanced resource type.
+        inline constexpr const char* mockarchive    = "mockarchive";    ///< Mock archive resource type.
+        inline constexpr const char* nonblocking    = "nonblocking";    ///< Nonblocking resource type.
+        inline constexpr const char* passthrough    = "passthru";       ///< Passthrough resource type.
+        inline constexpr const char* random         = "random";         ///< Random-selection resource type.
+        inline constexpr const char* replication    = "replication";    ///< Replication resource type.
+        inline constexpr const char* struct_file    = "structfile";     ///< Structured-file resource type.
+        inline constexpr const char* universal_mss  = "univmss";        ///< Universal mass storage resource type.
+        inline constexpr const char* unixfilesystem = "unixfilesystem"; ///< Unix filesystem resource type.
         // clang-format on
     } // namespace resource_type
 
@@ -87,55 +94,94 @@ namespace irods::experimental::administration
     {
     public:
         // clang-format off
+        /// Returns the resource ID.
         [[nodiscard]] auto id() const noexcept -> const std::string&                          { return id_; }
+        /// Returns the resource name.
         [[nodiscard]] auto name() const noexcept -> const std::string&                        { return name_; }
+        /// Returns the resource type string.
         [[nodiscard]] auto type() const noexcept -> const std::string&                        { return type_; }
+        /// Returns the zone that owns the resource.
         [[nodiscard]] auto zone_name() const noexcept -> const std::string&                   { return zone_name_; }
+        /// Returns the host name associated with the resource.
         [[nodiscard]] auto host_name() const noexcept -> const std::string&                   { return host_name_; }
+        /// Returns the vault path for the resource.
         [[nodiscard]] auto vault_path() const noexcept -> const std::string&                  { return vault_path_; }
+        /// Returns the resource status.
         [[nodiscard]] auto status() const noexcept -> resource_status                         { return status_; }
+        /// Returns the resource context string.
         [[nodiscard]] auto context_string() const noexcept -> const std::string&              { return context_string_; }
+        /// Returns the resource comments.
         [[nodiscard]] auto comments() const noexcept -> const std::string&                    { return comments_; }
+        /// Returns the resource information string.
         [[nodiscard]] auto information() const noexcept -> const std::string&                 { return info_; }
+        /// Returns the free space string as reported by the catalog.
         [[nodiscard]] auto free_space() const noexcept -> const std::string&                  { return free_space_; }
+        /// Returns when the free-space value was last updated.
         [[nodiscard]] auto free_space_last_modified() const noexcept -> resource_time_type    { return free_space_time_; }
+        /// Returns the parent resource ID.
         [[nodiscard]] auto parent_id() const noexcept -> const std::string&                   { return parent_id_; }
+        /// Returns when the resource was created.
         [[nodiscard]] auto created() const noexcept -> resource_time_type                     { return ctime_; }
+        /// Returns when the resource was last modified.
         [[nodiscard]] auto last_modified() const noexcept -> resource_time_type               { return mtime_; }
+        /// Returns the last-modified timestamp with millisecond precision.
         [[nodiscard]] auto last_modified_millis() const noexcept -> std::chrono::milliseconds { return mtime_millis_; }
 
+        /// Grants the implementation access to populate resource information.
         friend auto NAMESPACE_IMPL::resource_info(RxComm&, const resource_name_type)
             -> std::optional<class resource_info>;
         // clang-format on
 
     private:
+        /// Constructs an empty resource information record.
         resource_info() = default;
 
+        /// Resource ID.
         std::string id_;
+        /// Resource name.
         std::string name_;
+        /// Resource type.
         std::string type_;
+        /// Zone name.
         std::string zone_name_;
+        /// Host name.
         std::string host_name_;
+        /// Vault path.
         std::string vault_path_;
+        /// Resource status.
         resource_status status_ = resource_status::unknown;
+        /// Context string.
         std::string context_string_;
+        /// Comments.
         std::string comments_;
+        /// Informational text.
         std::string info_;
+        /// Free-space value.
         std::string free_space_;
+        /// Free-space timestamp.
         resource_time_type free_space_time_;
+        /// Parent resource ID.
         std::string parent_id_;
+        /// Creation timestamp.
         resource_time_type ctime_;
+        /// Last-modified timestamp.
         resource_time_type mtime_;
+        /// Last-modified timestamp with millisecond precision.
         std::chrono::milliseconds mtime_millis_;
     }; // class resource_info
 
     /// A type that holds the necessary information needed to add a new resource to the system.
     struct resource_registration_info
     {
+        /// Name of the new resource.
         std::string resource_name;
+        /// Type of the new resource.
         std::string resource_type;
+        /// Host serving the resource.
         std::string host_name;
+        /// Vault path for the resource.
         std::string vault_path;
+        /// Initial context string for the resource.
         std::string context_string;
     }; // class resource_registration_info
 
@@ -146,6 +192,7 @@ namespace irods::experimental::administration
     /// \since 4.3.1
     struct resource_type_property
     {
+        /// New resource type value.
         std::string value;
     }; // struct resource_type_property
 
@@ -156,6 +203,7 @@ namespace irods::experimental::administration
     /// \since 4.3.1
     struct host_name_property
     {
+        /// New host name value.
         std::string value;
     }; // struct host_name_property
 
@@ -166,6 +214,7 @@ namespace irods::experimental::administration
     /// \since 4.3.1
     struct vault_path_property
     {
+        /// New vault path value.
         std::string value;
     }; // struct vault_path_property
 
@@ -176,6 +225,7 @@ namespace irods::experimental::administration
     /// \since 4.3.1
     struct resource_status_property
     {
+        /// New resource status value.
         resource_status value;
     }; // struct resource_status_property
 
@@ -186,6 +236,7 @@ namespace irods::experimental::administration
     /// \since 4.3.1
     struct resource_comments_property
     {
+        /// New comments value.
         std::string value;
     }; // struct resource_comments_property
 
@@ -196,6 +247,7 @@ namespace irods::experimental::administration
     /// \since 4.3.1
     struct resource_info_property
     {
+        /// New information value.
         std::string value;
     }; // struct resource_info_property
 
@@ -206,6 +258,7 @@ namespace irods::experimental::administration
     /// \since 4.3.1
     struct free_space_property
     {
+        /// New free-space value.
         std::string value;
     }; // struct free_space_property
 
@@ -216,6 +269,7 @@ namespace irods::experimental::administration
     /// \since 4.3.1
     struct context_string_property
     {
+        /// New context string value.
         std::string value;
     }; // struct context_string_property
 

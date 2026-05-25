@@ -1,6 +1,8 @@
 #ifndef __IRODS_DATA_OBJECT_HPP__
 #define __IRODS_DATA_OBJECT_HPP__
 
+/// \file
+
 // =-=-=-=-=-=-=-
 #include "irods/irods_first_class_object.hpp"
 
@@ -15,10 +17,12 @@ namespace irods {
 /// =-=-=-=-=-=-=-
 /// @brief typedef for managed data object pointer
     class data_object;
+    /// Shared pointer to a data object.
     typedef boost::shared_ptr< data_object > data_object_ptr;
 
 // =-=-=-=-=-=-=-
 // base class for all object types
+    /// Represents a first-class data object handled by the server.
     class data_object : public first_class_object {
         public:
             // =-=-=-=-=-=-=-
@@ -202,12 +206,19 @@ namespace irods {
             // NOTE :: These are not guaranteed to be properly populated right now
             //      :: that will need be done later when these changes are pushed
             //      :: higher in the original design
+            /// Full physical path in the vault.
             std::string  physical_path_; // full physical path in the vault
+            /// Resource hierarchy describing the object's location.
             std::string  resc_hier_;     // where this lives in the resource hierarchy
+            /// Data object identifier.
             long        id_;             // object id
+            /// Mode used when operating on the object.
             int          mode_;	         // mode when opened or modified
+            /// Operation flags applied to the object.
             int          flags_;         // flags for object operations
+            /// Conditional input key-value pairs.
             keyValPair_t cond_input_;    // input key-value pairs
+            /// Leaf resource identifier used to produce the hierarchy.
             rodsLong_t   resc_id_;       // leaf resource id used to generate hierarchy
 
     }; // class data_object

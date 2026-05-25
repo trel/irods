@@ -47,20 +47,25 @@ namespace irods
     /// @brief kw for storing proxy user priv
     extern const std::string PROXY_USER_PRIV_KW;
 
+    /// Path to the server configuration file.
     extern const std::string SERVER_CONFIG_FILE;
 
+    /// Thread-safe singleton providing access to the server configuration.
     class server_properties
     {
     public:
         /// @brief The singleton
         static server_properties& instance();
 
+        /// Copy construction is disabled for the singleton.
         server_properties(const server_properties&) = delete;
+        /// Copy assignment is disabled for the singleton.
         server_properties& operator=(const server_properties&) = delete;
 
+        /// Sets the configuration file path used by `capture()` and `reload()`.
         void init(const std::string& _path);
 
-        // Returns a copy of the underlying configuration.
+        /// Returns a copy of the underlying configuration.
         static nlohmann::json copy_configuration()
         {
             auto& inst = instance();
@@ -71,18 +76,26 @@ namespace irods
         /// @brief Read server configuration and fill server_properties::properties
         void capture();
 
+        /// Replaces the in-memory server configuration.
         void set_configuration(nlohmann::json _config);
 
         /// \brief Read server configuration, replacing existing keys instead of deleting them.
         /// \returns a json array containing a json patch
         nlohmann::json reload();
 
+        /// Reports whether the configuration contains a top-level key.
+        /// \param[in] _key Key to search for.
+        /// \return `true` if the key exists.
         auto contains(const std::string_view _key) -> bool
         {
             auto lock = acquire_read_lock();
             return config_props_.find(_key) != config_props_.end();
         }
 
+        /// Returns the value stored at a top-level key.
+        /// \tparam T Expected JSON conversion type.
+        /// \param[in] _key Key to read.
+        /// \return The converted property value.
         template<typename T>
         T get_property(const std::string& _key)
         {
@@ -95,6 +108,10 @@ namespace irods
             THROW(KEY_NOT_FOUND, fmt::format("key does not exist [{}].", _key));
         }
 
+        /// Returns the value stored at a nested key path.
+        /// \tparam T Expected JSON conversion type.
+        /// \param[in] _keys Key path to read.
+        /// \return The converted property value.
         template<typename T>
         T get_property(const configuration_parser::key_path_t& _keys)
         {
@@ -112,6 +129,11 @@ namespace irods
             return !tmp->empty() ? tmp->get<T>() : T{};
         }
 
+        /// Sets a top-level property and returns its previous value.
+        /// \tparam T JSON conversion type.
+        /// \param[in] _key Key to update.
+        /// \param[in] _val Replacement value.
+        /// \return The previous property value if present; otherwise a default-constructed value.
         template<typename T>
         T set_property(const std::string& _key, const T& _val)
         {
@@ -126,6 +148,11 @@ namespace irods
             return !tmp.empty() ? tmp.get<T>() : T{};
         }
 
+        /// Sets a nested property and returns its previous value.
+        /// \tparam T JSON conversion type.
+        /// \param[in] _keys Key path to update.
+        /// \param[in] _val Replacement value.
+        /// \return The previous property value if present; otherwise a default-constructed value.
         template<typename T>
         T set_property(const configuration_parser::key_path_t& _keys, const T& _val)
         {
@@ -149,6 +176,10 @@ namespace irods
             return !pre.empty() ? pre.get<T>() : T{};
         }
 
+        /// Removes a top-level property and returns its previous value.
+        /// \tparam T JSON conversion type.
+        /// \param[in] _key Key to remove.
+        /// \return The removed property value if present; otherwise a default-constructed value.
         template<typename T>
         T remove( const std::string& _key )
         {
@@ -163,28 +194,36 @@ namespace irods
             return !tmp.empty() ? tmp.get<T>() : T{};
         }
 
+        /// Removes a top-level property.
         void remove( const std::string& _key );
 
     private:
+        /// Read-only handle that keeps the configuration locked for readers.
         class [[nodiscard("Do not discard lock!")]] readonly_config_handle
         {
           public:
+            /// Constructs a read-only configuration handle.
             readonly_config_handle(const nlohmann::json& json, std::shared_mutex& mutex)
                 : server_config{json}
                 , lock{mutex}
             {
             }
 
+            /// Copy construction is disabled because the handle owns a lock.
             readonly_config_handle(const readonly_config_handle&) = delete;
+            /// Copy assignment is disabled because the handle owns a lock.
             auto operator=(const readonly_config_handle&)->readonly_config_handle& = delete;
 
+            /// Returns the protected configuration JSON.
             [[nodiscard]] auto get_json() const& noexcept->const nlohmann::json&
             {
                 return server_config;
             }
 
           private:
+            /// Configuration protected by the lock.
             const nlohmann::json& server_config;
+            /// Shared lock guarding the configuration.
             std::shared_lock<std::shared_mutex> lock;
         };
 
@@ -212,6 +251,7 @@ namespace irods
     private:
         /// \brief Acquire a read lock, that is, a lock that is not exclusive, that is why it returns a shared_lock
         /// here.
+        /// \return A shared lock guarding the configuration.
         std::shared_lock<std::shared_mutex> acquire_read_lock() const
         {
             return std::shared_lock<std::shared_mutex>(property_mutex_);
@@ -223,61 +263,76 @@ namespace irods
         ///
         /// The unique lock is necessary here over scoped_lock or move_lock because the unique lock
         /// supports move semantics.
+        /// \return A unique lock guarding the configuration.
         std::unique_lock<std::shared_mutex> acquire_write_lock() const
         {
             return std::unique_lock(property_mutex_);
         }
 
+        /// Constructs the singleton.
         server_properties() = default;
 
+        /// Parsed server configuration.
         nlohmann::json config_props_;
+        /// Path to the configuration file on disk.
         std::string file_path_;
+        /// Synchronizes access to the configuration.
         mutable std::shared_mutex property_mutex_;
     }; // class server_properties
 
+    /// Returns a const JSON reference for a top-level key.
     template<>
     const nlohmann::json& server_properties::get_property<const nlohmann::json&>(const std::string& _key);
 
+    /// Returns a const JSON reference for a nested key path.
     template<>
     const nlohmann::json& server_properties::get_property<const nlohmann::json&>(const configuration_parser::key_path_t& _keys);
 
+    /// Reports whether a server property exists.
     inline bool server_property_exists(const std::string_view _prop)
     {
         return irods::server_properties::instance().contains(_prop);
     }
 
+    /// Returns a top-level server property.
     template< typename T >
     T get_server_property( const std::string& _prop )
     {
         return irods::server_properties::instance().get_property<T>(_prop);
     }
 
+    /// Sets a top-level server property.
     template< typename T >
     T set_server_property( const std::string& _prop, const T& _val )
     {
         return irods::server_properties::instance().set_property<T>(_prop, _val);
     }
 
+    /// Returns a nested server property.
     template< typename T >
     T get_server_property( const configuration_parser::key_path_t& _keys )
     {
         return irods::server_properties::instance().get_property<T>(_keys);
     }
 
+    /// Sets a nested server property.
     template< typename T >
     T set_server_property( const configuration_parser::key_path_t& _prop, const T& _val )
     {
         return server_properties::instance().set_property<T>(_prop, _val);
     }
 
+    /// Removes a top-level server property.
     template< typename T >
     T delete_server_property( const std::string& _prop )
     {
         return server_properties::instance().remove(_prop);
     }
 
+    /// Removes a top-level server property without returning its value.
     void delete_server_property( const std::string& _prop );
 
+    /// Returns a value from the advanced settings object.
     template< typename T >
     T get_advanced_setting( const std::string& _prop )
     {

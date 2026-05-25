@@ -1,6 +1,8 @@
 #ifndef IRODS_QUERY_HPP
 #define IRODS_QUERY_HPP
 
+/// \file
+
 #include "irods/specificQuery.h"
 
 #ifdef IRODS_QUERY_ENABLE_SERVER_SIDE_API
@@ -23,13 +25,15 @@
 
 namespace irods
 {
+    /// Identifies which query API to use.
     enum class query_type
     {
-        general = 0,
-        specific = 1
+        general = 0,  ///< Execute a GenQuery request.
+        specific = 1  ///< Execute a specific query request.
     };
 } //namespace irods
 
+/// Formats `irods::query_type` values for `fmt` output.
 template <>
 struct fmt::formatter<irods::query_type> : fmt::formatter<std::underlying_type_t<irods::query_type>>
 {
@@ -46,15 +50,19 @@ struct fmt::formatter<irods::query_type> : fmt::formatter<std::underlying_type_t
 
 namespace irods
 {
+    /// Iterates over rows returned by a general or specific query.
+    /// \tparam connection_type Connection type used to execute query requests.
     template <typename connection_type>
     class query {
     public:
+        /// Row type returned by the iterator.
         using value_type = std::vector<std::string>;
 
+        /// Deprecated query type enum retained for compatibility.
         enum [[deprecated("use irods::query_type")]] query_type
         {
-            GENERAL = 0,
-            SPECIFIC = 1
+            GENERAL = 0,  ///< Execute a GenQuery request.
+            SPECIFIC = 1  ///< Execute a specific query request.
         };
 
         /// Converts a query type string to an enum value.
@@ -109,6 +117,7 @@ namespace irods
                 >(string_to_query_type(_str));
         }
 
+        /// Base class shared by general and specific query implementations.
         class query_impl_base
         {
         public:
@@ -221,13 +230,19 @@ namespace irods
             } // total_row_count
 
         protected:
+            /// Connection used to execute the query.
             connection_type* comm_;
+            /// Maximum number of rows to expose.
             const uint32_t query_limit_;
+            /// Starting row offset for the query.
             const uint32_t row_offset_;
+            /// Original query text or specific query name.
             const std::string query_string_;
+            /// Current page of query output.
             genQueryOut_t* gen_output_;
         }; // class query_impl_base
 
+        /// Implements general query execution.
         class gen_query_impl : public query_impl_base
         {
         public:
@@ -312,14 +327,17 @@ namespace irods
             } // total_row_count
 
         private:
+            /// General query input passed to the server.
             genQueryInp_t gen_input_;
 #ifdef IRODS_QUERY_ENABLE_SERVER_SIDE_API
+            /// Function object used to execute general queries on the server side.
             const std::function<
                 int(connection_type*,
                     genQueryInp_t*,
                     genQueryOut_t**)>
                         gen_query_fcn{rsGenQuery};
 #else
+            /// Function object used to execute general queries on the client side.
             const std::function<
                 int(connection_type*,
                     genQueryInp_t*,
@@ -328,6 +346,7 @@ namespace irods
 #endif // IRODS_QUERY_ENABLE_SERVER_SIDE_API
         }; // class gen_query_impl
 
+        /// Implements specific query execution.
         class spec_query_impl : public query_impl_base
         {
         public:
@@ -399,14 +418,17 @@ namespace irods
             } // fetch_page
 
         private:
+            /// Specific query input passed to the server.
             specificQueryInp_t spec_input_;
 #ifdef IRODS_QUERY_ENABLE_SERVER_SIDE_API
+            /// Function object used to execute specific queries on the server side.
             const std::function<
                 int(connection_type*,
                     specificQueryInp_t*,
                     genQueryOut_t**)>
                         spec_query_fcn{rsSpecificQuery};
 #else
+            /// Function object used to execute specific queries on the client side.
             const std::function<
                 int(connection_type*,
                     specificQueryInp_t*,
@@ -415,20 +437,32 @@ namespace irods
 #endif // IRODS_QUERY_ENABLE_SERVER_SIDE_API
         }; // class spec_query_impl
 
+        /// Forward iterator over query result rows.
         class iterator {
+            /// Query text used for diagnostics.
             const std::string query_string_;
+            /// Zero-based row index within the current page.
             uint32_t row_idx_;
+            /// Total number of rows processed so far.
             uint32_t total_rows_processed_;
+            /// Query input used for continuation diagnostics.
             genQueryInp_t* gen_input_;
+            /// Indicates whether the iterator represents the end position.
             bool end_iteration_state_;
 
+            /// Shared query implementation backing iteration.
             std::shared_ptr<query_impl_base> query_impl_;
 
             public:
+            /// Value returned when dereferencing the iterator.
             using value_type        = value_type;
+            /// Pointer type for iterator traits.
             using pointer           = const value_type*;
+            /// Reference type for iterator traits.
             using reference         = value_type;
+            /// Difference type for iterator traits.
             using difference_type   = value_type;
+            /// Iterator category tag.
             using iterator_category = std::forward_iterator_tag;
 
             /// Constructs an end iterator.
@@ -725,7 +759,9 @@ namespace irods
         }
 
     private:
+        /// Iterator positioned at the first row when results are available.
         std::unique_ptr<iterator>        iter_;
+        /// Shared implementation that owns query state and pages.
         std::shared_ptr<query_impl_base> query_impl_;
     }; // class query
 } // namespace irods
