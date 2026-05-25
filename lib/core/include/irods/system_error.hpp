@@ -17,18 +17,22 @@ namespace irods::experimental
     class error_category : public std::error_category
     {
       public:
+        /// Returns the name of the error category.
         [[nodiscard]] auto name() const noexcept -> const char* override
         {
             return "iRODS";
         } // name
 
+        /// Returns the message associated with the specified iRODS error condition.
         [[nodiscard]] auto message(int _condition) const -> std::string override;
 
+        /// Returns true if both error categories refer to the same instance.
         auto operator==(const error_category& _rhs) const noexcept -> bool
         {
             return this == &_rhs;
         } // operator==
 
+        /// Orders error category instances by address.
         auto operator<=>(const error_category& _rhs) const noexcept -> std::strong_ordering
         {
             if (this < &_rhs) {

@@ -1,6 +1,8 @@
 #ifndef _GENERIC_AUTH_OBJECT_HPP_
 #define _GENERIC_AUTH_OBJECT_HPP_
 
+/// \file
+
 #include "irods/irods_error.hpp"
 #include "irods/irods_auth_object.hpp"
 #include "irods/irods_stacktrace.hpp"
@@ -16,7 +18,12 @@ namespace irods {
         public:
             /// @brief Constructor
             generic_auth_object( const std::string& _type, rError_t* _r_error );
-            generic_auth_object( const generic_auth_object& _rhs ); virtual ~generic_auth_object();
+
+            /// @brief Copy constructor.
+            generic_auth_object( const generic_auth_object& _rhs );
+
+            /// @brief Destructor.
+            virtual ~generic_auth_object();
 
             /// @brief Plugin resolution operator
             virtual error resolve( const std::string& _name, plugin_ptr& _plugin ); // resolve plugin
@@ -42,11 +49,15 @@ namespace irods {
 
             
         private:
+            /// @brief Authentication type name.
             std::string type_;
+
+            /// @brief Socket descriptor associated with this object.
             int sock_;
 
     };
 
+    /// @brief Shared pointer to a generic authentication object.
     typedef boost::shared_ptr<generic_auth_object> generic_auth_object_ptr;
 
 }; // namespace irods

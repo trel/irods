@@ -1,6 +1,8 @@
 #ifndef __IRODS_NETWORK_MANAGER_HPP__
 #define __IRODS_NETWORK_MANAGER_HPP__
 
+/// \file
+
 // =-=-=-=-=-=-=-
 #include "irods/irods_network_plugin.hpp"
 
@@ -25,11 +27,15 @@ namespace irods
       public:
         // =-=-=-=-=-=-=-
         // constructors
+        /// @brief Default constructor.
         network_manager();
+
+        /// @brief Copy constructor.
         network_manager(const network_manager&);
 
         // =-=-=-=-=-=-=-
         // destructor
+        /// @brief Destructor.
         virtual ~network_manager();
 
         /// =-=-=-=-=-=-=-
@@ -63,22 +69,32 @@ namespace irods
             network_ptr&);        // plugin instance
 
       private:
+        /// @brief Key type used to identify cached network plugins.
         using plugin_map_key = std::tuple<
             const int,            // proc type
             const std::string,    // plugin type
             const std::string,    // instance name
             const std::string>;   // context
+
+        /// @brief Hash functor for plugin lookup table keys.
         using plugin_map_hasher = boost::hash<plugin_map_key>;
+
+        /// @brief Lookup table storing loaded network plugins.
         using plugin_lookup_table = std::unordered_map<plugin_map_key, network_ptr, plugin_map_hasher>;
 
+        /// @brief Cache of loaded network plugins.
         plugin_lookup_table plugins_;
+
+        /// @brief Synchronizes access to the plugin cache.
         std::shared_mutex table_lock_;
 
+        /// @brief Legacy plugin lookup table.
         lookup_table<network_ptr> plugins_old_;
 
 
     }; // class network_manager
 
+    /// @brief Global network manager instance.
     extern network_manager netwk_mgr;
 
 }; // namespace irods

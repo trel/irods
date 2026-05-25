@@ -1,11 +1,15 @@
 #ifndef IRODS_HASH_HPP
 #define IRODS_HASH_HPP
 
+/// \file
+
 #include "irods/irods_stacktrace.hpp"
 #include "irods/rodsLog.h"
 
 #include <unordered_map>
 
+/// \def HASH_TYPE
+/// \brief Alias macro for the hash container type used by iRODS.
 #define HASH_TYPE std::unordered_map
 
 #include <string>
@@ -13,17 +17,23 @@
 
 namespace irods
 {
+    /// Provides hashing and comparison support for iRODS string keys.
     struct irods_string_hash
     {
+        /// Compile-time hash table configuration values.
         enum
         {
-            // parameters for hash table
+            /// Minimum number of elements per bucket.
             bucket_size = 4, // 0 < bucket_size
+
+            /// Minimum number of buckets.
             min_buckets = 8
         }; // min_buckets = 2 ^^ N, 0 < N
 
+        /// Destructor.
         ~irods_string_hash() = default;
 
+        /// Computes a hash value for the provided string.
         std::size_t operator()(const std::string& s1) const
         {
             if (s1.empty()) {
@@ -42,6 +52,7 @@ namespace irods
             return hashval;
         }
 
+        /// Compares two strings for ordering.
         bool operator()(const std::string& s1, const std::string& s2) const
         {
             return s1 < s2;
