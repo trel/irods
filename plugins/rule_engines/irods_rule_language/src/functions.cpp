@@ -367,14 +367,14 @@ ReIterableType collType( Res *coll ) {
     }
 }
 
-/* genQuery iterable */
+/// @brief Stores iteration state for GenQuery-backed rule-language collections.
 typedef struct reIterable_genQuery_data {
-    int i;
-    int cont;
-    int len;
-    msParam_t genQInpParam;
-    msParam_t genQOutParam;
-    genQueryOut_t *genQueryOut;
+    int i;                          ///< Current row index within the current result set.
+    int cont;                       ///< Nonzero if more rows can be fetched.
+    int len;                        ///< Number of rows available in the current batch.
+    msParam_t genQInpParam;         ///< Cached GenQuery input parameter.
+    msParam_t genQOutParam;         ///< Cached GenQuery output parameter.
+    genQueryOut_t *genQueryOut;     ///< Active GenQuery result set.
 } ReIterable_genQuery_data;
 
 void reIterable_genQuery_init( ReIterableData *itrData, Region* ) {

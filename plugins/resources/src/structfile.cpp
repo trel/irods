@@ -46,22 +46,23 @@
 
 // =-=-=-=-=-=-=-
 // structures and defines
+/// @brief Tracks an open structured-file descriptor managed by the plugin.
 typedef struct structFileDesc {
-    int inuseFlag;
-    rsComm_t *rsComm;
-    specColl_t *specColl;
-    int openCnt;
-    char dataType[NAME_LEN]; // JMC - backport 4634
+    int inuseFlag;              ///< Nonzero if this descriptor table entry is active.
+    rsComm_t *rsComm;           ///< Server communication handle for file operations.
+    specColl_t *specColl;       ///< Structured-file special collection state.
+    int openCnt;                ///< Number of open references for this entry.
+    char dataType[NAME_LEN];    ///< Data type associated with the structured file.
 } structFileDesc_t;
 
 #define CACHE_DIR_STR "cacheDir"
 
+/// @brief Tracks an open cached subfile extracted from a tar archive.
 typedef struct tarSubFileDesc {
-    int inuseFlag;
-    int structFileInx;
-    int fd;                         /* the fd of the opened cached subFile */
-    char cacheFilePath[MAX_NAME_LEN];   /* the phy path name of the cached
-                                         * subFile */
+    int inuseFlag;                   ///< Nonzero if this subfile descriptor entry is active.
+    int structFileInx;               ///< Index of the parent structured-file descriptor.
+    int fd;                          ///< File descriptor for the cached subfile.
+    char cacheFilePath[MAX_NAME_LEN];///< Physical path to the cached subfile.
 } tarSubFileDesc_t;
 
 #define NUM_TAR_SUB_FILE_DESC 20
@@ -139,13 +140,12 @@ inline irods::error tar_check_params(
 
 } // tar_check_params
 
-// =-=-=-=-=-=-=-
-// @brief simple struct to pass into libarchive callbacks
+/// @brief Carries state shared by libarchive callback hooks.
 struct cb_ctx_t {
-    int               idx_;
-    char              loc_[ NAME_LEN ];
-    structFileDesc_t* desc_;
-    bytesBuf_t        read_buf;
+    int               idx_;               ///< Open file index used by the callback sequence.
+    char              loc_[ NAME_LEN ];   ///< Host location serving the archive data.
+    structFileDesc_t* desc_;              ///< Structured-file descriptor associated with the archive.
+    bytesBuf_t        read_buf;           ///< Reusable read buffer for archive input.
 };
 
 // =-=-=-=-=-=-=-
@@ -2635,13 +2635,10 @@ irods::error tar_file_notify(
 } // tar_file_notify
 
 
-// =-=-=-=-=-=-=-
-// 3. create derived class to handle tar file system resources
-//    necessary to do custom parsing of the context string to place
-//    any useful values into the property map for reference in later
-//    operations.  semicolon is the preferred delimiter
+/// @brief Implements the tar filesystem resource plugin.
 class tarfilesystem_resource : public irods::resource {
     public:
+        /// @brief Constructs a tar filesystem resource plugin instance.
         tarfilesystem_resource(
             const std::string& _inst_name,
             const std::string& _context ) :

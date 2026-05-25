@@ -70,28 +70,31 @@ char sessionTicket[MAX_NAME_LEN] = "";
 char sessionClientAddr[MAX_NAME_LEN] = "";
 
 
+/// @brief Describes a join edge between two catalog tables.
 struct tlinks {
-    int table1;
-    int table2;
-    char connectingSQL[MAX_TSQL];
+    int table1;                      ///< Index of the source table in `Tables`.
+    int table2;                      ///< Index of the destination table in `Tables`.
+    char connectingSQL[MAX_TSQL];    ///< SQL fragment joining the two tables.
 } Links [MAX_LINKS_TABLES_OR_COLUMNS];
 
 int nLinks;
 
+/// @brief Records metadata for a catalog table used during join planning.
 struct tTables {
-    char tableName[NAME_LEN];
-    char tableAlias[MAX_TSQL];
-    int cycler;
-    int flag;
-    char tableAbbrev[2];
+    char tableName[NAME_LEN];        ///< Canonical table name.
+    char tableAlias[MAX_TSQL];       ///< SQL alias text used in generated queries.
+    int cycler;                      ///< Nonzero if traversal should stop at this table.
+    int flag;                        ///< Traversal state used by the spanning-tree search.
+    char tableAbbrev[2];             ///< Single-character table abbreviation plus terminator.
 } Tables [MAX_LINKS_TABLES_OR_COLUMNS];
 
 int nTables;
 
+/// @brief Maps a GenQuery column identifier to its table and column names.
 struct tColumns {
-    int defineValue;
-    char columnName[NAME_LEN];
-    char tableName[NAME_LEN];
+    int defineValue;                 ///< GenQuery column identifier.
+    char columnName[NAME_LEN];       ///< Backing database column name.
+    char tableName[NAME_LEN];        ///< Backing database table name.
 } Columns [MAX_LINKS_TABLES_OR_COLUMNS];
 
 int nColumns;
