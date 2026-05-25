@@ -687,14 +687,14 @@ msiRemoveKeyValuePairsFromObj( msParam_t *metadataParam, msParam_t* objParam,
  *
  * \usage See clients/icommands/test/rules/
  *
- * \param[in] item_type - a msParam of type STR_MS_T
- * \param[in] item_name - a msParam of type STR_MS_T
- * \param[in] avu_op    - a msParam of type STR_MS_T
- * \param[in] attrNameParam - a msParam of type STR_MS_T
- * \param[in] attrValueParam - a msParam of type STR_MS_T
- * \param[in] attrUnitsParam - a msParam of type STR_MS_T
- * \param[in,out] rei - The RuleExecInfo structure that is automatically
- *    handled by the rule engine. The user does not include rei as a
+ * \param[in] _item_type - a msParam of type STR_MS_T
+ * \param[in] _item_name - a msParam of type STR_MS_T
+ * \param[in] _avu_op    - a msParam of type STR_MS_T
+ * \param[in] _attr_name - a msParam of type STR_MS_T
+ * \param[in] _attr_val - a msParam of type STR_MS_T
+ * \param[in] _attr_unit - a msParam of type STR_MS_T
+ * \param[in,out] _rei - The RuleExecInfo structure that is automatically
+ *    handled by the rule engine. The user does not include _rei as a
  *    parameter in the rule invocation.
  *
  * \DolVarDependence none
