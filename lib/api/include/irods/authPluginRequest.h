@@ -10,12 +10,14 @@ typedef struct AuthPluginReqInp {
     char auth_scheme_[ MAX_NAME_LEN ]; ///< Authentication scheme name.
     char context_    [ MAX_NAME_LEN ]; ///< Context string passed to the plugin.
 } authPluginReqInp_t;
+/// Packing instruction for `authPluginReqInp_t`.
 #define authPlugReqInp_PI "str auth_scheme_[MAX_NAME_LEN]; str context_[MAX_NAME_LEN];"
 
 /// \brief Output returned by an authentication plugin request.
 typedef struct AuthPluginReqOut {
     char result_[ MAX_NAME_LEN ]; ///< Result string produced by the plugin.
 } authPluginReqOut_t;
+/// Packing instruction for `authPluginReqOut_t`.
 #define authPlugReqOut_PI "str result_[MAX_NAME_LEN];"
 
 
