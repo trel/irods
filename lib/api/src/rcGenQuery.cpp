@@ -14,7 +14,7 @@
 /* this is a debug routine; it just prints the genQueryInp
    structure */
 int
-/// \\brief Debug helper that prints the contents of a `genQueryInp_t` structure.
+/// \brief Debug helper that prints the contents of a `genQueryInp_t` structure.
 printGenQI( genQueryInp_t *genQueryInp ) {
     int i, len;
     int *ip1, *ip2;

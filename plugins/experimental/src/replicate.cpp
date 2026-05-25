@@ -4,6 +4,7 @@
 #include "irods/dataObjRepl.h"
 
 namespace irods::experimental::api {
+    /// API operation implementing experimental replicate behavior.
     class replicate : parallel_filesystem_operation {
         private:
             void process_object(rcComm_t& comm, const fs::path& path, const json& req)

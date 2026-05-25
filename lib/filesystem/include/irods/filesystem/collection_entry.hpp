@@ -24,6 +24,7 @@ namespace irods::experimental::filesystem::NAMESPACE_IMPL
     class collection_iterator;
     class recursive_collection_iterator;
 
+    /// Cached filesystem entry describing a collection or data object.
     class collection_entry
     {
     public:

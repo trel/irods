@@ -84,6 +84,7 @@ namespace
 
 namespace irods::authentication
 {
+    /// Authentication plugin implementing the modern iRODS authentication flow.
     class irods_authentication : public irods_auth::authentication_base
     {
       private:

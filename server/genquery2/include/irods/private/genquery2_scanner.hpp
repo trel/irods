@@ -11,6 +11,7 @@ namespace irods::experimental::genquery2
 {
     class driver;
 
+    /// Flex-based scanner for the GenQuery2 parser.
     class scanner : public yyFlexLexer
     {
       public:

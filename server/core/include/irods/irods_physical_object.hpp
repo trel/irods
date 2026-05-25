@@ -9,6 +9,7 @@
 
 namespace irods {
 
+    /// Represents the physical-replica attributes of a data object.
     class physical_object {
         public:
             // =-=-=-=-=-=-=-
@@ -346,5 +347,4 @@ namespace irods {
 }; // namespace irods
 
 #endif // __IRODS_PHYSICAL_OBJECT_HPP__
-
 
