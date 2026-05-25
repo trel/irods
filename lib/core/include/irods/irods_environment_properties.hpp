@@ -80,10 +80,11 @@ namespace irods {
         private:
             /// \cond IRODS_DOXYGEN_INTERNAL
             environment_properties( environment_properties const& );
+            /* Internal constructor for the singleton. */
             environment_properties( );
             void operator=( environment_properties const& );
 
-            /// \brief Captures properties from the JSON environment file.
+            /* Internal helper for reading a JSON environment file. */
             void capture_json( const std::string& );
 
             /// \brief Property lookup table.

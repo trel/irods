@@ -48,6 +48,7 @@ namespace
     } // make_msi
 } // anonymous namespace
 
+/// Registers the `msi_test_issue_6782` microservice.
 extern "C" auto plugin_factory() -> irods::ms_table_entry*
 {
     return make_msi<>("msi_test_issue_6782", msi_impl);

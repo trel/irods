@@ -58,6 +58,7 @@ namespace
 } // anonymous namespace
 
 extern "C"
+/// Registers the `msi_get_file_descriptor_info` microservice.
 auto plugin_factory() -> irods::ms_table_entry*
 {
     return make_msi<msParam_t*, msParam_t*>("msi_get_file_descriptor_info", msi_impl);
