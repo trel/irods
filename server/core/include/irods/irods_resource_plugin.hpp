@@ -20,13 +20,20 @@ namespace irods {
 // =-=-=-=-=-=-=-
     /**
      * \author Jason M. Coposky
-     * \brief
+     * \brief Base class for iRODS resource plugins.
      *
+     * Stores parent and child resource relationships and exposes helper
+     * functions used by resource plugin implementations.
      **/
     class resource : public plugin_base {
         public:
             // =-=-=-=-=-=-=-
-            /// @brief Constructors
+            /**
+             * @brief Constructs a resource plugin wrapper.
+             * @param[in] _inst Plugin instance name.
+             * @param[in] _ctx Plugin context string.
+             * @post Initializes child and parent properties for property lookups.
+             */
             resource(
                 const std::string& _inst,
                 const std::string& _ctx ) :
@@ -42,12 +49,17 @@ namespace irods {
             } // ctor
 
             // =-=-=-=-=-=-=-
-            /// @brief Destructor
+            /**
+             * @brief Destroys the resource object.
+             */
             virtual ~resource() {
             }
 
             // =-=-=-=-=-=-=-
-            /// @brief copy ctor
+            /**
+             * @brief Copies a resource object.
+             * @param[in] _rhs Resource object to copy.
+             */
             resource( const resource& _rhs ) :
               plugin_base{ _rhs },
               children_{_rhs.children_},
@@ -55,7 +67,11 @@ namespace irods {
             } // cctor
 
             // =-=-=-=-=-=-=-
-            /// @brief Assignment Operator - necessary for stl containers
+            /**
+             * @brief Assigns one resource object to another.
+             * @param[in] _rhs Resource object supplying the new state.
+             * @return Reference to this resource after assignment.
+             */
             resource& operator=( const resource& _rhs ) {
                 if ( &_rhs == this ) {
                     return *this;
@@ -67,21 +83,53 @@ namespace irods {
             }
 
             // =-=-=-=-=-=-=-
-            /// @brief interface to add and remove children using the zone_name::resource_name
+            /**
+             * @brief Adds a child resource entry.
+             * Inputs are the child hierarchy key, child resource name, and
+             * child resource pointer.
+             * @return Error object describing success or failure.
+             */
             virtual error add_child( const std::string&, const std::string&, resource_ptr );
+            /**
+             * @brief Removes a child resource entry.
+             * Input is the child hierarchy key identifying the entry to remove.
+             * @return Error object describing success or failure.
+             */
             virtual error remove_child( const std::string& );
+            /**
+             * @brief Returns the number of registered child resources.
+             * @return Count of child resources.
+             */
             virtual size_t num_children() {
                 return children_.size();
             }
+            /**
+             * @brief Reports whether a child resource entry exists.
+             * @param[in] _name Child resource hierarchy key.
+             * @return True if the child exists, otherwise false.
+             */
             virtual bool has_child(
                 const std::string& _name ) {
                 return children_.has_entry( _name );
             }
+            /**
+             * @brief Collects the names of registered child resources.
+             * Output is the vector populated with child resource names.
+             */
             virtual void children( std::vector<std::string>& );
 
             // =-=-=-=-=-=-=-
-            /// @brief interface to get and set a resource's parent pointer
+            /**
+             * @brief Sets the parent resource pointer.
+             * Input is the parent resource pointer to store.
+             * @return Error object describing success or failure.
+             */
             virtual error set_parent( const resource_ptr& );
+            /**
+             * @brief Retrieves the parent resource pointer.
+             * Output is the stored parent resource pointer.
+             * @return Error object describing success or failure.
+             */
             virtual error get_parent( resource_ptr& );
 
         protected:
@@ -109,6 +157,4 @@ namespace irods {
 
 
 #endif // ___IRODS_RESC_PLUGIN_HPP__
-
-
 
