@@ -68,6 +68,7 @@ namespace
     } // make_msi
 } // anonymous namespace
 
+/// Registers the `msi_json_dump` microservice.
 extern "C" auto plugin_factory() -> irods::ms_table_entry*
 {
     return make_msi<MsParam*, MsParam*, MsParam*>("msi_json_dump", msi_impl);

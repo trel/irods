@@ -3,8 +3,11 @@
 
 #include "irods/rcConnect.h"
 
+/**
+ * \brief Input passed to `rcFileClosedir`.
+ */
 typedef struct {
-    int fileInx;
+    int fileInx; ///< File descriptor index for the directory stream to close.
 } fileClosedirInp_t;
 #define fileClosedirInp_PI "int fileInx;"
 

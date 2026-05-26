@@ -2,7 +2,7 @@
 #include "irods/procApiRequest.h"
 #include "irods/apiNumber.h"
 
-/**
+/*
  * \fn rcEndTransaction( rcComm_t *conn, endTransactionInp_t *endTransactionInp )
  *
  * \brief End a database transaction.
@@ -26,7 +26,7 @@
  * \sideeffect none
  * \pre none
  * \post none
-**/
+ */
 int
 rcEndTransaction( rcComm_t *conn, endTransactionInp_t *endTransactionInp ) {
     int status;

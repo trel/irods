@@ -1,47 +1,51 @@
 /**
-features:
-automatic input/output handling
-automatic factory code generation
+ * \file
+ * \brief Declares macros for defining microservices with generated boilerplate.
+ *
+ * Features:
+ * - automatic input/output handling
+ * - automatic factory code generation
 
-    MICROSERVICE_BEGIN(
-      add,
-      INT, a, INPUT,
-      INT, b, INPUT,
-      INT, c, OUTPUT ALLOC)
+ *     MICROSERVICE_BEGIN(
+ *       add,
+ *       INT, a, INPUT,
+ *       INT, b, INPUT,
+ *       INT, c, OUTPUT ALLOC)
 
-    c = a + b;
-  MICROSERVICE_END
+ *     c = a + b;
+ *   MICROSERVICE_END
 
 
-  MICROSERVICE_BEGIN(
-      concat,
-      STR, a, INPUT OUTPUT,
-      STR, b, INPUT)
+ *   MICROSERVICE_BEGIN(
+ *       concat,
+ *       STR, a, INPUT OUTPUT,
+ *       STR, b, INPUT)
 
-    int al = strlen(a);
-    int bl = strlen(b);
-    char *c = (char *) malloc(al + bl + 1);
-    if(c==NULL) {
-        RETURN( -1);
-    }
-    snprintf(c, "%s%s", a, b);
-    a = c; // no need to free a
-  MICROSERVICE_END
+ *     int al = strlen(a);
+ *     int bl = strlen(b);
+ *     char *c = (char *) malloc(al + bl + 1);
+ *     if(c==NULL) {
+ *         RETURN( -1);
+ *     }
+ *     snprintf(c, "%s%s", a, b);
+ *     a = c; // no need to free a
+ *   MICROSERVICE_END
 
-  MICROSERVICE_BEGIN(
-      unusedParam,
-      STR, a, INPUT OUTPUT,
-      STR, b, INPUT)
+ *   MICROSERVICE_BEGIN(
+ *       unusedParam,
+ *       STR, a, INPUT OUTPUT,
+ *       STR, b, INPUT)
 
-    (void) a;
-    (void) b;
+ *     (void) a;
+ *     (void) b;
 
-  MICROSERVICE_END
-*/
+ *   MICROSERVICE_END
+ */
 #ifndef MICROSERVICE_HPP_
 
 #define MICROSERVICE_HPP_
 #undef BOOST_PP_VARIADICS
+/// Ensures variadic macro support is enabled for Boost.Preprocessor.
 #define BOOST_PP_VARIADICS 1
 #include <boost/preprocessor/comparison/greater_equal.hpp>
 #include <boost/preprocessor/comparison/less_equal.hpp>
@@ -73,46 +77,69 @@ automatic factory code generation
 
 
 
+/// \brief Convenience alias for integer microservice parameters.
 typedef int INT;
+/// \brief Convenience alias for string microservice parameters.
 typedef char* STR;
 
+/// \brief Maps a parameter type to the storage form used by generated microservice code.
 template<typename T>
 class ParamType {
     public:
+        /// \brief Pointer storage type for the parameter.
         typedef T* type;
+        /// \brief Reference type exposed to microservice implementations.
         typedef T& refType;
+        /// \brief Returns the default storage value.
         static type defaultValue() {
             return NULL;
         }
+        /// \brief Converts stored data into the exposed parameter form.
         static refType convert( type& obj ) {
             return *obj;
         }
 };
 
+/// \brief Specialization for string parameters.
 template<>
 class ParamType <STR> {
     public:
+        /// \brief Storage type for string parameters.
         typedef char* type;
+        /// \brief Reference type exposed to microservice implementations.
         typedef STR& refType;
+        /// \brief Returns the default storage value.
         static type defaultValue() {
             return NULL;
         }
+        /// \brief Converts stored data into the exposed parameter form.
         static refType convert( type& obj ) {
             return obj;
         }
 };
 
+/// \brief Marks a microservice parameter as an input.
 #define INPUT (0)
+/// \brief Marks a microservice parameter as an output.
 #define OUTPUT (1)
+/// \brief Requests automatic allocation for an output parameter.
 #define ALLOC (2)            // automatically allocate memory for output variable
+/// \brief Disables automatic allocation for an output parameter.
 #define NO_ALLOC (3)         // do not automatically allocate memory for output variable, this is the default behavior
+/// \brief Uses malloc/free for allocation and deallocation.
 #define STRUCT (4)           // call malloc/free to alloc/deallocate memory, this is the default behavior
+/// \brief Uses new/delete for allocation and deallocation.
 #define CLASS (5)            // call new/delete to alloc/deallocate memory
+/// \brief Enables automatic deallocation for a parameter.
 #define DEALLOC (6)          // automatically deallocate memory for variable, this is the default behavior
+/// \brief Disables automatic deallocation for a parameter.
 #define NO_DEALLOC (7)       // do not automatically deallocate memory for variable
+/// \brief Passes a parameter by reference.
 #define REF (8)              // pass in reference, this is the default behavior, an output variable with no reference is implicitly a pointer
+/// \brief Passes a parameter by pointer.
 #define PTR (9)              // pass in pointer rather than reference, an output variable with no reference is implicitly a pointer
 
+/// \cond IRODS_DOXYGEN_INTERNAL
 #define EXPAND(f) f
 
 #define TEST_FLAG(a, f) \
@@ -336,6 +363,9 @@ extern "C" { \
 #        define BOOST_PP_VARIADIC_SIZE(...) BOOST_PP_VARIADIC_SIZE_I(__VA_ARGS__, 64, 63, 62, 61, 60, 59, 58, 57, 56, 55, 54, 53, 52, 51, 50, 49, 48, 47, 46, 45, 44, 43, 42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1,)
 #    define BOOST_PP_VARIADIC_SIZE_I(e0, e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20, e21, e22, e23, e24, e25, e26, e27, e28, e29, e30, e31, e32, e33, e34, e35, e36, e37, e38, e39, e40, e41, e42, e43, e44, e45, e46, e47, e48, e49, e50, e51, e52, e53, e54, e55, e56, e57, e58, e59, e60, e61, e62, e63, size, ...) size
 
+/// \endcond
+
+/// \brief Begins a microservice definition.
 #define MICROSERVICE_BEGIN(msName, ...) \
     BOOST_PP_IF( \
         BOOST_PP_VARIADIC_SIZE(__VA_ARGS__), \
@@ -345,13 +375,18 @@ extern "C" { \
         MICROSERVICE_NIL(msName) \
     ) \
 
+/// \cond IRODS_DOXYGEN_INTERNAL
 #define _MICROSERVICE_BEGIN(msName, lists) \
     MICROSERVICE_LIST (msName, BOOST_PP_TUPLE_ELEM(3,0,lists),BOOST_PP_TUPLE_ELEM(3,1,lists),BOOST_PP_TUPLE_ELEM(3,2,lists)) \
 
+/// \endcond
+
+/// \brief Returns from a microservice with the provided status.
 #define RETURN(status) \
     _status = status; \
     goto output; \
 
+/// \brief Ends a microservice definition with a successful status.
 #define MICROSERVICE_END \
     _status = 0; \
     goto output; \

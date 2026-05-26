@@ -16,6 +16,7 @@ namespace irods::experimental::io
     /// \since 4.2.9
     struct replica_token
     {
+        /// The replica token string.
         std::string value;
     };
 
@@ -24,6 +25,7 @@ namespace irods::experimental::io
     /// \since 4.2.9
     struct root_resource_name
     {
+        /// The root resource name.
         std::string value;
     };
 
@@ -32,6 +34,7 @@ namespace irods::experimental::io
     /// \since 4.2.9
     struct leaf_resource_name
     {
+        /// The leaf resource name.
         std::string value;
     };
 
@@ -40,6 +43,7 @@ namespace irods::experimental::io
     /// \since 4.2.9
     struct replica_number
     {
+        /// The replica number.
         int value;
     };
 
@@ -71,13 +75,14 @@ namespace irods::experimental::io
     {
     public:
         // clang-format off
-        using char_type   = CharT;
-        using traits_type = Traits;
-        using int_type    = typename traits_type::int_type;
-        using pos_type    = typename traits_type::pos_type;
-        using off_type    = typename traits_type::off_type;
+        using char_type   = CharT; ///< Character type transferred by the transport.
+        using traits_type = Traits; ///< Character traits type.
+        using int_type    = typename traits_type::int_type; ///< Integer type used by the traits.
+        using pos_type    = typename traits_type::pos_type; ///< Absolute position type.
+        using off_type    = typename traits_type::off_type; ///< Relative offset type.
         // clang-format on
 
+        /// Destroys the transport.
         virtual ~transport() {}
 
         /// Creates or opens a data object in the specified mode.
@@ -168,7 +173,7 @@ namespace irods::experimental::io
 
         /// Closes an open replica.
         ///
-        /// \param[in] _on_close_success A pointer to an ::on_close_success object that instructs
+        /// \param[in] _on_close_success A pointer to an on_close_success object that instructs
         ///                              the server to skip or perform certain operations. If the pointer
         ///                              is null, implementations of this function must default to
         ///                              instructing the server to update the catalog and skip computing
@@ -219,21 +224,28 @@ namespace irods::experimental::io
         virtual int file_descriptor() const noexcept = 0;
 
         /// The name of the root resource where the replica resides.
+        ///
+        /// \return The root resource name for the open replica.
         virtual const root_resource_name& root_resource_name() const = 0;
 
         /// The name of the leaf resource where the replica resides.
+        ///
+        /// \return The leaf resource name for the open replica.
         virtual const leaf_resource_name& leaf_resource_name() const = 0;
 
         /// The replica number that identifies the replica.
+        ///
+        /// \return The replica number for the open replica.
         virtual const replica_number& replica_number() const = 0;
 
         /// The replica token attached to the replica.
         ///
         /// Replica tokens only apply to write operations. Replica opened only for reads do
         /// not produce replica tokens.
+        ///
+        /// \return The replica token for the open replica.
         virtual const replica_token& replica_token() const = 0;
     }; // class transport
 } // irods::experimental::io
 
 #endif // IRODS_IO_TRANSPORT_HPP
-

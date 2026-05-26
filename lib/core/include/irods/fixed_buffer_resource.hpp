@@ -131,6 +131,11 @@ namespace irods::experimental::pmr
         } // print
 
     protected:
+        /// Allocates a block from the managed fixed-size buffer.
+        ///
+        /// \param[in] _bytes The number of bytes to allocate.
+        /// \param[in] _alignment The required alignment for the returned block.
+        /// \return A pointer to the allocated block.
         auto do_allocate(std::size_t _bytes, std::size_t _alignment) -> void* override
         {
             for (auto* h = headers_; h; h = h->next) {
@@ -142,6 +147,11 @@ namespace irods::experimental::pmr
             throw std::bad_alloc{};
         } // do_allocate
 
+        /// Releases a block back to the managed fixed-size buffer.
+        ///
+        /// \param[in] _p The block to release.
+        /// \param[in] _bytes The size of the allocation represented by \p _p.
+        /// \param[in] _alignment The alignment used for the allocation.
         auto do_deallocate(void* _p, std::size_t _bytes, std::size_t _alignment) -> void override
         {
             static_cast<void>(_alignment); // Keep the compiler silent.
@@ -160,6 +170,10 @@ namespace irods::experimental::pmr
             allocated_ -= _bytes;
         } // do_deallocate
 
+        /// Indicates whether another memory resource is this exact resource.
+        ///
+        /// \param[in] _other The memory resource to compare against.
+        /// \return True if \p _other refers to this instance.
         auto do_is_equal(const boost::container::pmr::memory_resource& _other) const noexcept -> bool override
         {
             return this == &_other;
@@ -343,4 +357,3 @@ namespace irods::experimental::pmr
 } // namespace irods::experimental::pmr
 
 #endif // IRODS_FIXED_BUFFER_RESOURCE_HPP
-

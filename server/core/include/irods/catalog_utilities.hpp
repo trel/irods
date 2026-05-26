@@ -18,7 +18,7 @@ struct rodsServerHost;
 
 namespace irods::experimental::catalog
 {
-    // alias for the currently supported types for storing values in the catalog
+    /// Variant of supported value types for catalog bindings.
     using bind_type = std::variant<std::string, std::uint64_t, int>;
 
     /// \brief Struct containing information for binding values to an SQL statement
@@ -26,48 +26,49 @@ namespace irods::experimental::catalog
     /// \since 4.2.9
     struct bind_parameters
     {
-        /// \var The statement to which parameters will be bound.
+        /// The statement to which parameters will be bound.
         nanodbc::statement& statement;
 
-        /// \var Index of the bind variable in the statement.
+        /// The index of the bind variable in the statement.
         const std::size_t index;
 
-        /// \var JSON object from which the value to bind is derived.
+        /// The JSON object from which the value to bind is derived.
         const nlohmann::json& json_input;
 
-        /// \var The name of the column whose value will be bound to the statement.
+        /// The name of the column whose value will be bound to the statement.
         std::string_view column_name;
 
-        /// \var An external variable to store the bind values
+        /// Stores bind values long enough for the statement to execute.
         ///
         /// This exists in order to have a place for the values to survive until the statement
         /// can be executed. Otherwise, the values could go out of scope too soon.
         std::vector<bind_type>& bind_values;
 
-        /// \var The name of the configured database backend.
+        /// The name of the configured database backend.
         const std::string_view db_instance_name;
     };
 
-    // alias for the mapping operator functions
+    /// Function type for applying a column-to-statement binding.
     using mapping_operator_type = std::function<void(bind_parameters&)>;
-    // alias for the map between column names and mapping operator
+
+    /// Map type from catalog column names to binding functions.
     using column_mapping_operator_type = std::map<std::string, mapping_operator_type>;
 
-    /// \brief Binds a string value to the given index of the ODBC statement
+    /// \brief Binds a string value to the given index of the ODBC statement.
     ///
     /// \param[in] _bp - Parameters for binding values to a statement
     ///
     /// \since 4.2.9
     auto bind_string_to_statement(bind_parameters& _bp) -> void;
 
-    /// \brief Binds a string value to the given index of the ODBC statement
+    /// \brief Binds an unsigned integer value to the given index of the ODBC statement.
     ///
     /// \param[in] _bp - Parameters for binding values to a statement
     ///
     /// \since 4.2.9
     auto bind_bigint_to_statement(bind_parameters& _bp) -> void;
 
-    /// \brief Binds a string value to the given index of the ODBC statement
+    /// \brief Binds an integer value to the given index of the ODBC statement.
     ///
     /// \param[in] _bp - Parameters for binding values to a statement
     ///
@@ -76,6 +77,7 @@ namespace irods::experimental::catalog
 
     namespace data_objects
     {
+        /// Maps data object column names to their binding functions.
         inline const column_mapping_operator_type column_mapping_operators{
             {"data_id",         bind_bigint_to_statement},
             {"coll_id",         bind_bigint_to_statement},
@@ -103,10 +105,19 @@ namespace irods::experimental::catalog
     /// \brief Describes the different entity types within iRODS as represented in the catalog.
     /// \since 4.2.9
     enum class entity_type {
+        /// A data object entity.
         data_object,
+
+        /// A collection entity.
         collection,
+
+        /// A user entity.
         user,
+
+        /// A resource entity.
         resource,
+
+        /// A zone entity.
         zone
     };
 
@@ -124,23 +135,58 @@ namespace irods::experimental::catalog
     /// \since 4.2.9
     enum class access_type
     {
+        /// No access.
         null                 = 1000,
+
+        /// Permission to execute.
         execute              = 1010,
+
+        /// Permission to read annotations.
         read_annotation      = 1020,
+
+        /// Permission to read system metadata.
         read_system_metadata = 1030,
+
+        /// Permission to read metadata.
         read_metadata        = 1040,
+
+        /// Permission to read an object.
         read_object          = 1050,
+
+        /// Permission to write annotations.
         write_annotation     = 1060,
+
+        /// Permission to create metadata.
         create_metadata      = 1070,
+
+        /// Permission to modify metadata.
         modify_metadata      = 1080,
+
+        /// Permission to delete metadata.
         delete_metadata      = 1090,
+
+        /// Permission to administer an object.
         administer_object    = 1100,
+
+        /// Permission to create an object.
         create_object        = 1110,
+
+        /// Permission to modify an object.
         modify_object        = 1120,
+
+        /// Permission to delete an object.
         delete_object        = 1130,
+
+        /// Permission to create a token.
         create_token         = 1140,
+
+        /// Permission to delete a token.
         delete_token         = 1150,
+
+        /// Permission to curate.
         curate               = 1160,
+
+        /// Ownership permission.
         own                  = 1200
     };
 
@@ -180,6 +226,8 @@ namespace irods::experimental::catalog
                                             const std::string_view _db_instance_name,
                                             std::int64_t _object_id) -> bool;
 
+    /// Throws if the configured service role is not valid for catalog operations.
+    ///
     /// \throws irods::exception
     /// \since 4.2.9
     auto throw_if_catalog_provider_service_role_is_invalid() -> void;

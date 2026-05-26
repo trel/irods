@@ -14,8 +14,10 @@ namespace irods {
      */
     class oper_replicator {
         public:
+            /// @brief Replicates an operation across sibling replicas.
             virtual error replicate( plugin_context& _ctx, const child_list_t& _siblings, const object_oper& _object_oper ) = 0;
 
+            /// @brief Destroys the operation replicator.
             virtual ~oper_replicator() {
 
             }

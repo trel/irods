@@ -22,8 +22,7 @@ namespace irods::client_api_allowlist
     /// \param[in] _comm The server communication object.
     ///
     /// \return A boolean value
-    /// \retval false If \p _comm represents a user of type rodsadmin.
-    /// \retval false If \p _comm is a server-to-server connection.
+    /// \retval false If \p _comm represents a user of type rodsadmin or if \p _comm is a server-to-server connection.
     /// \retval true  Otherwise.
     ///
     /// \since 5.0.0

@@ -1,6 +1,8 @@
 #ifndef _HIERARCHY_PARSER_HPP_
 #define _HIERARCHY_PARSER_HPP_
 
+/// \file
+
 #include "irods/irods_error.hpp"
 
 #include <string>
@@ -14,7 +16,10 @@ namespace irods {
      */
     class hierarchy_parser {
         public:
+            /// @brief Container type used to hold resource names.
             typedef std::vector<std::string> resc_list_t;
+
+            /// @brief Const iterator over resource names.
             typedef resc_list_t::const_iterator const_iterator;
 
             /// @brief ctor doesn't do much, until it has a string
@@ -26,6 +31,7 @@ namespace irods {
             /// @brief copy constructor
             hierarchy_parser( const hierarchy_parser& parser );
 
+            /// @brief Destructor.
             virtual ~hierarchy_parser();
 
             /// @brief assignment operator
@@ -46,7 +52,7 @@ namespace irods {
              */
             std::string str(const std::string& _term_resc = "") const;
 
-            // Add a resource in front of the specified resource, if applicable.
+            /// @brief Adds a parent resource before the specified child resource, if applicable.
             void add_parent(const std::string& _parent, const std::string& _child = {});
 
             /// @brief Adds another level of hierarchy by adding the specified child resource
@@ -114,6 +120,7 @@ namespace irods {
             bool resc_in_hier( const std::string& _resc ) const;
 
         private:
+            /// @brief Stores the parsed resource hierarchy.
             resc_list_t resc_list_;
     };
 }; // namespace irods

@@ -14,8 +14,10 @@
 
 #ifndef IRODS_CHRONO_FORMATTER_FMT
 #  if FMT_VERSION >= 100000
+#    /// Indicates whether fmt chrono formatter support is available.
 #    define IRODS_CHRONO_FORMATTER_FMT 1
 #  else
+#    /// Indicates whether fmt chrono formatter support is available.
 #    define IRODS_CHRONO_FORMATTER_FMT 0
 #  endif
 #endif

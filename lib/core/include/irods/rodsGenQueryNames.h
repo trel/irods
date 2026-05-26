@@ -5,15 +5,16 @@
 ///
 /// \brief Common header file for the generalized query names.
 ///
-/// Maps the user specified strings to the corresponding #define values.
+/// Maps the user specified strings to the corresponding generalized query constants.
 
 #include "irods/rodsGenQuery.h"
 
 // NOLINTNEXTLINE(modernize-use-using)
+/// \brief Maps a generalized query column identifier to its string name.
 typedef struct GenQueryColumnName
 {
-    int columnId;
-    char *columnName;
+    int columnId; ///< Generalized query column identifier.
+    char *columnName; ///< String name associated with the column identifier.
 } columnName_t;
 
 // clang-format off

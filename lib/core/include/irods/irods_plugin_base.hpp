@@ -22,17 +22,33 @@
 #include "irods/irods_lookup_table.hpp"
 #include "irods/irods_plugin_context.hpp"
 
+/// @brief Default plugin interface version supported by `plugin_base`.
 static double PLUGIN_INTERFACE_VERSION = 2.0;
 
 namespace irods
 {
+    /// @brief Type of a post-disconnect maintenance operation callback.
+    /// Receives the disconnected client's communication handle and returns an iRODS error.
     typedef std::function< irods::error( rcComm_t* ) > pdmo_type;
+
+    /// @brief Type of a plugin lifecycle callback.
+    /// Receives the plugin property map and returns an iRODS error.
     typedef std::function< irods::error( plugin_property_map& ) > maintenance_operation_t;
 
+    /**
+     * @brief Default start hook for plugins.
+     * Accepts the plugin property map supplied by the caller.
+     * @return `SUCCESS()`.
+     */
     static error default_plugin_start_operation( plugin_property_map& ) {
         return SUCCESS();
     }
 
+    /**
+     * @brief Default stop hook for plugins.
+     * Accepts the plugin property map supplied by the caller.
+     * @return `SUCCESS()`.
+     */
     static error default_plugin_stop_operation( plugin_property_map& ) {
         return SUCCESS();
     }
@@ -52,6 +68,11 @@ namespace irods
 #endif
 
     public:
+        /**
+         * @brief Constructs a plugin base object.
+         * @param[in] _n Instance name for the plugin.
+         * @param[in] _c Context string associated with the plugin.
+         */
         plugin_base(const std::string& _n, const std::string& _c)
             : context_( _c )
             , instance_name_( _n )
@@ -62,6 +83,10 @@ namespace irods
         {
         } // ctor
 
+        /**
+         * @brief Copies a plugin base object.
+         * @param[in] _rhs Source object to copy from.
+         */
         plugin_base(const plugin_base& _rhs)
             : context_( _rhs.context_ )
             , instance_name_( _rhs.instance_name_ )
@@ -72,6 +97,11 @@ namespace irods
         {
         } // cctor
 
+        /**
+         * @brief Assigns state from another plugin base object.
+         * @param[in] _rhs Source object to copy from.
+         * @return Reference to `*this`.
+         */
         plugin_base& operator=(const plugin_base& _rhs)
         {
             instance_name_     = _rhs.instance_name_;
@@ -83,22 +113,29 @@ namespace irods
             return *this;
         } // operator=
 
+        /**
+         * @brief Destroys the plugin base object.
+         */
         virtual ~plugin_base() {} // dtor
 
-        /// @brief interface to create and register a PDMO
+        /// @brief Registers a post-disconnect maintenance operation for the plugin.
+        /// Populates the supplied callback object when a maintenance operation exists.
+        /// @return An error indicating whether a maintenance operation is available.
         virtual error post_disconnect_maintenance_operation( pdmo_type& ) {
             return ERROR( NO_PDMO_DEFINED, "no defined operation" );
         }
 
-        /// =-=-=-=-=-=-=-
-        /// @brief interface to determine if a PDMO is necessary
+        /// @brief Indicates whether a post-disconnect maintenance operation is needed.
+        /// @param[out] _b Set to `true` if the plugin requires a maintenance operation.
+        /// @return `SUCCESS()`.
         virtual error need_post_disconnect_maintenance_operation( bool& _b ) {
             _b = false;
             return SUCCESS();
         }
 
-        /// =-=-=-=-=-=-=-
-        /// @brief list all of the operations in the plugin
+        /// @brief Lists operation names registered for delayed loading.
+        /// @param[out] _ops Populated with operation names in registration order.
+        /// @return `SUCCESS()`.
         error enumerate_operations( std::vector< std::string >& _ops ) {
             for ( size_t i = 0; i < ops_for_delay_load_.size(); ++i ) {
                 _ops.push_back( ops_for_delay_load_[ i ].first );
@@ -107,18 +144,26 @@ namespace irods
             return SUCCESS();
         }
 
-        /// =-=-=-=-=-=-=-
-        /// @brief accessor for context string
+        /// @brief Returns the plugin context string.
+        /// @return The configured context string for this plugin instance.
         const std::string& context_string() const {
             return context_;
         }
 
+        /**
+         * @brief Returns the supported plugin interface version.
+         * @return Interface version number.
+         */
         double interface_version() const {
             return interface_version_;
         }
 
-        /// =-=-=-=-=-=-=-
-        /// @brief interface to add operations - key, function object
+        /**
+         * @brief Registers an operation implementation.
+         * @param[in] _op Name used to look up the operation.
+         * @param[in] _f Callable implementing the operation.
+         * @return An error object indicating success or invalid input.
+         */
         error add_operation(const std::string& _op, std::function<error(plugin_context&)> _f) {
             // =-=-=-=-=-=-=-
             // check params
@@ -132,8 +177,12 @@ namespace irods
 
         }
 
-        /// =-=-=-=-=-=-=-
-        /// @brief interface to add operations - key, function object
+        /**
+         * @brief Registers an operation implementation.
+         * @param[in] _op Name used to look up the operation.
+         * @param[in] _f Callable implementing the operation for the provided argument list.
+         * @return An error object indicating success or invalid input.
+         */
         template<typename... types_t>
         error add_operation(
                 const std::string& _op,
@@ -150,6 +199,14 @@ namespace irods
 
         }
 
+        /**
+         * @brief Invokes a registered operation and its policy enforcement points.
+         * @param[in] _comm Server communication context used to build the plugin context.
+         * @param[in] _operation_name Name of the registered operation to invoke.
+         * @param[in] _fco First class object associated with the operation.
+         * @param[in] _t Operation arguments forwarded to the registered callable and PEPs.
+         * @return The operation or policy error result.
+         */
         template<typename... types_t>
         error call(
             rsComm_t*                     _comm,
@@ -289,6 +346,14 @@ namespace irods
             }
         } // call
 
+        /**
+         * @brief Invokes a registered operation without running policy enforcement points.
+         * @param[in] _comm Server communication context used to build the plugin context.
+         * @param[in] _operation_name Name of the registered operation to invoke.
+         * @param[in] _fco First class object associated with the operation.
+         * @param[in] _args Operation arguments forwarded to the registered callable.
+         * @return The operation error result.
+         */
         template <typename... Args>
         error call_without_policy(
             rsComm_t*                     _comm,
@@ -331,26 +396,42 @@ namespace irods
             return ret.ok() ? ret : PASSMSG("Failed to set property for plugin.", ret);
         } // set_property
 
+        /**
+         * @brief Sets the plugin start hook.
+         * @param[in] _op Callable invoked by `start_operation()`.
+         */
         void set_start_operation( maintenance_operation_t _op ) {
             start_operation_ = _op;
         }
 
+        /**
+         * @brief Sets the plugin stop hook.
+         * @param[in] _op Callable invoked by `stop_operation()`.
+         */
         void set_stop_operation( maintenance_operation_t _op ) {
             stop_operation_ = _op;
         }
 
+        /**
+         * @brief Runs the configured plugin start hook.
+         * @return Result of the start hook.
+         */
         error start_operation() {
             return start_operation_( properties_ );
         }
 
+        /**
+         * @brief Runs the configured plugin stop hook.
+         * @return Result of the stop hook.
+         */
         error stop_operation() {
             return stop_operation_( properties_ );
         }
 
     protected:
-        std::string context_;           // context string for this plugin
-        std::string instance_name_;     // name of this instance of the plugin
-        double      interface_version_; // version of the plugin interface supported
+        std::string context_;           ///< Context string describing this plugin instance.
+        std::string instance_name_;     ///< Name of this plugin instance.
+        double      interface_version_; ///< Plugin interface version supported by this instance.
 
         /// =-=-=-=-=-=-=-
         /// @brief heterogeneous key value map of plugin data
@@ -364,11 +445,21 @@ namespace irods
         /// @brief operations to be loaded from the plugin
         lookup_table< boost::any > operations_;
 
-        maintenance_operation_t start_operation_;
-        maintenance_operation_t stop_operation_;
+        maintenance_operation_t start_operation_; ///< Callable invoked by `start_operation()`.
+        maintenance_operation_t stop_operation_;  ///< Callable invoked by `stop_operation()`.
 
     private:
 #ifdef ENABLE_RE
+        /**
+         * @brief Invokes policy enforcement points for a plugin operation.
+         * @param[in] _re_ctx_mgr Rule engine context manager used to resolve and execute rules.
+         * @param[in,out] _ctx Plugin context shared with the rule engine.
+         * @param[in,out] _out_param Output parameter string updated by the rule engine.
+         * @param[in] _operation_name Name of the operation whose PEP is being invoked.
+         * @param[in] _class PEP class suffix such as `pre`, `post`, `except`, or `finally`.
+         * @param[in] _t Operation arguments forwarded to the rule engine.
+         * @return The first saved rule-engine error, `RULE_ENGINE_SKIP_OPERATION`, or success.
+         */
         template<typename... types_t>
         error invoke_policy_enforcement_point(
             rule_engine_context_manager_type _re_ctx_mgr,
@@ -424,8 +515,7 @@ namespace irods
 #endif // ENABLE_RE
     }; // class plugin_base
 
-    // =-=-=-=-=-=-=-
-    // helpful typedef for sock comm interface & factory
+    /// @brief Shared pointer type for plugin instances.
     typedef boost::shared_ptr<plugin_base> plugin_ptr;
 } // namespace irods
 

@@ -68,6 +68,7 @@ namespace
     } // make_msi
 } // anonymous namespace
 
+/// Creates the microservice table entry for `msi_json_type`.
 extern "C" auto plugin_factory() -> irods::ms_table_entry*
 {
     return make_msi<MsParam*, MsParam*, MsParam*>("msi_json_type", msi_impl);
@@ -78,7 +79,7 @@ extern "C" auto plugin_factory() -> irods::ms_table_entry*
 ///
 /// \param[in]     _json_handle  The handle of a JSON structure obtained via msi_json_parse().
 /// \param[in]     _json_pointer A JSON pointer to the element of interest.
-/// \param[out]    _string       \parblock
+/// \param[out]    _result       \parblock
 /// A variable that will contain the type of the JSON element pointed to by \p _json_pointer.
 ///
 /// The following type strings can be returned:

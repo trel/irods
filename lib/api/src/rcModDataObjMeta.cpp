@@ -2,7 +2,7 @@
 #include "irods/procApiRequest.h"
 #include "irods/apiNumber.h"
 
-/**
+/*
  * \fn rcModDataObjMeta( rcComm_t *conn, modDataObjMeta_t *modDataObjMetaInp )
  *
  * \brief Modify a data object's metadata.
@@ -18,7 +18,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 int
 rcModDataObjMeta( rcComm_t *conn, modDataObjMeta_t *modDataObjMetaInp ) {
     int status;

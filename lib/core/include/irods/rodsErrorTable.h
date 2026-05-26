@@ -3,7 +3,7 @@
 
 /**
  * IMPORTANT - END OF LIFE ERROR CODES
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * -----------------------------------
  *
  * Error codes having a prefix of "END_OF_LIFE_" must NEVER be used
  * in new code.
@@ -256,11 +256,7 @@ NEW_ERROR(LOGICAL_QUOTA_EXCEEDED,                      -186000)
 /** @} */
 
 /* 300,000 - 499,000 - user input type error */
-/** @defgroup user_input_errors User Input ERRORs
- *  @ingroup error_codes
- *  ERROR Code Range 300,000 - 499,000
- * @{
- */
+/** User input errors. Error code range 300,000 - 499,000. */
 NEW_ERROR(USER_AUTH_SCHEME_ERR,                        -300000)
 NEW_ERROR(USER_AUTH_STRING_EMPTY,                      -301000)
 NEW_ERROR(USER_RODS_HOST_EMPTY,                        -302000)
@@ -326,14 +322,10 @@ NEW_ERROR(LOCKED_DATA_OBJECT_ACCESS,                   -406000)
 NEW_ERROR(CHECK_VERIFICATION_RESULTS,                  -407000)
 NEW_ERROR(END_OF_RESULTSET,                            -408000)
 
-/** @} */
+/* End user input errors. */
 
 /* 500,000 to 800,000 - file driver error */
-/** @defgroup file_driver_errors File Driver ERRORs
- *  @ingroup error_codes
- *  ERROR Code Range 500,000 to 800,000
- * @{
- */
+/** File driver errors. Error code range 500,000 to 800,000. */
 NEW_ERROR(FILE_INDEX_LOOKUP_ERR,                       -500000)
 NEW_ERROR(UNIX_FILE_OPEN_ERR,                          -510000)
 NEW_ERROR(UNIX_FILE_CREATE_ERR,                        -511000)
@@ -445,14 +437,10 @@ NEW_ERROR(HDFS_FILE_OPR_TIMEOUT_ERR,                   -762000)
 
 /* Direct Access vault error */
 NEW_ERROR(DIRECT_ACCESS_FILE_USER_INVALID_ERR,         -770000)
-/** @} */
+/* End file driver errors. */
 
 /* 800,000 to 880,000 - Catalog library errors  */
-/** @defgroup catalog_library_errors Catalog Library ERRORs
- *  @ingroup error_codes
- *  ERROR Code Range 800,000 to 880,000
- * @{
- */
+/** Catalog library errors. Error code range 800,000 to 880,000. */
 NEW_ERROR(CATALOG_NOT_CONNECTED,                       -801000)
 NEW_ERROR(CAT_ENV_ERR,                                 -802000)
 NEW_ERROR(CAT_CONNECT_ERR,                             -803000)
@@ -507,16 +495,12 @@ NEW_ERROR(CAT_STATEMENT_TABLE_FULL,                    -860000) // JMC
 NEW_ERROR(CAT_RESOURCE_NAME_LENGTH_EXCEEDED,           -861000)
 NEW_ERROR(CAT_NO_CHECKSUM_FOR_REPLICA,                 -862000)
 NEW_ERROR(CAT_NO_ROWS_UPDATED,                         -863000)
-/** @} */
+/* End catalog library errors. */
 
 /* 880,000 to 889,000  Deprecated  */
 
 /* 890,000 to 899,000  Ticket errors  */
-/** @defgroup ticket_errors Ticket ERRORs
- *  @ingroup error_codes
- *  ERROR Code Range 890,000 to 899,000
- * @{
- */
+/** Ticket errors. Error code range 890,000 to 899,000. */
 NEW_ERROR(CAT_TICKET_INVALID,                          -890000)
 NEW_ERROR(CAT_TICKET_EXPIRED,                          -891000)
 NEW_ERROR(CAT_TICKET_USES_EXCEEDED,                    -892000)
@@ -525,14 +509,10 @@ NEW_ERROR(CAT_TICKET_HOST_EXCLUDED,                    -894000)
 NEW_ERROR(CAT_TICKET_GROUP_EXCLUDED,                   -895000)
 NEW_ERROR(CAT_TICKET_WRITE_USES_EXCEEDED,              -896000)
 NEW_ERROR(CAT_TICKET_WRITE_BYTES_EXCEEDED,             -897000)
-/** @} */
+/* End ticket errors. */
 
 /* 900,000 to 920,000 - Misc errors (used by obf library, etc)  */
-/** @defgroup miscellaneous_errors Miscellaneous ERRORs
- *  @ingroup error_codes
- *  ERROR Code Range 900,000 to 920,000
- * @{
- */
+/** Miscellaneous errors. Error code range 900,000 to 920,000. */
 NEW_ERROR(FILE_OPEN_ERR,                               -900000)
 NEW_ERROR(FILE_READ_ERR,                               -901000)
 NEW_ERROR(FILE_WRITE_ERR,                              -902000)
@@ -547,14 +527,10 @@ NEW_ERROR(REMOTE_SERVER_AUTHENTICATION_FAILURE,        -910000)
 NEW_ERROR(REMOTE_SERVER_AUTH_NOT_PROVIDED,             -911000)
 NEW_ERROR(REMOTE_SERVER_AUTH_EMPTY,                    -912000)
 NEW_ERROR(REMOTE_SERVER_SID_NOT_DEFINED,               -913000)
-/** @} */
+/* End miscellaneous errors. */
 
 /* 921,000 to 999,000 - GSI, KRB, OSAUTH, and PAM-AUTH errors  */
-/** @defgroup authentication_errors Auth ERRORs
- *  @ingroup error_codes
- *  ERROR Code Range 921,000 to 999,000
- * @{
- */
+/** Authentication errors. Error code range 921,000 to 999,000. */
 NEW_ERROR(GSI_NOT_COMPILED_IN,                         -921000)
 NEW_ERROR(GSI_NOT_BUILT_INTO_CLIENT,                   -922000)
 NEW_ERROR(GSI_NOT_BUILT_INTO_SERVER,                   -923000)
@@ -607,14 +583,10 @@ NEW_ERROR(PAM_AUTH_NOT_BUILT_INTO_CLIENT,              -991000)
 NEW_ERROR(PAM_AUTH_NOT_BUILT_INTO_SERVER,              -992000)
 NEW_ERROR(PAM_AUTH_PASSWORD_FAILED,                    -993000)
 NEW_ERROR(PAM_AUTH_PASSWORD_INVALID_TTL,               -994000)
-/** @} */
+/* End authentication errors. */
 
 /* 1,000,000 to 1,500,000  - Rule Engine errors */
-/** @defgroup rule_engine_errors Rule Engine ERRORs
- *  @ingroup error_codes
- *  ERROR Code Range 1,000,000 to 1,500,000
- * @{
- */
+/** Rule engine errors. Error code range 1,000,000 to 1,500,000. */
 NEW_ERROR(OBJPATH_EMPTY_IN_STRUCT_ERR,                 -1000000)
 NEW_ERROR(RESCNAME_EMPTY_IN_STRUCT_ERR,                -1001000)
 NEW_ERROR(DATATYPE_EMPTY_IN_STRUCT_ERR,                -1002000)
@@ -765,29 +737,21 @@ NEW_ERROR(RE_DYNAMIC_TYPE_ERROR,                       -1232000)
 NEW_ERROR(RE_DYNAMIC_COERCION_ERROR,                   -1233000)
 NEW_ERROR(RE_PACKING_ERROR,                            -1234000)
 #endif
-/** @} */
+/* End rule engine errors. */
 
 
 
 /* 1,600,000 to 1,700,000  - PHP scripting error */
-/** @defgroup php_errors PHP ERRORs
- *  @ingroup error_codes
- *  ERROR Code Range 1,600,000 to 1,700,000
- * @{
- */
+/** PHP errors. Error code range 1,600,000 to 1,700,000. */
 NEW_ERROR(PHP_EXEC_SCRIPT_ERR,                         -1600000)
 NEW_ERROR(PHP_REQUEST_STARTUP_ERR,                     -1601000)
 NEW_ERROR(PHP_OPEN_SCRIPT_FILE_ERR,                    -1602000)
-/** @} */
+/* End PHP errors. */
 
 /* 1,701,000 to 1,899,000  deprecated */
 
 // new irods errors
-/** @defgroup 4x_errors iRODS 4.x ERRORs
- *  @ingroup error_codes
- *  ERROR Code Range 1,800,000 to 1,899,000
- * @{
- */
+/** iRODS 4.x errors. Error code range 1,800,000 to 1,899,000. */
 NEW_ERROR(KEY_NOT_FOUND,                        -1800000)
 NEW_ERROR(KEY_TYPE_MISMATCH,                    -1801000)
 NEW_ERROR(CHILD_EXISTS,                         -1802000)
@@ -823,15 +787,11 @@ NEW_ERROR(DIGEST_INIT_FAILED,                   -1831000)
 NEW_ERROR(DIGEST_UPDATE_FAILED,                 -1832000)
 NEW_ERROR(DIGEST_FINAL_FAILED,                  -1833000)
 NEW_ERROR(REBALANCE_NOT_COMPLETE,               -1834000)
-/** @} */
+/* End iRODS 4.x errors. */
 
 
 /* NetCDF error code */
-/** @defgroup netcdf_errors NetCDF ERRORs
- *  @ingroup error_codes
- *  ERROR Code Range 2,000,000 to 2,099,000
- * @{
- */
+/** NetCDF errors. Error code range 2,000,000 to 2,099,000. */
 NEW_ERROR(NETCDF_OPEN_ERR,                             -2000000)
 NEW_ERROR(NETCDF_CREATE_ERR,                           -2001000)
 NEW_ERROR(NETCDF_CLOSE_ERR,                            -2002000)
@@ -858,28 +818,20 @@ NEW_ERROR(NETCDF_AGG_INFO_FILE_ERR,                    -2022000)
 NEW_ERROR(NETCDF_AGG_ELE_INX_OUT_OF_RANGE,             -2023000)
 NEW_ERROR(NETCDF_AGG_ELE_FILE_NOT_OPENED,              -2024000)
 NEW_ERROR(NETCDF_AGG_ELE_FILE_NO_TIME_DIM,             -2025000)
-/** @} */
+/* End NetCDF errors. */
 
 /* SSL protocol error codes */
-/** @defgroup ssl_errors SSL ERRORs
- *  @ingroup error_codes
- *  ERROR Code Range 2,100,000 to 2,199,000
- * @{
- */
+/** SSL errors. Error code range 2,100,000 to 2,199,000. */
 NEW_ERROR(SSL_NOT_BUILT_INTO_CLIENT,                   -2100000)
 NEW_ERROR(SSL_NOT_BUILT_INTO_SERVER,                   -2101000)
 NEW_ERROR(SSL_INIT_ERROR,                              -2102000)
 NEW_ERROR(SSL_HANDSHAKE_ERROR,                         -2103000)
 NEW_ERROR(SSL_SHUTDOWN_ERROR,                          -2104000)
 NEW_ERROR(SSL_CERT_ERROR,                              -2105000)
-/** @} */
+/* End SSL errors. */
 
 /* OOI CI error codes */
-/** @defgroup ooi_errors OOI ERRORs
- *  @ingroup error_codes
- *  ERROR Code Range 2,200,000 to 2,299,000
- * @{
- */
+/** OOI errors. Error code range 2,200,000 to 2,299,000. */
 NEW_ERROR(OOI_CURL_EASY_INIT_ERR,                      -2200000)
 NEW_ERROR(OOI_JSON_OBJ_SET_ERR,                        -2201000)
 NEW_ERROR(OOI_DICT_TYPE_NOT_SUPPORTED,                 -2202000)
@@ -892,41 +844,29 @@ NEW_ERROR(OOI_JSON_NO_ANSWER_ERR,                      -2208000)
 NEW_ERROR(OOI_JSON_TYPE_ERR,                           -2209000)
 NEW_ERROR(OOI_JSON_INX_OUT_OF_RANGE,                   -2210000)
 NEW_ERROR(OOI_REVID_NOT_FOUND,                         -2211000)
-/** @} */
+/* End OOI errors. */
 
 /* Deprecation error codes */
-/** @defgroup deprecation_errors DEPRECATION ERRORs
- *  @ingroup error_codes
- *  ERROR Code Range 3,000,000 to 3,099,000
- * @{
- */
+/** Deprecation errors. Error code range 3,000,000 to 3,099,000. */
 NEW_ERROR(DEPRECATED_PARAMETER,                        -3000000)
 NEW_ERROR(DEPRECATED_API,                              -3001000)
 NEW_ERROR(DEPRECATED_AUTHENTICATION_PLUGIN,            -3002000)
-/** @} */
+/* End deprecation errors. */
 
 /* XML parsing and TDS error */
-/** @defgroup xml_errors XML ERRORs
- *  @ingroup error_codes
- *  ERROR Code Range 2,300,000 to 2,399,000
- * @{
- */
+/** XML errors. Error code range 2,300,000 to 2,399,000. */
 NEW_ERROR(XML_PARSING_ERR,                             -2300000)
 NEW_ERROR(OUT_OF_URL_PATH,                             -2301000)
 NEW_ERROR(URL_PATH_INX_OUT_OF_RANGE,                   -2302000)
-/** @} */
+/* End XML errors. */
 
 /* The following are handler protocol type msg. These are not real errors */
-/** @defgroup handler_errors Handler Protocol ERRORs
- *  @ingroup error_codes
- *  ERROR Code Range 9,999,000 to 9,999,999
- * @{
- */
+/** Handler protocol errors. Error code range 9,999,000 to 9,999,999. */
 NEW_ERROR(SYS_NULL_INPUT,                              -99999996)
 NEW_ERROR(SYS_HANDLER_DONE_WITH_ERROR,                 -99999997)
 NEW_ERROR(SYS_HANDLER_DONE_NO_ERROR,                   -99999998)
 NEW_ERROR(SYS_NO_HANDLER_REPLY_MSG,                    -99999999)
-/** @} */
+/* End handler protocol errors. */
 #ifndef MAKE_IRODS_ERROR_MAP
 };
 

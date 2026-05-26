@@ -6,9 +6,12 @@
 
 typedef fileOpenInp_t fileCreateInp_t;
 
+/**
+ * \brief Output returned by `rcFileCreate`.
+ */
 typedef struct FileCreateOut
 {
-    char file_name[MAX_NAME_LEN];
+    char file_name[MAX_NAME_LEN]; ///< Physical path of the created file.
 } fileCreateOut_t;
 
 #define fileCreateOut_PI "str file_name[MAX_NAME_LEN];"

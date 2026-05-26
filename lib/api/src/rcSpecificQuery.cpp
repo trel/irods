@@ -2,7 +2,7 @@
 #include "irods/procApiRequest.h"
 #include "irods/apiNumber.h"
 
-/**
+/*
  * \fn rcSpecificQuery (rcComm_t *conn, specificQueryInp_t *specificQueryInp, genQueryOut_t **genQueryOut)
 *
 * \brief Perform a specific (pre-defined) query.
@@ -33,7 +33,7 @@
 * \pre none
 * \post none
 * \sa none
-**/
+ */
 
 int rcSpecificQuery(rcComm_t* conn, specificQueryInp_t* specificQueryInp, genQueryOut_t** genQueryOut)
 {

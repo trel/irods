@@ -48,10 +48,14 @@ namespace
 namespace irods::experimental::log
 {
 #ifdef IRODS_ENABLE_SYSLOG
+    /// Sink used by tests to serialize log output through an IPC-backed file.
     class test_mode_ipc_sink // NOLINT(cppcoreguidelines-special-member-functions)
         : public spdlog::sinks::base_sink<spdlog::details::null_mutex>
     {
       public:
+        /// Constructs a test-mode sink that appends log messages to a per-process file.
+        ///
+        /// \param[in] _pid The process identifier used to name the IPC resources.
         explicit test_mode_ipc_sink(pid_t _pid)
             : shm_name_{fmt::format("irods_test_mode_ipc_sink_{}", _pid)}
             , mutex_{std::make_unique<ipc::named_mutex>(ipc::open_or_create, shm_name_.c_str())}
@@ -76,6 +80,9 @@ namespace irods::experimental::log
         }
 
       protected:
+        /// Writes a formatted log message to the test-mode output file.
+        ///
+        /// \param[in] msg The log message to persist.
         void sink_it_(const spdlog::details::log_msg& msg) override
         {
             try {
@@ -87,6 +94,7 @@ namespace irods::experimental::log
             }
         }
 
+        /// Flushes any buffered state for the sink.
         void flush_() override
         {
         }
@@ -98,10 +106,14 @@ namespace irods::experimental::log
         const pid_t owner_pid_;
     }; // class test_mode_ipc_sink
 
+    /// Sink used to serialize writes to standard output across processes.
     class stdout_ipc_sink // NOLINT(cppcoreguidelines-special-member-functions)
         : public spdlog::sinks::base_sink<spdlog::details::null_mutex>
     {
       public:
+        /// Constructs a sink that serializes log writes to standard output.
+        ///
+        /// \param[in] _pid The process identifier used to name the IPC resources.
         explicit stdout_ipc_sink(pid_t _pid)
             : shm_name_{fmt::format("irods_stdout_ipc_sink_{}", _pid)}
             , mutex_{std::make_unique<ipc::named_mutex>(ipc::open_or_create, shm_name_.c_str())}
@@ -125,6 +137,9 @@ namespace irods::experimental::log
         }
 
       protected:
+        /// Writes a formatted log message to standard output.
+        ///
+        /// \param[in] msg The log message to emit.
         void sink_it_(const spdlog::details::log_msg& msg) override
         {
             try {
@@ -136,6 +151,7 @@ namespace irods::experimental::log
             }
         }
 
+        /// Flushes any buffered state for the sink.
         void flush_() override
         {
         }
@@ -336,6 +352,9 @@ namespace irods::experimental::log
     namespace detail
     {
 #ifdef IRODS_ENABLE_SYSLOG
+        /// Returns the process-wide syslog-backed logger instance.
+        ///
+        /// \return The shared logger used by the logging subsystem.
         auto get_logger() noexcept -> std::shared_ptr<spdlog::logger>
         {
             return g_log;

@@ -190,6 +190,7 @@ namespace irods
 
         } // ctor
 
+        /// Computes the negotiated client/server transport policy.
         error operator()(
             const std::string& _cli_policy,
             const std::string& _svr_policy,

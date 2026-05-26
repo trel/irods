@@ -5,7 +5,7 @@
 #include "irods/procApiRequest.h"
 #include "irods/apiNumber.h"
 
-/**
+/*
  * \fn rcGetHostForGet( rcComm_t *conn, dataObjInp_t *dataObjInp, char **outHost )
  *
  * \brief Get the best host for the get operation.
@@ -36,7 +36,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 int
 rcGetHostForGet( rcComm_t *conn, dataObjInp_t *dataObjInp,
                  char **outHost ) {

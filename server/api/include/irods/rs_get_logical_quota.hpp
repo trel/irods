@@ -17,7 +17,7 @@ struct RsComm;
 /// Note that the struct itself, *_logicalQuotaList, still needs to be free()'d by the caller.
 /// \endparblock
 ///
-/// \param[in] _comm A pointer to a RcComm.
+/// \param[in] _rsComm A pointer to an RsComm.
 /// \param[in] _getLogicalQuotaInp \parblock
 /// A pointer to a GetLogicalQuotaInput. Stores the collection name that will be used to find applicable quotas.
 /// e.g. Passing in "/tempZone/home" will find quotas for "/tempZone", and "/tempZone/home", if any such quotas exist.

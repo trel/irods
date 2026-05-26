@@ -11,39 +11,34 @@
 
 namespace irods {
 
-// =-=-=-=-=-=-=-
-// @brief
+    /// @brief Plugin type string for the Oracle database plugin.
     const std::string ORACLE_DATABASE_PLUGIN( "oracle" );
 
-// =-=-=-=-=-=-=-
-// @brief oracle object class
+    /// @brief Database object representing the Oracle plugin.
     class oracle_object : public database_object {
         public:
-            // =-=-=-=-=-=-=-
-            // Constructors
+            /// @brief Constructs an Oracle database object.
             oracle_object();
+
+            /// @brief Copy-constructs an Oracle database object.
             oracle_object( const oracle_object& );
 
-            // =-=-=-=-=-=-=-
-            // Destructors
+            /// @brief Destroys the Oracle database object.
             virtual ~oracle_object();
 
-            // =-=-=-=-=-=-=-
-            // Operators
+            /// @brief Copies state from another Oracle database object.
             virtual oracle_object& operator=( const oracle_object& );
 
             // =-=-=-=-=-=-=-
             /// @brief Comparison operator
             virtual bool operator==( const oracle_object& _rhs ) const;
 
-            // =-=-=-=-=-=-=-
-            // plugin resolution operation
+            /// @brief Resolves the database plugin for the requested interface.
             virtual error resolve(
                 const std::string&, // plugin interface
                 plugin_ptr& );      // resolved plugin
 
-            // =-=-=-=-=-=-=-
-            // accessor for rule engine variables
+            /// @brief Populates rule-engine variables for this object.
             virtual error get_re_vars( rule_engine_vars_t& );
 
             // =-=-=-=-=-=-=-
@@ -58,13 +53,11 @@ namespace irods {
 
     }; // oracle_object
 
-// =-=-=-=-=-=-=-
-// helpful typedef for sock comm interface & factory
+    /// @brief Shared-pointer type for `oracle_object` instances.
     typedef boost::shared_ptr< oracle_object > oracle_object_ptr;
 
 }; // namespace irods
 
 #endif // __IRODS_ORACLE_OBJECT_HPP__
-
 
 

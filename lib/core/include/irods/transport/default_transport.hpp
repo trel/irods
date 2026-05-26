@@ -69,29 +69,33 @@
 
 namespace irods::experimental::io::NAMESPACE_IMPL
 {
+    /// Default transport implementation backed by the native iRODS data object APIs.
     template <typename CharT>
     class basic_transport : public transport<CharT>
     {
     public:
         // clang-format off
-        using char_type   = typename transport<CharT>::char_type;
-        using traits_type = typename transport<CharT>::traits_type;
-        using int_type    = typename traits_type::int_type;
-        using pos_type    = typename traits_type::pos_type;
-        using off_type    = typename traits_type::off_type;
+        using char_type   = typename transport<CharT>::char_type; ///< Character type handled by the transport.
+        using traits_type = typename transport<CharT>::traits_type; ///< Character traits used by the transport.
+        using int_type    = typename traits_type::int_type; ///< Integer representation of a character.
+        using pos_type    = typename traits_type::pos_type; ///< Stream position type.
+        using off_type    = typename traits_type::off_type; ///< Stream offset type.
         // clang-format on
 
     private:
         // clang-format off
-        inline static constexpr auto uninitialized_file_descriptor = -1;
-        inline static constexpr auto minimum_valid_file_descriptor = 3;
+        inline static constexpr auto uninitialized_file_descriptor = -1; ///< Sentinel for a closed transport.
+        inline static constexpr auto minimum_valid_file_descriptor = 3; ///< Lowest valid descriptor expected from iRODS.
 
         // Errors
-        inline static constexpr auto translation_error             = -1;
-        inline static const     auto seek_error                    = pos_type{off_type{-1}};
+        inline static constexpr auto translation_error             = -1; ///< Indicates open-mode translation failure.
+        inline static const     auto seek_error                    = pos_type{off_type{-1}}; ///< Indicates seek failure.
         // clang-format on
 
     public:
+        /// Constructs a transport bound to an existing iRODS connection.
+        ///
+        /// \param[in] _comm The connection object used for replica operations.
         explicit basic_transport(rxComm& _comm)
             : transport<CharT>{}
             , comm_{&_comm}
@@ -103,12 +107,14 @@ namespace irods::experimental::io::NAMESPACE_IMPL
         {
         }
 
+        /// Opens a data object using server-side policy for replica selection.
         bool open(const irods::experimental::filesystem::path& _path,
                   std::ios_base::openmode _mode) override
         {
             return open_impl(_path, _mode, [](auto&) {});
         }
 
+        /// Opens an existing replica identified by replica number.
         bool open(const irods::experimental::filesystem::path& _path,
                   const replica_number& _replica_number,
                   std::ios_base::openmode _mode) override
@@ -123,6 +129,7 @@ namespace irods::experimental::io::NAMESPACE_IMPL
             });
         }
 
+        /// Opens or creates a replica identified by root resource.
         bool open(const irods::experimental::filesystem::path& _path,
                   const root_resource_name& _root_resource_name,
                   std::ios_base::openmode _mode) override
@@ -133,6 +140,7 @@ namespace irods::experimental::io::NAMESPACE_IMPL
             });
         }
 
+        /// Opens or creates a replica identified by leaf resource.
         bool open(const irods::experimental::filesystem::path& _path,
                   const leaf_resource_name& _leaf_resource_name,
                   std::ios_base::openmode _mode) override
@@ -143,6 +151,7 @@ namespace irods::experimental::io::NAMESPACE_IMPL
             });
         }
 
+        /// Reopens an existing replica using a replica token and replica number.
         bool open(const replica_token& _replica_token,
                   const irods::experimental::filesystem::path& _path,
                   const replica_number& _replica_number,
@@ -159,6 +168,7 @@ namespace irods::experimental::io::NAMESPACE_IMPL
             });
         }
 
+        /// Reopens an existing replica using a replica token and leaf resource.
         bool open(const replica_token& _replica_token,
                   const irods::experimental::filesystem::path& _path,
                   const leaf_resource_name& _leaf_resource_name,
@@ -170,6 +180,7 @@ namespace irods::experimental::io::NAMESPACE_IMPL
             });
         }
 
+        /// Closes the currently open replica.
         bool close(const on_close_success* _on_close_success = nullptr) override
         {
             using json = nlohmann::json;
@@ -195,6 +206,7 @@ namespace irods::experimental::io::NAMESPACE_IMPL
             return true;
         }
 
+        /// Receives bytes from the server into the caller-provided buffer.
         std::streamsize receive(char_type* _buffer, std::streamsize _buffer_size) override
         {
             openedDataObjInp_t input{};
@@ -208,6 +220,7 @@ namespace irods::experimental::io::NAMESPACE_IMPL
             return rxDataObjRead(comm_, &input, &output);
         }
 
+        /// Sends bytes from the caller-provided buffer to the server.
         std::streamsize send(const char_type* _buffer, std::streamsize _buffer_size) override
         {
             openedDataObjInp_t input{};
@@ -221,6 +234,7 @@ namespace irods::experimental::io::NAMESPACE_IMPL
             return rxDataObjWrite(comm_, &input, &input_buffer);
         }
 
+        /// Repositions the underlying replica offset.
         pos_type seekpos(off_type _offset, std::ios_base::seekdir _dir) override
         {
             openedDataObjInp_t input{};
@@ -259,37 +273,44 @@ namespace irods::experimental::io::NAMESPACE_IMPL
             return output->offset;
         }
 
+        /// Indicates whether the transport currently owns an open descriptor.
         bool is_open() const noexcept override
         {
             return fd_ >= minimum_valid_file_descriptor;
         }
 
+        /// Returns the transport's current file descriptor.
         int file_descriptor() const noexcept override
         {
             return fd_;
         }
 
+        /// Returns the root resource name for the open replica.
         const root_resource_name& root_resource_name() const override
         {
             return root_resc_name_;
         }
 
+        /// Returns the leaf resource name for the open replica.
         const leaf_resource_name& leaf_resource_name() const override
         {
             return leaf_resc_name_;
         }
 
+        /// Returns the replica number for the open replica.
         const replica_number& replica_number() const override
         {
             return replica_number_;
         }
 
+        /// Returns the replica token for the open replica.
         const replica_token& replica_token() const override
         {
             return replica_token_;
         }
 
     private:
+        /// Translates standard stream open modes to native iRODS flags.
         int make_open_flags(std::ios_base::openmode _mode) noexcept
         {
             using std::ios_base;
@@ -320,6 +341,7 @@ namespace irods::experimental::io::NAMESPACE_IMPL
             return translation_error;
         }
 
+        /// Seeks to end when the open mode requires it.
         bool seek_to_end_if_required(std::ios_base::openmode _mode)
         {
             if (std::ios_base::ate & _mode) {
@@ -331,6 +353,7 @@ namespace irods::experimental::io::NAMESPACE_IMPL
             return true;
         }
 
+        /// Applies common open logic and fills replica metadata on success.
         template <typename Function>
         bool open_impl(const filesystem::path& _path, std::ios_base::openmode _mode, Function _func)
         {
@@ -390,17 +413,17 @@ namespace irods::experimental::io::NAMESPACE_IMPL
             return true;
         }
 
-        rxComm* comm_;
-        int fd_;
-        struct root_resource_name root_resc_name_;
-        struct leaf_resource_name leaf_resc_name_;
-        struct replica_number replica_number_;
-        struct replica_token replica_token_;
+        rxComm* comm_; ///< Connection used for all transport operations.
+        int fd_; ///< Native iRODS descriptor for the open replica.
+        struct root_resource_name root_resc_name_; ///< Root resource name for the open replica.
+        struct leaf_resource_name leaf_resc_name_; ///< Leaf resource name for the open replica.
+        struct replica_number replica_number_; ///< Replica number for the open replica.
+        struct replica_token replica_token_; ///< Replica token for the open replica.
     }; // basic_transport
 
     // clang-format off
-    using default_transport = basic_transport<char>;
-    using native_transport  = basic_transport<char>;
+    using default_transport = basic_transport<char>; ///< Default native transport specialization.
+    using native_transport  = basic_transport<char>; ///< Alias for the native transport specialization.
     // clang-format on
 } // irods::experimental::io::NAMESPACE_IMPL
 

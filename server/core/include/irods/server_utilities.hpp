@@ -24,7 +24,7 @@ namespace irods
     /// \since 4.3.0
     extern const std::string_view PID_FILENAME_DELAY_SERVER;
 
-    /// A utility function primarily meant to be used with ::rsDataObjPut and ::rsDataObjCopy.
+    /// A utility function primarily meant to be used with `rsDataObjPut` and `rsDataObjCopy`.
     ///
     /// \param[in] _comm  A reference to the communication object.
     /// \param[in] _input A reference to the ::DataObjInp containing the ::KeyValPair.
@@ -85,4 +85,3 @@ namespace irods
 } // namespace irods
 
 #endif // IRODS_SERVER_UTILITIES_HPP
-

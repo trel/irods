@@ -18,11 +18,18 @@ namespace irods::experimental::io
     namespace detail
     {
         // Catch-all case.
+        /// Fallback overload used when a sink stream does not expose a dstream-style close function.
+        ///
+        /// \return \c void to indicate no compatible close function was detected.
         constexpr auto has_special_close_function(...) -> void;
 
         // Used to detects if the sink stream object supports a close function
         // similar to the one provided by basic_dstream.
         template <typename SinkStreamType>
+        /// Detects whether a sink stream exposes a dstream-style close function.
+        ///
+        /// \param[in] _out The sink stream to inspect.
+        /// \return \c bool when the sink stream supports `close(on_close_success*)`.
         constexpr auto has_special_close_function(SinkStreamType& _out)
             -> decltype((void)(_out.close(std::declval<on_close_success*>())), bool());
     } // namespace detail
@@ -66,6 +73,7 @@ namespace irods::experimental::io
         /// Move assignment operator.
         ///
         /// \param[in] _other The stream to move from.
+        /// \return A reference to this stream.
         auto operator=(managed_dstream&& _other) -> managed_dstream&
         {
             std::iostream::operator=(std::move(_other));
@@ -90,9 +98,9 @@ namespace irods::experimental::io
             stream.close(_on_close_success);
         }
 
-        irods::connection_pool::connection_proxy conn;
-        std::unique_ptr<io::client::native_transport> transport;
-        io::dstream stream;
+        irods::connection_pool::connection_proxy conn; ///< Connection owned by the managed stream.
+        std::unique_ptr<io::client::native_transport> transport; ///< Transport bound to \ref conn.
+        io::dstream stream; ///< Data object stream operating over \ref transport.
     }; // class managed_dstream
 
     /// Creates a factory that produces managed_dstream objects.
@@ -191,7 +199,7 @@ namespace irods::experimental::io
     ///
     /// \since 4.2.9
     ///
-    /// \param[in] _path The full path to a file on the local disk. All streams will poin to this file.
+    /// \param[in] _path The full path to a file on the local disk. All streams will point to this file.
     ///
     /// \return A new factory function.
     auto make_fstream_factory(std::string _path)
@@ -240,4 +248,3 @@ namespace irods::experimental::io
 } // namespace irods::experimental::io
 
 #endif // IRODS_IO_STREAM_FACTORY_UTILITY_HPP
-

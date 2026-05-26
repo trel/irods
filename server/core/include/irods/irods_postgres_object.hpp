@@ -11,39 +11,34 @@
 
 namespace irods {
 
-// =-=-=-=-=-=-=-
-// @brief
+    /// @brief Plugin type string for the PostgreSQL database plugin.
     const std::string POSTGRES_DATABASE_PLUGIN( "postgres" );
 
-// =-=-=-=-=-=-=-
-// @brief postgres object class
+    /// @brief Database object representing the PostgreSQL plugin.
     class postgres_object : public database_object {
         public:
-            // =-=-=-=-=-=-=-
-            // Constructors
+            /// @brief Constructs a PostgreSQL database object.
             postgres_object();
+
+            /// @brief Copy-constructs a PostgreSQL database object.
             postgres_object( const postgres_object& );
 
-            // =-=-=-=-=-=-=-
-            // Destructors
+            /// @brief Destroys the PostgreSQL database object.
             virtual ~postgres_object();
 
-            // =-=-=-=-=-=-=-
-            // Operators
+            /// @brief Copies state from another PostgreSQL database object.
             virtual postgres_object& operator=( const postgres_object& );
 
             // =-=-=-=-=-=-=-
             /// @brief Comparison operator
             virtual bool operator==( const postgres_object& _rhs ) const;
 
-            // =-=-=-=-=-=-=-
-            // plugin resolution operation
+            /// @brief Resolves the database plugin for the requested interface.
             virtual error resolve(
                 const std::string&, // plugin interface
                 plugin_ptr& );      // resolved plugin
 
-            // =-=-=-=-=-=-=-
-            // accessor for rule engine variables
+            /// @brief Populates rule-engine variables for this object.
             virtual error get_re_vars( rule_engine_vars_t& );
 
             // =-=-=-=-=-=-=-
@@ -58,13 +53,11 @@ namespace irods {
 
     }; // postgres_object
 
-// =-=-=-=-=-=-=-
-// helpful typedef for sock comm interface & factory
+    /// @brief Shared-pointer type for `postgres_object` instances.
     typedef boost::shared_ptr< postgres_object > postgres_object_ptr;
 
 }; // namespace irods
 
 #endif // __IRODS_POSTGRES_OBJECT_HPP__
-
 
 

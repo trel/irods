@@ -22,13 +22,13 @@ namespace irods::experimental
     /// authentication occurs.
     ///
     /// \since 4.2.9
-    inline const struct defer_connection {} defer_connection;
+    inline const struct defer_connection {} defer_connection; ///< Tag indicating that connection establishment should be deferred.
 
     /// A tag type that indicates whether or not a client connection
     /// should allow the user to control when the authentication occurs.
     ///
     /// \since 4.3.1
-    inline const struct defer_authentication {} defer_authentication;
+    inline const struct defer_authentication {} defer_authentication; ///< Tag indicating that authentication should be deferred.
 
     // clang-format on
 
@@ -90,7 +90,7 @@ namespace irods::experimental
         /// and authenticates the proxy user using the information and credentials
         /// found in the user's irods_environment.json file.
         ///
-        /// \throws irods::exception If an error occured.
+        /// \throws irods::exception If an error occurred.
         ///
         /// \param[in] _host           The host name of the iRODS server.
         /// \param[in] _port           The port to connect to.
@@ -106,7 +106,7 @@ namespace irods::experimental
         /// Connects to the iRODS server identified by the passed arguments
         /// but does not perform any authentication.
         ///
-        /// \throws irods::exception If an error occured.
+        /// \throws irods::exception If an error occurred.
         ///
         /// \param[in] _defer_tag      Indicates that authentication must be skipped.
         /// \param[in] _host           The host name of the iRODS server.
@@ -136,7 +136,15 @@ namespace irods::experimental
         /// \since 4.2.9
         explicit client_connection(struct defer_connection _defer_tag);
 
+        /// Move-constructs a client connection.
+        ///
+        /// \param[in] _other The connection to move from.
         client_connection(client_connection&& _other) = default;
+
+        /// Move-assigns a client connection.
+        ///
+        /// \param[in] _other The connection to move from.
+        /// \return A reference to this connection.
         auto operator=(client_connection&& _other) -> client_connection& = default;
 
         /// Closes the underlying connection if active.
@@ -258,26 +266,30 @@ namespace irods::experimental
         explicit operator RcComm*() const noexcept;
 
       private:
+        /// Connects and authenticates a single user.
         auto connect_and_login(const std::string& _host, const int _port, const fully_qualified_username& _username)
             -> void;
 
+        /// Connects and authenticates using separate proxy and client users.
         auto connect_and_login(const std::string& _host,
                                const int _port,
                                const fully_qualified_username& _proxy_username,
                                const fully_qualified_username& _username) -> void;
 
+        /// Establishes a connection without authenticating.
         auto only_connect(const std::string& _host, const int _port, const fully_qualified_username& _username) -> void;
 
+        /// Establishes a connection without authenticating using separate proxy and client users.
         auto only_connect(const std::string& _host,
                           const int _port,
                           const fully_qualified_username& _proxy_username,
                           const fully_qualified_username& _username) -> void;
 
+        /// Authenticates an already established connection.
         auto login() -> void;
 
-        std::unique_ptr<RcComm, int (*)(RcComm*)> conn_;
+        std::unique_ptr<RcComm, int (*)(RcComm*)> conn_; ///< Owned low-level client connection.
     }; // class client_connection
 }; // namespace irods::experimental
 
 #endif // IRODS_CLIENT_CONNECTION_HPP
-

@@ -16,12 +16,13 @@ namespace irods
     struct version
     {
         // clang-format off
-        std::uint16_t major = 0;
-        std::uint16_t minor = 0;
-        std::uint16_t patch = 0;
+        std::uint16_t major = 0; ///< Major version component.
+        std::uint16_t minor = 0; ///< Minor version component.
+        std::uint16_t patch = 0; ///< Patch version component.
         // clang-format on
 
     private:
+        /// \cond IRODS_DOXYGEN_INTERNAL
         template <typename Operation, typename Integer, typename Function>
         constexpr auto compare_version_unit(Integer _lhs, Integer _rhs, Function _func) const noexcept -> bool
         {
@@ -50,8 +51,10 @@ namespace irods
                 });
             });
         }
+        /// \endcond
 
     public:
+        /// \brief Returns true if both versions contain the same components.
         constexpr auto operator==(const version& _other) const noexcept -> bool
         {
             return major == _other.major &&
@@ -59,26 +62,31 @@ namespace irods
                    patch == _other.patch;
         }
 
+        /// \brief Returns true if the versions differ.
         constexpr auto operator!=(const version& _other) const noexcept -> bool
         {
             return !(*this == _other);
         }
 
+        /// \brief Returns true if this version is greater than the other version.
         constexpr auto operator>(const version& _other) const noexcept -> bool
         {
             return compare_versions<std::greater>(_other);
         }
 
+        /// \brief Returns true if this version is greater than or equal to the other version.
         constexpr auto operator>=(const version& _other) const noexcept -> bool
         {
             return *this == _other || *this > _other;
         }
 
+        /// \brief Returns true if this version is less than the other version.
         constexpr auto operator<(const version& _other) const noexcept -> bool
         {
             return compare_versions<std::less>(_other);
         }
 
+        /// \brief Returns true if this version is less than or equal to the other version.
         constexpr auto operator<=(const version& _other) const noexcept -> bool
         {
             return *this == _other || *this < _other;
@@ -102,4 +110,3 @@ namespace irods
 } // namespace irods
 
 #endif // IRODS_VERSION_HPP
-

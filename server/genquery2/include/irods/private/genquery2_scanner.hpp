@@ -11,11 +11,16 @@ namespace irods::experimental::genquery2
 {
     class driver;
 
+    /// Flex-based scanner for the GenQuery2 parser.
     class scanner : public yyFlexLexer
     {
       public:
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Woverloaded-virtual"
+        /// Scans the next GenQuery2 token from the active input stream.
+        ///
+        /// \param[in,out] _driver The parser driver receiving lexer state updates.
+        /// \return The next parser symbol extracted from the input stream.
         auto yylex(driver& _driver) -> yy::parser::symbol_type;
 #pragma GCC diagnostic pop
     }; // class scanner

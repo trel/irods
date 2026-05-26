@@ -1,8 +1,10 @@
 #include "irods/private/parallel_filesystem_operation.hpp"
 
 namespace irods::experimental::api {
+    /// API operation implementing experimental copy behavior.
     class copy : public parallel_filesystem_operation {
         protected:
+        /// Replaces the first occurrence of one substring with another.
         bool replace(std::string& str, const std::string& from, const std::string& to)
         {
             size_t start_pos = str.find(from);

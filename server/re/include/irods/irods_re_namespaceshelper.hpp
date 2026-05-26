@@ -8,9 +8,12 @@
 #include <vector>
 #include <string>
 
+/// Singleton helper for accessing configured rule-engine namespaces.
 class NamespacesHelper {
 public:
+    /// Returns the singleton namespace helper instance.
     static NamespacesHelper* Instance();
+    /// Returns the configured rule engine namespaces.
     std::vector<std::string> getNamespaces();
 protected:
 private:

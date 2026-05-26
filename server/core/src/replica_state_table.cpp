@@ -537,6 +537,13 @@ namespace irods::replica_state_table
         return replica_json.at(_property_name.data());
     } // get_property
 
+    /// Returns the value of a property for the replica identified by leaf resource name.
+    ///
+    /// \param[in] _key The key identifying the replica state table entry.
+    /// \param[in] _leaf_resource_name The leaf resource name identifying the replica.
+    /// \param[in] _property_name The property to read from the replica state record.
+    /// \param[in] _state The state view to query. This must not be \c state_type::both.
+    /// \return The property value as a string.
     auto get_property(
         const key_type& _key,
         const std::string_view _leaf_resource_name,
@@ -588,4 +595,3 @@ namespace irods::replica_state_table
         } // to_catalog
     } // namespace publish
 } // namespace irods
-

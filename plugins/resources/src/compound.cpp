@@ -2329,8 +2329,10 @@ irods::error compound_file_rebalance(
 // =-=-=-=-=-=-=-
 // 3. create derived class to handle universal mss resources
 //    context string will hold the script to be called.
+/// Resource plugin implementing compound resource behavior.
 class compound_resource : public irods::resource {
     public:
+        /// Constructs the compound resource plugin instance.
         compound_resource(const std::string& _inst_name, const std::string& _context)
             : irods::resource(_inst_name, _context)
         {

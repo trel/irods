@@ -1590,9 +1590,11 @@ irods::error repl_file_notify(
 //    necessary to do custom parsing of the context string to place
 //    any useful values into the property map for reference in later
 //    operations.  semicolon is the preferred delimiter
+/// Resource plugin implementing replication resource behavior.
 class repl_resource : public irods::resource {
 
     public:
+        /// Constructs the replication resource plugin instance.
         repl_resource(
             const std::string& _inst_name,
             const std::string& _context ) :

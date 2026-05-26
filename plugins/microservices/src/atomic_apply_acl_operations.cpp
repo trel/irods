@@ -71,6 +71,7 @@ namespace
 } // anonymous namespace
 
 extern "C"
+/// Registers the `msi_atomic_apply_acl_operations` microservice.
 auto plugin_factory() -> irods::ms_table_entry*
 {
     return make_msi<msParam_t*, msParam_t*>("msi_atomic_apply_acl_operations", msi_impl);
@@ -158,4 +159,3 @@ auto plugin_factory() -> irods::ms_table_entry*
 /// \since 4.2.9
 auto msi_atomic_apply_acl_operations(msParam_t* _json_input, msParam_t* _json_output, ruleExecInfo_t* _rei) -> int;
 #endif // IRODS_FOR_DOXYGEN
-

@@ -5,28 +5,30 @@
 
 namespace irods::experimental::filesystem
 {
+    /// \brief Lists the supported catalog permissions for users and groups.
     enum class perms
     {
-        null,
-        read_metadata,
-        read_object,
-        read,
-        create_metadata,
-        modify_metadata,
-        delete_metadata,
-        create_object,
-        modify_object,
-        write,
-        delete_object,
-        own
+        null,             ///< No permission.
+        read_metadata,    ///< Permission to read metadata.
+        read_object,      ///< Permission to read object contents.
+        read,             ///< Permission to read object contents and metadata.
+        create_metadata,  ///< Permission to add metadata.
+        modify_metadata,  ///< Permission to update metadata.
+        delete_metadata,  ///< Permission to remove metadata.
+        create_object,    ///< Permission to create objects.
+        modify_object,    ///< Permission to modify object contents.
+        write,            ///< Permission to create and modify objects and metadata.
+        delete_object,    ///< Permission to remove objects.
+        own               ///< Full ownership permission.
     };
 
+    /// \brief Describes a permission assigned to a catalog entity.
     struct entity_permission
     {
-        std::string name;
-        std::string zone;
-        perms prms;
-        std::string type;
+        std::string name; ///< The user or group name.
+        std::string zone; ///< The zone containing the user or group.
+        perms prms;       ///< The assigned permission.
+        std::string type; ///< The entity type, such as user or group.
     };
 } // namespace irods::experimental::filesystem
 

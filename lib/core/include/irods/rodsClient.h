@@ -8,15 +8,18 @@
 extern "C" {
 #endif
 
-/* Struct used to monitor transfer progress in getUtil and putUtil functions.*/
+/// \brief Transfer progress information for client-side data movement utilities.
 typedef struct TransferProgress {
-    rodsLong_t bytesReceived;
-    rodsLong_t bytesExpected;
-    char currentFilePath[MAX_NAME_LEN];
+    rodsLong_t bytesReceived;              ///< Number of bytes transferred so far.
+    rodsLong_t bytesExpected;              ///< Total number of bytes expected to transfer.
+    char currentFilePath[MAX_NAME_LEN];    ///< Path of the file currently being transferred.
 } xferProgress_t;
 
+/// \brief Initializes the legacy client API table.
+/// \deprecated Use \ref load_client_api_plugins instead.
 void init_client_api_table(void) __attribute__((deprecated("Use load_client_api_plugins instead")));
 
+/// \brief Loads client API plugins.
 void load_client_api_plugins();
 
 #ifdef __cplusplus

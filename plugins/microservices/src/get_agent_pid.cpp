@@ -42,6 +42,7 @@ namespace
 } // anonymous namespace
 
 extern "C"
+/// Registers the `msi_get_agent_pid` microservice.
 auto plugin_factory() -> irods::ms_table_entry*
 {
     return make_msi<msParam_t*>("msi_get_agent_pid", msi_impl);
@@ -61,4 +62,3 @@ auto plugin_factory() -> irods::ms_table_entry*
 /// \since 4.2.9
 auto msi_get_agent_pid(msParam_t* _out_pid, ruleExecInfo_t* _rei) -> int;
 #endif // IRODS_FOR_DOXYGEN
-

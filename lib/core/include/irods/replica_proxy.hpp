@@ -34,8 +34,9 @@ namespace irods::experimental::replica
     class replica_proxy
     {
     public:
-        // Aliases for various types used in replica_proxy
+        /// Underlying DataObjInfo type exposed through the proxy.
         using doi_type = I;
+        /// Pointer type for the underlying DataObjInfo object.
         using doi_pointer_type = doi_type*;
 
         /// \brief Constructs proxy using an existing doi_type
@@ -46,35 +47,35 @@ namespace irods::experimental::replica
         }
 
         // clang-format off
-        auto logical_path()     const noexcept -> std::string_view { return doi_->objPath; }
-        auto resource()         const noexcept -> std::string_view { return doi_->rescName; }
-        auto hierarchy()        const noexcept -> std::string_view { return doi_->rescHier; }
-        auto type()             const noexcept -> std::string_view { return doi_->dataType; }
-        auto size()             const noexcept -> rodsLong_t       { return doi_->dataSize; }
-        auto checksum()         const noexcept -> std::string_view { return doi_->chksum; }
-        auto version()          const noexcept -> std::string_view { return doi_->version; }
-        auto physical_path()    const noexcept -> std::string_view { return doi_->filePath; }
-        auto owner_user_name()  const noexcept -> std::string_view { return doi_->dataOwnerName; }
-        auto owner_zone_name()  const noexcept -> std::string_view { return doi_->dataOwnerZone; }
-        auto replica_number()   const noexcept -> int              { return doi_->replNum; }
-        auto replica_status()   const noexcept -> int              { return doi_->replStatus; }
-        auto data_id()          const noexcept -> rodsLong_t       { return doi_->dataId; }
-        auto collection_id()    const noexcept -> rodsLong_t       { return doi_->collId; }
-        auto resource_id()      const noexcept -> rodsLong_t       { return doi_->rescId; }
-        auto comments()         const noexcept -> std::string_view { return doi_->dataComments; }
-        auto atime()            const noexcept -> std::string_view { return doi_->dataAccessTime; }
-        auto ctime()            const noexcept -> std::string_view { return doi_->dataCreate; }
-        auto mtime()            const noexcept -> std::string_view { return doi_->dataModify; }
-        auto in_pdmo()          const noexcept -> std::string_view { return doi_->in_pdmo; }
-        auto status()           const noexcept -> std::string_view { return doi_->statusString; }
-        auto mode()             const noexcept -> std::string_view { return doi_->dataMode; }
-        auto data_expiry()      const noexcept -> std::string_view { return doi_->dataExpiry; }
-        auto map_id()           const noexcept -> int              { return doi_->dataMapId; }
+        auto logical_path()     const noexcept -> std::string_view { return doi_->objPath; } ///< Returns the logical path stored in the underlying replica.
+        auto resource()         const noexcept -> std::string_view { return doi_->rescName; } ///< Returns the resource name stored in the underlying replica.
+        auto hierarchy()        const noexcept -> std::string_view { return doi_->rescHier; } ///< Returns the resource hierarchy stored in the underlying replica.
+        auto type()             const noexcept -> std::string_view { return doi_->dataType; } ///< Returns the data type name stored in the underlying replica.
+        auto size()             const noexcept -> rodsLong_t       { return doi_->dataSize; } ///< Returns the data size stored in the underlying replica.
+        auto checksum()         const noexcept -> std::string_view { return doi_->chksum; } ///< Returns the checksum stored in the underlying replica.
+        auto version()          const noexcept -> std::string_view { return doi_->version; } ///< Returns the version string stored in the underlying replica.
+        auto physical_path()    const noexcept -> std::string_view { return doi_->filePath; } ///< Returns the physical path stored in the underlying replica.
+        auto owner_user_name()  const noexcept -> std::string_view { return doi_->dataOwnerName; } ///< Returns the owner user name stored in the underlying replica.
+        auto owner_zone_name()  const noexcept -> std::string_view { return doi_->dataOwnerZone; } ///< Returns the owner zone name stored in the underlying replica.
+        auto replica_number()   const noexcept -> int              { return doi_->replNum; } ///< Returns the replica number stored in the underlying replica.
+        auto replica_status()   const noexcept -> int              { return doi_->replStatus; } ///< Returns the replica status stored in the underlying replica.
+        auto data_id()          const noexcept -> rodsLong_t       { return doi_->dataId; } ///< Returns the data ID stored in the underlying replica.
+        auto collection_id()    const noexcept -> rodsLong_t       { return doi_->collId; } ///< Returns the collection ID stored in the underlying replica.
+        auto resource_id()      const noexcept -> rodsLong_t       { return doi_->rescId; } ///< Returns the resource ID stored in the underlying replica.
+        auto comments()         const noexcept -> std::string_view { return doi_->dataComments; } ///< Returns the comments stored in the underlying replica.
+        auto atime()            const noexcept -> std::string_view { return doi_->dataAccessTime; } ///< Returns the access time stored in the underlying replica.
+        auto ctime()            const noexcept -> std::string_view { return doi_->dataCreate; } ///< Returns the creation time stored in the underlying replica.
+        auto mtime()            const noexcept -> std::string_view { return doi_->dataModify; } ///< Returns the modification time stored in the underlying replica.
+        auto in_pdmo()          const noexcept -> std::string_view { return doi_->in_pdmo; } ///< Returns the PDMO state stored in the underlying replica.
+        auto status()           const noexcept -> std::string_view { return doi_->statusString; } ///< Returns the status string stored in the underlying replica.
+        auto mode()             const noexcept -> std::string_view { return doi_->dataMode; } ///< Returns the mode string stored in the underlying replica.
+        auto data_expiry()      const noexcept -> std::string_view { return doi_->dataExpiry; } ///< Returns the data expiry value stored in the underlying replica.
+        auto map_id()           const noexcept -> int              { return doi_->dataMapId; } ///< Returns the map ID stored in the underlying replica.
         // clang-format on
 
-        /// \returns key_value_proxy
+        /// Returns the condition-input key-value pairs.
         ///
-        /// \returns condInput for the DataObjInfo node as a key_value_proxy
+        /// \return The DataObjInfo node's `condInput` as a key-value proxy.
         ///
         /// \since 4.2.9
         auto cond_input()       const -> key_value_proxy<const KeyValPair>
@@ -82,9 +83,9 @@ namespace irods::experimental::replica
             return make_key_value_proxy<const KeyValPair>(doi_->condInput);
         }
 
-        /// \returns const SpecColl*
+        /// Returns the special collection information pointer.
         ///
-        /// \returns specColl pointer for the DataObjInfo node
+        /// \return The DataObjInfo node's `specColl` pointer.
         ///
         /// \since 4.2.9
         auto special_collection_info() const noexcept -> const SpecColl*
@@ -92,21 +93,25 @@ namespace irods::experimental::replica
             return doi_->specColl;
         }
 
-        /// \returns const doi_pointer_type
+        /// Returns a pointer to the underlying struct.
         ///
-        /// \returns Pointer to the underlying struct
+        /// \return The wrapped DataObjInfo pointer.
         ///
         /// \since 4.2.9
         auto get() const noexcept -> const doi_pointer_type { return doi_; }
 
-        /// \returns Whether the replica is considered at rest
+        /// Indicates whether the replica is considered at rest.
+        ///
+        /// \return True if the replica is not intermediate.
         /// \retval true If the passed replica status is considered at rest
         /// \retval false If the passed replica status is not considered at rest
         ///
         /// \since 4.2.9
         auto at_rest() const -> bool { return INTERMEDIATE_REPLICA != replica_status(); }
 
-        /// \returns Whether the replica is locked at the logical level
+        /// Indicates whether the replica is logically locked.
+        ///
+        /// \return True if the replica is read- or write-locked.
         /// \retval true If the passed replica status is locked at the logical level
         /// \retval false If the passed replica status is not locked at the logical level
         ///
@@ -119,6 +124,8 @@ namespace irods::experimental::replica
 
         // mutators
 
+        /// \brief Sets the logical path.
+        /// \param[in] _lp The logical path to set.
         template<
             typename P = doi_type,
             typename = std::enable_if_t<!std::is_const_v<P>>>
@@ -127,6 +134,8 @@ namespace irods::experimental::replica
             set_string_property(doi_->objPath, _lp, sizeof(doi_->objPath));
         }
 
+        /// \brief Sets the resource name.
+        /// \param[in] _r The resource name to set.
         template<
             typename P = doi_type,
             typename = std::enable_if_t<!std::is_const_v<P>>>
@@ -135,6 +144,8 @@ namespace irods::experimental::replica
             set_string_property(doi_->rescName, _r, sizeof(doi_->rescName));
         }
 
+        /// \brief Sets the resource hierarchy.
+        /// \param[in] _h The resource hierarchy to set.
         template<
             typename P = doi_type,
             typename = std::enable_if_t<!std::is_const_v<P>>>
@@ -143,6 +154,8 @@ namespace irods::experimental::replica
             set_string_property(doi_->rescHier, _h, sizeof(doi_->rescHier));
         }
 
+        /// \brief Sets the data type name.
+        /// \param[in] _t The data type name to set.
         template<
             typename P = doi_type,
             typename = std::enable_if_t<!std::is_const_v<P>>>
@@ -151,11 +164,15 @@ namespace irods::experimental::replica
             set_string_property(doi_->dataType, _t, sizeof(doi_->dataType));
         }
 
+        /// \brief Sets the data size.
+        /// \param[in] _s The data size to set.
         template<
             typename P = doi_type,
             typename = std::enable_if_t<!std::is_const_v<P>>>
         auto size(const rodsLong_t _s)              -> void { doi_->dataSize = _s; }
 
+        /// \brief Sets the checksum.
+        /// \param[in] _cs The checksum to set.
         template<
             typename P = doi_type,
             typename = std::enable_if_t<!std::is_const_v<P>>>
@@ -164,6 +181,8 @@ namespace irods::experimental::replica
             set_string_property(doi_->chksum, _cs, sizeof(doi_->chksum));
         }
 
+        /// \brief Sets the version string.
+        /// \param[in] _v The version string to set.
         template<
             typename P = doi_type,
             typename = std::enable_if_t<!std::is_const_v<P>>>
@@ -172,6 +191,8 @@ namespace irods::experimental::replica
             set_string_property(doi_->version, _v, sizeof(doi_->version));
         }
 
+        /// \brief Sets the physical path.
+        /// \param[in] _p The physical path to set.
         template<
             typename P = doi_type,
             typename = std::enable_if_t<!std::is_const_v<P>>>
@@ -180,6 +201,8 @@ namespace irods::experimental::replica
             set_string_property(doi_->filePath, _p, sizeof(doi_->filePath));
         }
 
+        /// \brief Sets the owner user name.
+        /// \param[in] _oun The owner user name to set.
         template<
             typename P = doi_type,
             typename = std::enable_if_t<!std::is_const_v<P>>>
@@ -188,6 +211,8 @@ namespace irods::experimental::replica
             set_string_property(doi_->dataOwnerName, _oun, sizeof(doi_->dataOwnerName));
         }
 
+        /// \brief Sets the owner zone name.
+        /// \param[in] _ozn The owner zone name to set.
         template<
             typename P = doi_type,
             typename = std::enable_if_t<!std::is_const_v<P>>>
@@ -196,31 +221,43 @@ namespace irods::experimental::replica
             set_string_property(doi_->dataOwnerZone, _ozn, sizeof(doi_->dataOwnerZone));
         }
 
+        /// \brief Sets the replica number.
+        /// \param[in] _rn The replica number to set.
         template<
             typename P = doi_type,
             typename = std::enable_if_t<!std::is_const_v<P>>>
         auto replica_number(const int _rn)          -> void { doi_->replNum = _rn; }
 
+        /// \brief Sets the replica status.
+        /// \param[in] _s The replica status to set.
         template<
             typename P = doi_type,
             typename = std::enable_if_t<!std::is_const_v<P>>>
         auto replica_status(const int _s)           -> void { doi_->replStatus = _s; }
 
+        /// \brief Sets the data ID.
+        /// \param[in] _id The data ID to set.
         template<
             typename P = doi_type,
             typename = std::enable_if_t<!std::is_const_v<P>>>
         auto data_id(const rodsLong_t _id)          -> void { doi_->dataId = _id; }
 
+        /// \brief Sets the collection ID.
+        /// \param[in] _id The collection ID to set.
         template<
             typename P = doi_type,
             typename = std::enable_if_t<!std::is_const_v<P>>>
         auto collection_id(const rodsLong_t _id)    -> void { doi_->collId = _id; }
 
+        /// \brief Sets the resource ID.
+        /// \param[in] _id The resource ID to set.
         template<
             typename P = doi_type,
             typename = std::enable_if_t<!std::is_const_v<P>>>
         auto resource_id(const rodsLong_t _id)      -> void { doi_->rescId = _id; }
 
+        /// \brief Sets the comments string.
+        /// \param[in] _c The comments string to set.
         template<
             typename P = doi_type,
             typename = std::enable_if_t<!std::is_const_v<P>>>
@@ -229,6 +266,8 @@ namespace irods::experimental::replica
             set_string_property(doi_->dataComments, _c, sizeof(doi_->dataComments));
         }
 
+        /// \brief Sets the access time.
+        /// \param[in] _at The access time to set.
         template<
             typename P = doi_type,
             typename = std::enable_if_t<!std::is_const_v<P>>>
@@ -237,6 +276,8 @@ namespace irods::experimental::replica
             set_string_property(doi_->dataAccessTime, _at, sizeof(doi_->dataAccessTime));
         }
 
+        /// \brief Sets the creation time.
+        /// \param[in] _ct The creation time to set.
         template<
             typename P = doi_type,
             typename = std::enable_if_t<!std::is_const_v<P>>>
@@ -245,6 +286,8 @@ namespace irods::experimental::replica
             set_string_property(doi_->dataCreate, _ct, sizeof(doi_->dataCreate));
         }
 
+        /// \brief Sets the modification time.
+        /// \param[in] _mt The modification time to set.
         template<
             typename P = doi_type,
             typename = std::enable_if_t<!std::is_const_v<P>>>
@@ -253,6 +296,8 @@ namespace irods::experimental::replica
             set_string_property(doi_->dataModify, _mt, sizeof(doi_->dataModify));
         }
 
+        /// \brief Sets the PDMO string.
+        /// \param[in] _p The PDMO string to set.
         template<
             typename P = doi_type,
             typename = std::enable_if_t<!std::is_const_v<P>>>
@@ -261,6 +306,8 @@ namespace irods::experimental::replica
             set_string_property(doi_->in_pdmo, _p, sizeof(doi_->in_pdmo));
         }
 
+        /// \brief Sets the status string.
+        /// \param[in] _s The status string to set.
         template<
             typename P = doi_type,
             typename = std::enable_if_t<!std::is_const_v<P>>>
@@ -269,6 +316,8 @@ namespace irods::experimental::replica
             set_string_property(doi_->statusString, _s, sizeof(doi_->statusString));
         }
 
+        /// \brief Sets the mode string.
+        /// \param[in] _m The mode string to set.
         template<
             typename P = doi_type,
             typename = std::enable_if_t<!std::is_const_v<P>>>
@@ -277,6 +326,8 @@ namespace irods::experimental::replica
             set_string_property(doi_->dataMode, _m, sizeof(doi_->dataMode));
         }
 
+        /// \brief Sets the data expiry value.
+        /// \param[in] _e The data expiry value to set.
         template<
             typename P = doi_type,
             typename = std::enable_if_t<!std::is_const_v<P>>>
@@ -285,14 +336,16 @@ namespace irods::experimental::replica
             set_string_property(doi_->dataExpiry, _e, sizeof(doi_->dataExpiry));
         }
 
+        /// \brief Sets the map ID.
+        /// \param[in] _m The map ID to set.
         template<
             typename P = doi_type,
             typename = std::enable_if_t<!std::is_const_v<P>>>
         auto map_id(const int _m) -> void { doi_->dataMapId = _m; }
 
-        /// \returns key_value_proxy
+        /// Returns the condition-input key-value pairs.
         ///
-        /// \returns condInput for the DataObjInfo node as a key_value_proxy
+        /// \return The DataObjInfo node's `condInput` as a mutable key-value proxy.
         ///
         /// \since 4.2.9
         template<
@@ -303,9 +356,9 @@ namespace irods::experimental::replica
             return make_key_value_proxy(doi_->condInput);
         }
 
-        /// \returns SpecColl*
+        /// Returns the special collection information pointer.
         ///
-        /// \returns specColl pointer for the DataObjInfo node
+        /// \return The DataObjInfo node's `specColl` pointer.
         ///
         /// \since 4.2.9
         template<
@@ -316,7 +369,9 @@ namespace irods::experimental::replica
             return doi_->specColl;
         }
 
-        /// \returns Pointer to the underlying struct
+        /// Returns a pointer to the underlying struct.
+        ///
+        /// \return The wrapped DataObjInfo pointer.
         ///
         /// \since 4.2.9
         template<
@@ -415,7 +470,7 @@ namespace irods::experimental::replica
     ///
     /// Allocates a new DataObjInfo and wraps the struct in a proxy and lifetime_manager
     ///
-    /// \returns replica_proxy and lifetime_manager for managing a new DataObjInfo
+    /// \return A replica proxy and lifetime manager for the new DataObjInfo.
     ///
     /// \since 4.2.9
     static auto make_replica_proxy() -> std::pair<replica_proxy_t, lifetime_manager<DataObjInfo>>
@@ -429,11 +484,11 @@ namespace irods::experimental::replica
     ///
     /// Allocates a new DataObjInfo and wraps the struct in a proxy and lifetime_manager
     ///
-    /// \param[in] _comm connection object
-    /// \param[in] _logical_path
-    /// \param[in] _replica_number
+    /// \param[in] _comm The connection object used to query catalog state.
+    /// \param[in] _logical_path The logical path identifying the data object.
+    /// \param[in] _replica_number The replica number identifying the replica.
     ///
-    /// \returns replica_proxy and lifetime_manager for managing a new DataObjInfo
+    /// \return A replica proxy and lifetime manager for the new DataObjInfo.
     ///
     /// \since 4.2.9
     template<typename rxComm>
@@ -457,11 +512,11 @@ namespace irods::experimental::replica
     ///
     /// Allocates a new DataObjInfo and wraps the struct in a proxy and lifetime_manager
     ///
-    /// \param[in] _comm connection object
-    /// \param[in] _logical_path
-    /// \param[in] _leaf_resource_name
+    /// \param[in] _comm The connection object used to query catalog state.
+    /// \param[in] _logical_path The logical path identifying the data object.
+    /// \param[in] _leaf_resource_name The leaf resource name identifying the replica.
     ///
-    /// \returns replica_proxy and lifetime_manager for managing a new DataObjInfo
+    /// \return A replica proxy and lifetime manager for the new DataObjInfo.
     ///
     /// \since 4.2.9
     template<typename rxComm>
@@ -483,9 +538,9 @@ namespace irods::experimental::replica
 
     /// \brief Takes an existing replica_proxy and duplicates the underlying struct.
     ///
-    /// \param[in] _replica replica to duplicate
+    /// \param[in] _replica The replica to duplicate.
     ///
-    /// \returns replica_proxy and lifetime_manager for underlying struct
+    /// \return A replica proxy and lifetime manager for the duplicated struct.
     ///
     /// \since 4.2.9
     static auto duplicate_replica(const DataObjInfo& _replica)
@@ -516,9 +571,9 @@ namespace irods::experimental::replica
 
     /// \brief Takes an existing replica_proxy and duplicates the underlying struct.
     ///
-    /// \param[in] _replica replica to duplicate
+    /// \param[in] _replica The replica to duplicate.
     ///
-    /// \returns replica_proxy and lifetime_manager for underlying struct
+    /// \return A replica proxy and lifetime manager for the duplicated struct.
     ///
     /// \since 4.2.9
     static auto duplicate_replica(const replica_proxy_t& _replica)
@@ -529,7 +584,7 @@ namespace irods::experimental::replica
 
     /// \brief Takes a structured JSON input and creates a replica proxy
     ///
-    /// \param[in] _logical_path The DataObjInfo holds an objPath, but the catalog only holds the data name and collection ID
+    /// \param[in] _logical_path The logical path to store in the proxy.
     /// \param[in] _input \parblock
     /// Structured JSON of the following format (order is unimportant, but all fields must be included):
     /// \code{.js}
@@ -557,7 +612,7 @@ namespace irods::experimental::replica
     /// \endcode
     /// \endparblock
     ///
-    /// \returns replica_proxy and lifetime_manager for underlying struct
+    /// \return A replica proxy and lifetime manager for the populated struct.
     ///
     /// \since 4.2.9
     static auto make_replica_proxy(const std::string_view _logical_path, const nlohmann::json& _input)
@@ -599,7 +654,7 @@ namespace irods::experimental::replica
     ///
     /// \param[in] _proxy replica_proxy containing data object information
     ///
-    /// \returns Structured JSON of the following format: \parblock
+    /// \return Structured JSON of the following format: \parblock
     /// \code{.js}
     ///     {
     ///         "data_id": <string>,

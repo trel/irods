@@ -9,7 +9,9 @@
 #include <string_view>
 
 namespace irods {
+    /// Name of the ADLER32 hashing strategy.
     extern const std::string ADLER32_NAME;
+    /// Hash strategy implementation for ADLER32 digests.
     class ADLER32Strategy : public HashStrategy {
         public:
             ADLER32Strategy() {};

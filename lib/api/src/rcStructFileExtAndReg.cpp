@@ -2,7 +2,7 @@
 #include "irods/procApiRequest.h"
 #include "irods/apiNumber.h"
 
-/**
+/*
  * \fn rcStructFileExtAndReg( rcComm_t *conn, structFileExtAndRegInp_t *structFileExtAndRegInp )
  *
  * \brief Extract and register a structured file object.
@@ -18,7 +18,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 int
 rcStructFileExtAndReg( rcComm_t *conn,
                        structFileExtAndRegInp_t *structFileExtAndRegInp ) {

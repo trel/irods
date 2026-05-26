@@ -2,23 +2,28 @@
 #define IRODS_FILE_RENAME_H
 
 /// \file
+/// \brief Declares the server-side file rename API.
 
 #include "irods/rodsDef.h"
 
 struct RcComm;
 
+/// Input describing a physical file rename operation.
 typedef struct FileRenameInp {
-    rodsHostAddr_t addr;
-    char oldFileName[MAX_NAME_LEN];
-    char newFileName[MAX_NAME_LEN];
-    char rescHier[MAX_NAME_LEN];
-    char objPath[MAX_NAME_LEN];
+    rodsHostAddr_t addr;              ///< Host address of the resource server.
+    char oldFileName[MAX_NAME_LEN];   ///< Existing physical file path.
+    char newFileName[MAX_NAME_LEN];   ///< Replacement physical file path.
+    char rescHier[MAX_NAME_LEN];      ///< Resource hierarchy for the file.
+    char objPath[MAX_NAME_LEN];       ///< Logical path of the associated data object.
 } fileRenameInp_t;
+/// Packing instruction for `fileRenameInp_t`.
 #define fileRenameInp_PI "struct RHostAddr_PI; str oldFileName[MAX_NAME_LEN]; str newFileName[MAX_NAME_LEN]; str rescHier[MAX_NAME_LEN]; str objPath[MAX_NAME_LEN];"
 
+/// Output returned by a physical file rename operation.
 typedef struct FileRenameOut {
-    char file_name[MAX_NAME_LEN];
+    char file_name[MAX_NAME_LEN]; ///< Renamed file path.
 } fileRenameOut_t;
+/// Packing instruction for `fileRenameOut_t`.
 #define fileRenameOut_PI "str file_name[MAX_NAME_LEN];"
 
 #ifdef __cplusplus

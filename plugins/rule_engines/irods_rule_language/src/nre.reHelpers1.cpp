@@ -11,14 +11,15 @@
 #include "irods/irods_server_properties.hpp"
 #include "irods/rcMisc.h"
 
+/// Breakpoint definition used by the rule-engine debugger.
 struct Breakpoint {
-    char *actionName;
-    char *base;
-    int pending;
-    int row;
-    int line;
-    rodsLong_t start;
-    rodsLong_t finish; /* exclusive */
+    char *actionName; ///< Rule action name that triggers the breakpoint.
+    char *base; ///< Source base identifier associated with the breakpoint.
+    int pending; ///< Indicates whether the breakpoint is awaiting activation.
+    int row; ///< Source row associated with the breakpoint.
+    int line; ///< Source line associated with the breakpoint.
+    rodsLong_t start; ///< Inclusive start offset of the breakpoint range.
+    rodsLong_t finish; ///< Exclusive end offset of the breakpoint range.
 } breakPoints[100];
 
 int breakPointsInx = 0;

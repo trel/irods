@@ -1,43 +1,33 @@
 #ifndef OBJ_STAT_H__
 #define OBJ_STAT_H__
 
+/// \file
+/// \brief Declares object status query types and functions.
+
 #include "irods/rcConnect.h"
 #include "irods/rodsType.h"
 
-// rodsObjStat_t - this is similar to rodsStat_t but has minimum set of parameter that are more irods specific
+/// Minimal iRODS-specific status information for a data object or collection.
 typedef struct rodsObjStat {
-    rodsLong_t          objSize;        // file size
-    objType_t           objType;        // DATA_OBJ_T or COLL_OBJ_T
-    uint                dataMode;
-    char                dataId[NAME_LEN];
-    char                chksum[CHKSUM_LEN];
-    char                ownerName[NAME_LEN];
-    char                ownerZone[NAME_LEN];
-    char                createTime[TIME_LEN];
-    char                modifyTime[TIME_LEN];
-    specColl_t          *specColl;
-    char                rescHier[MAX_NAME_LEN];
+    rodsLong_t          objSize;        ///< Data size in bytes.
+    objType_t           objType;        ///< Object type such as data object or collection.
+    uint                dataMode;       ///< Object mode bits.
+    char                dataId[NAME_LEN]; ///< Data object identifier.
+    char                chksum[CHKSUM_LEN]; ///< Checksum string for the object.
+    char                ownerName[NAME_LEN]; ///< Owner user name.
+    char                ownerZone[NAME_LEN]; ///< Owner zone name.
+    char                createTime[TIME_LEN]; ///< Creation timestamp.
+    char                modifyTime[TIME_LEN]; ///< Last modification timestamp.
+    specColl_t          *specColl;      ///< Special collection information, if applicable.
+    char                rescHier[MAX_NAME_LEN]; ///< Resource hierarchy for the object.
 } rodsObjStat_t;
 
 
-/* prototype for the client call */
-/* rcObjStat - get the stat of an object specified by dataObjInp->objPath.
- * input:  dataObjInp
- *
- * output: rodsObjStatOut
- *   The objType can be COLL_OBJ_T (collection), DATA_OBJ_T (data object)
- *   or UNKNOWN_OBJ_T (object does not exist).
- *   If "specColl" is not NULL, the input objPath is a Special Collection or
- *   in a Special Collection. If objType is UNKNOWN_OBJ_T and "specColl"
- *   is not NULL, the object does not exist but the objPath is in a
- *   Special Collection.
- *   Important items in the specColl_t are:
- *     collClass - can be STRUCT_FILE_COLL (mounted structured file),
- *     MOUNTED_COLL (mounted collection) or LINKED_COLL (linked collection).
- *     objPath - If collClass is LINKED_COLL, this is the translated path
- *     for the input objPath. The client should use this path instead of
- *     the input "objPath" for further metadata query.
- */
+/// Returns status information for the object identified by `dataObjInp->objPath`.
+///
+/// The returned `rodsObjStat_t` describes whether the path refers to a collection,
+/// a data object, or no existing object. If `specColl` is non-null, the path is
+/// associated with a special collection and may be translated for follow-up work.
 #ifdef __cplusplus
 extern "C"
 #endif

@@ -6,8 +6,10 @@
 #include "irods/irods_re_structs.hpp"
 
 #if defined(_LP64) || defined(__LP64__)
+/// Cast helper used when formatting pointer-sized integers on LP64 systems.
 #define CAST_PTR_INT (long int)
 #else
+/// Cast helper used when formatting pointer-sized integers on non-LP64 systems.
 #define CAST_PTR_INT (uint)
 #endif
 
@@ -310,4 +312,3 @@ int writeKeyValPairs( msParam_t *where, msParam_t *inKVPair, msParam_t *separato
 
     return rei->status;
 }
-

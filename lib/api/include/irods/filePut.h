@@ -5,9 +5,12 @@
 #include "irods/rodsDef.h"
 #include "irods/fileOpen.h"
 
+/**
+ * \brief Output returned by `rcFilePut`.
+ */
 typedef struct FilePutOut
 {
-    char file_name[MAX_NAME_LEN];
+    char file_name[MAX_NAME_LEN]; ///< Physical path of the staged file.
 } filePutOut_t;
 #define filePutOut_PI "str file_name[MAX_NAME_LEN];"
 

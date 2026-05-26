@@ -5,15 +5,17 @@
 #include "irods/region.h"
 
 typedef struct listNode ListNode;
+/// \brief Node in a singly linked list.
 struct listNode {
-    ListNode *next;
-    void *value;
+    ListNode *next; ///< Next node in the list.
+    void *value; ///< Value stored in the node.
 };
 
+/// \brief Singly linked list container.
 typedef struct list {
-    int size;
-    ListNode *head;
-    ListNode *tail;
+    int size; ///< Number of elements in the list.
+    ListNode *head; ///< First node in the list.
+    ListNode *tail; ///< Last node in the list.
 } List;
 
 #ifdef __cplusplus

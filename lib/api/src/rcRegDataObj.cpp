@@ -2,7 +2,7 @@
 #include "irods/procApiRequest.h"
 #include "irods/apiNumber.h"
 
-/**
+/*
  * \fn rcRegDataObj( rcComm_t *conn, dataObjInfo_t *dataObjInfo, dataObjInfo_t **outDataObjInfo )
  *
  * \brief Register a data object.
@@ -19,7 +19,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 int
 rcRegDataObj( rcComm_t *conn, dataObjInfo_t *dataObjInfo,
               dataObjInfo_t **outDataObjInfo ) {

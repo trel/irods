@@ -1,6 +1,8 @@
 #ifndef IRODS_DISPATCH_PROCESSOR_HPP
 #define IRODS_DISPATCH_PROCESSOR_HPP
 
+/// \file
+
 #include "irods/thread_pool.hpp"
 #include "irods/connection_pool.hpp"
 #include "irods/irods_exception.hpp"
@@ -15,12 +17,15 @@
 
 namespace irods::experimental
 {
+    /// Dispatches a job across items from an iterator-backed range.
     template <typename IteratorType>
     class dispatch_processor
     {
     public:
+        /// Function type invoked for each item in the range.
         using job = std::function<void (const typename IteratorType::value_type)>;
 
+        /// Constructs a dispatch processor over the given range and job.
         dispatch_processor(std::atomic_bool& stop_flag, const IteratorType& _i, job _j)
             : stop_flag_(stop_flag)
             , iterator_{_i}
@@ -28,9 +33,13 @@ namespace irods::experimental
         {
         }
 
+        /// Copy construction is disabled.
         dispatch_processor(const dispatch_processor&) = delete;
+
+        /// Copy assignment is disabled.
         dispatch_processor& operator=(const dispatch_processor&) = delete;
 
+        /// Dispatches work items to the provided thread pool.
         auto execute(thread_pool& _tp) -> future
         {
             future f{stop_flag_};
@@ -70,11 +79,15 @@ namespace irods::experimental
         }
 
     private:
+        /// Shared stop flag observed by dispatched work.
         std::atomic_bool& stop_flag_;
+
+        /// Range of items to process.
         IteratorType iterator_;
+
+        /// Job invoked for each item in the range.
         job job_;
     };
 } // namespace irods::experimental
 
 #endif // IRODS_DISPATCH_PROCESSOR_HPP
-

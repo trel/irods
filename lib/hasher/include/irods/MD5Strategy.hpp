@@ -9,7 +9,9 @@
 #include <string_view>
 
 namespace irods {
+    /// Name of the MD5 hashing strategy.
     extern const std::string MD5_NAME;
+    /// Hash strategy implementation for MD5 digests.
     class MD5Strategy : public HashStrategy {
         public:
             MD5Strategy() {};

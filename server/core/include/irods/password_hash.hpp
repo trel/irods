@@ -28,7 +28,7 @@ namespace irods
     ///
     /// \returns String containing hashed password as a base64-encoded string.
     ///
-    /// \throws \p irods::exception If \p _parameters is incorrect, or an error occurs.
+    /// \throws irods::exception If \p _parameters is incorrect, or an error occurs.
     ///
     /// \since 5.1.0
     auto hash_password(const std::string& _password,

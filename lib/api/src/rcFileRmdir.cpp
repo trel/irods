@@ -2,7 +2,7 @@
 #include "irods/procApiRequest.h"
 #include "irods/apiNumber.h"
 
-/**
+/*
  * \fn rcFileRmdir( rcComm_t *conn, fileRmdirInp_t *fileRmdirInp )
  *
  * \brief Remove a directory.
@@ -18,7 +18,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 int
 rcFileRmdir( rcComm_t *conn, fileRmdirInp_t *fileRmdirInp ) {
     int status;

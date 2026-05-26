@@ -2,7 +2,7 @@
 #include "irods/procApiRequest.h"
 #include "irods/apiNumber.h"
 
-/**
+/*
  * \fn rcFileUnlink( rcComm_t *conn, fileUnlinkInp_t *fileUnlinkInp )
  *
  * \brief Unlink a file.
@@ -18,7 +18,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 int
 rcFileUnlink( rcComm_t *conn, fileUnlinkInp_t *fileUnlinkInp ) {
     int status;

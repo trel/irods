@@ -589,11 +589,7 @@ int chlRegReplica(
 
 } // chlRegReplica
 
-/// =-=-=-=-=-=-=-
-/// @brief unregDataObj - Unregister a data object
-///        Input - rsComm_t *rsComm  - the server handle
-///                dataObjInfo_t *dataObjInfo - contains info about the data object.
-///                keyValPair_t *condInput - used to specify a admin-mode.
+// unregDataObj - Unregister a data object.
 int chlUnregDataObj(
     rsComm_t*      _comm,
     dataObjInfo_t* _data_obj_info,
@@ -806,8 +802,7 @@ int chlDelRuleExec(
 
 } // chlDelRuleExec
 
-/// =-=-=-=-=-=-=-
-/// @brief Adds the child, with context, to the resource all specified in the resc_input map
+// Adds the child, with context, to the resource specified in the resc_input map.
 int chlAddChildResc(
     rsComm_t*   _comm,
     std::map<std::string, std::string>& _resc_input ) {
@@ -910,8 +905,7 @@ int chlRegResc(
 
 } // chlRegResc
 
-/// =-=-=-=-=-=-=-
-/// @brief Remove a child from its parent
+// Removes a child from its parent.
 int chlDelChildResc(
     rsComm_t*   _comm,
     std::map<std::string, std::string>& _resc_input ) {
@@ -4221,8 +4215,7 @@ int chlGetDistinctDataObjsMissingFromChildGivenParent(
 
 } // chlGetDistinctDataObjsMissingFromChildGivenParent
 
-/// =-=-=-=-=-=-=-
-/// @brief Given a resource, resolves the hierarchy down to said resource
+// Given a resource, resolves the hierarchy down to said resource.
 int chlGetHierarchyForResc(
     const std::string& _resc_name,
     const std::string& _zone_name,
@@ -4275,10 +4268,7 @@ int chlGetHierarchyForResc(
 
 } // chlGetHierarchyForResc
 
-/// =-=-=-=-=-=-=-
-/// @brief Administrative operations on a ticket.
-///        create, modify, and remove.
-///        ticketString is either the ticket-string or ticket-id.
+// Administrative operations on a ticket: create, modify, and remove.
 int chlModTicket(
     rsComm_t*         _comm,
     const char*       _op_name,

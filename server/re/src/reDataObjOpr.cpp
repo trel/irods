@@ -43,6 +43,7 @@
 #include <string>
 #include <vector>
 
+/// Logger alias used by data-object microservices in this file.
 using msi_log = irods::experimental::log::microservice;
 
 /**
@@ -2642,6 +2643,7 @@ msiCollRsync( msParam_t *inpParam1, msParam_t *inpParam2,
 }
 
 int
+/// rief Recursively synchronizes one collection into another collection.
 _rsCollRsync( rsComm_t *rsComm, dataObjInp_t *dataObjInp,
               char *srcColl, char *destColl ) {
     collInp_t openCollInp;
@@ -3297,8 +3299,8 @@ msiTarFileCreate( msParam_t *inpParam1, msParam_t *inpParam2, msParam_t *inpPara
 /// \endcode
 /// The JSON microservices can be used to parse and examine the output. See #msi_json_parse.
 /// \endparblock
-/// \param[in,out] rei - The RuleExecInfo structure that is automatically handled by the rule engine. The user does not
-/// include rei as a parameter in the rule invocation.
+/// \param[in,out] _rei - The RuleExecInfo structure that is automatically handled by the rule engine. The user does not
+/// include `_rei` as a parameter in the rule invocation.
 ///
 /// \usage \parblock
 /// \code{.py}

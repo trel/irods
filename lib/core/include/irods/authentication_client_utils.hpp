@@ -8,6 +8,7 @@
 
 namespace irods::authentication
 {
+    /// Length of a stored session token string.
     constexpr std::uint16_t session_token_length = 36;
 
     /// Get a password from stdin. Attempts to disable echo mode.
@@ -24,7 +25,7 @@ namespace irods::authentication
     /// \p IRODS_SESSION_TOKEN_FILE_PATH are not set, the location of the session token file is unknown.
     /// If the session token file cannot be determined, this function does nothing.
     ///
-    /// \throws \p irods::exception if the session token file fails to open.
+    /// \throws irods::exception if the session token file fails to open.
     ///
     /// \retval The session token as a string.
     ///
@@ -40,7 +41,7 @@ namespace irods::authentication
     ///
     /// \param[in] _session_token The session token to record.
     ///
-    /// \throws \p irods::exception if the session token file fails to open.
+    /// \throws irods::exception if the session token file fails to open.
     ///
     /// \since 5.1.0
     auto write_session_token_to_file(const std::string& _session_token) -> void;

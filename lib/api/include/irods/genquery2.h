@@ -46,6 +46,7 @@ typedef struct Genquery2Input
     int column_mappings;
 } genquery2Inp_t;
 
+/// Packing instruction for `genquery2Inp_t`.
 #define Genquery2Input_PI "str *query_string; str *zone; int sql_only; int column_mappings;"
 
 #ifdef __cplusplus
@@ -70,7 +71,7 @@ extern "C" {
 /// - SQL keywords are case-insensitive
 /// - Federation
 /// - Escaping of single quotes
-/// - Bytes encoded as hexadecimal (e.g. \x21)
+/// - Bytes encoded as hexadecimal (e.g. `0x21`)
 ///
 /// Limitations:
 /// - Groups are not yet fully supported

@@ -34,7 +34,10 @@ namespace irods::experimental
             {
             }
 
+            /// The column name.
             const std::string name;
+
+            /// The column value.
             const std::string value;
         }; // struct column
 
@@ -61,8 +64,13 @@ namespace irods::experimental
             {
             }
 
+            /// The column name targeted by the condition.
             const std::string column;
+
+            /// The comparison operator.
             const std::string op;
+
+            /// The values used by the condition.
             const std::vector<std::string> values;
         }; // struct condition
 
@@ -85,7 +93,10 @@ namespace irods::experimental
             {
             }
 
+            /// The table that receives the new row.
             const std::string table;
+
+            /// The column values to insert.
             const std::vector<column> data;
         }; // struct insert_op
 
@@ -113,8 +124,13 @@ namespace irods::experimental
             {
             }
 
+            /// The table containing the rows to update.
             const std::string table;
+
+            /// The column values to update.
             const std::vector<column> data;
+
+            /// The conditions that select rows for update.
             const std::vector<condition> conditions;
         }; // struct update_op
 
@@ -139,7 +155,10 @@ namespace irods::experimental
             {
             }
 
+            /// The table containing the rows to delete.
             const std::string table;
+
+            /// The conditions that select rows for deletion.
             const std::vector<condition> conditions;
         }; // struct delete_op
 
@@ -173,4 +192,3 @@ namespace irods::experimental
 } // namespace irods::experimental
 
 #endif // IRODS_ATOMIC_APPLY_DATABASE_OPERATIONS_HPP
-

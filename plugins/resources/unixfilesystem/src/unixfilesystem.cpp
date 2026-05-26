@@ -92,6 +92,7 @@ const std::string HOST_MODE("host_mode");
 
 namespace
 {
+    /// @brief Reports whether the resource is configured for detached host mode.
     auto is_operating_in_detached_mode(irods::plugin_property_map& prop_map) -> bool
     {
         std::string host_mode_str;
@@ -106,8 +107,8 @@ namespace
     }
 } // namespace
 
-// The return value is always SUCCESS() because the errors encountered are to
-// be treated as warnings and no fatal errors.
+/// @brief Prepares detached-mode state for a resource operation.
+/// @details The return value is always `SUCCESS()` because failures are logged as warnings.
 auto unix_file_start_operation(irods::plugin_property_map& prop_map) -> irods::error
 {
     namespace logger = irods::experimental::log;
@@ -174,6 +175,7 @@ auto unix_file_start_operation(irods::plugin_property_map& prop_map) -> irods::e
 // NOTE: All storage resources must do this on the physical path stored in the file object and then update
 //       the file object's physical path with the full path
 
+/// @brief Copies a regular file on the local filesystem.
 static irods::error unix_file_copy(
     const int mode,
     const char* srcFileName,
@@ -477,6 +479,7 @@ irods::error unix_file_getfs_freespace(irods::plugin_context& _ctx)
     return result;
 } // unix_file_getfs_freespace
 
+/// @brief Stats the nearest existing directory for the provided vault path.
 irods::error stat_vault_path(
     const std::string& _path,
     struct statfs&     _sb ) {
@@ -1228,28 +1231,26 @@ irods::error unix_file_rebalance(
 
 } // unix_file_rebalance
 
-// =-=-=-=-=-=-=-
-// 3. create derived class to handle unix file system resources
-//    necessary to do custom parsing of the context string to place
-//    any useful values into the property map for reference in later
-//    operations.  semicolon is the preferred delimiter
+/// @brief Implements the unixfilesystem resource plugin.
 class unixfilesystem_resource : public irods::resource {
-        // =-=-=-=-=-=-=-
-        // 3a. create a class to provide maintenance operations, this is only for example
-        //     and will not be called.
+        /// @brief Example maintenance functor retained for legacy structure.
         class maintenance_operation {
             public:
+                /// @brief Constructs the maintenance functor.
                 maintenance_operation( const std::string& _n ) : name_( _n ) {
                 }
 
+                /// @brief Copies the maintenance functor.
                 maintenance_operation( const maintenance_operation& _rhs ): name_(_rhs.name_) {
                 }
 
+                /// @brief Assigns the maintenance functor state.
                 maintenance_operation& operator=( const maintenance_operation& _rhs ) {
                     name_ = _rhs.name_;
                     return *this;
                 }
 
+                /// @brief Executes the maintenance operation.
                 irods::error operator()( rcComm_t* ) {
                     rodsLog( LOG_NOTICE, "unixfilesystem_resource::post_disconnect_maintenance_operation - [%s]",
                              name_.c_str() );
@@ -1257,11 +1258,13 @@ class unixfilesystem_resource : public irods::resource {
                 }
 
             private:
+                /// The maintenance operation name.
                 std::string name_;
 
         }; // class maintenance_operation
 
     public:
+        /// @brief Constructs the resource and parses its context string.
         unixfilesystem_resource(
             const std::string& _inst_name,
             const std::string& _context ) :
@@ -1290,27 +1293,20 @@ class unixfilesystem_resource : public irods::resource {
 
         } // ctor
 
+        /// @brief Indicates whether post-disconnect maintenance is needed.
         irods::error need_post_disconnect_maintenance_operation( bool& _b ) {
             _b = false;
             return SUCCESS();
         }
 
-        // =-=-=-=-=-=-=-
-        // 3b. pass along a functor for maintenance work after
-        //     the client disconnects, uncomment the first two lines for effect.
+        /// @brief Performs post-disconnect maintenance.
         irods::error post_disconnect_maintenance_operation( irods::pdmo_type& ) {
             irods::error result = SUCCESS();
             return ERROR( -1, "nop" );
         }
 }; // class unixfilesystem_resource
 
-// =-=-=-=-=-=-=-
-// 4. create the plugin factory function which will return a dynamically
-//    instantiated object of the previously defined derived resource.  use
-//    the add_operation member to associate a 'call name' to the interfaces
-//    defined above.  for resource plugins these call names are standardized
-//    as used by the irods facing interface defined in
-//    server/drivers/src/fileDriver.c
+/// @brief Constructs and returns the unixfilesystem resource plugin instance.
 extern "C"
 irods::resource* plugin_factory( const std::string& _inst_name, const std::string& _context ) {
 

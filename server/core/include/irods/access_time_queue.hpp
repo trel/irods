@@ -18,8 +18,13 @@ namespace irods::access_time_queue
     /// \since 5.0.0
     struct access_time_data
     {
+        /// Replica's data object ID.
         std::size_t data_id;
+
+        /// Replica number within the data object.
         std::size_t replica_number;
+
+        /// Last-accessed timestamp encoded as an 11-digit string plus terminator.
         char last_accessed[12]; // 11 digits + null terminating byte
     }; // struct access_time_data
 

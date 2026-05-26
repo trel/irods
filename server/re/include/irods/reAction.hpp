@@ -17,12 +17,16 @@
 int msiRollback( ruleExecInfo_t *rei );
 int msiSetACL( msParam_t *recursiveFlag, msParam_t *accessLevel, msParam_t *userName,
                msParam_t *pathName, ruleExecInfo_t *rei );
+/// rief Prints a fixed hello message.
 int print_hello( ruleExecInfo_t *c );
+/// rief Prints a hello message using the provided argument.
 int print_hello_arg( msParam_t* xs, ruleExecInfo_t *rei );
+/// rief Schedules a delayed workflow for later execution.
 int delayExec( msParam_t* condition, msParam_t* workflow,
                msParam_t* recoverWorkFlow, ruleExecInfo_t *rei );
+/// rief Executes a workflow on a remote host.
 int remoteExec( msParam_t* hostName, msParam_t* condition, msParam_t* workflow,
-                msParam_t* recoverWorkFlow, ruleExecInfo_t *rei );
+                 msParam_t* recoverWorkFlow, ruleExecInfo_t *rei );
 int msiSleep( msParam_t* sec, msParam_t* microsec, ruleExecInfo_t *rei );
 int writeBytesBuf( msParam_t* where, msParam_t* inBuf, ruleExecInfo_t *rei );
 int writePosInt( msParam_t* where, msParam_t* inInt, ruleExecInfo_t *rei );
@@ -90,14 +94,18 @@ int msiGetIcatTime( msParam_t* timeOutParam,  msParam_t* typeInParam, ruleExecIn
 
 int msiGetTaggedValueFromString( msParam_t *inTagParag, msParam_t *inStrParam,
                                  msParam_t *outValueParam, ruleExecInfo_t *rei );
+/// rief Recovery variant of `print_hello`.
 int recover_print_hello( ruleExecInfo_t *c );
 
+/// rief Recovery variant of `msiCreateUser`.
 int recover_msiCreateUser( ruleExecInfo_t *rei );
+/// rief Recovery variant of `msiCreateCollByAdmin`.
 int recover_msiCreateCollByAdmin( msParam_t *parColl, msParam_t *childName, ruleExecInfo_t *rei );
 
 int msiString2KeyValPair( msParam_t *inBufferP, msParam_t* outKeyValPairP, ruleExecInfo_t *rei );
 int msiStrArray2String( msParam_t* inSAParam, msParam_t* outStr, ruleExecInfo_t *rei );
 
+/// rief Test microservice used by legacy rule engine examples.
 int msiAW1( msParam_t* mPIn, msParam_t* mPOut2, ruleExecInfo_t *rei );
 int msiRenameLocalZone( msParam_t *oldName, msParam_t *newName,
                         ruleExecInfo_t *rei );
@@ -149,10 +157,13 @@ int msiSetReplComment( msParam_t *inpParam1, msParam_t *inpParam2, msParam_t *in
                        msParam_t *inpParam4, ruleExecInfo_t *rei );
 int
 msiSetBulkPutPostProcPolicy( msParam_t *xflag, ruleExecInfo_t *rei );
+/// \brief Splits an input buffer into two smaller buffers.
 int msiCutBufferInHalf( msParam_t* mPIn, ruleExecInfo_t *rei );
+/// \brief Placeholder microservice used for ad hoc rule-engine testing.
 int msiDoSomething( msParam_t *inParam, msParam_t *outParam, ruleExecInfo_t *rei );
 int msiString2StrArray( msParam_t *inBufferP, msParam_t* outStrArrayP, ruleExecInfo_t *rei );
 
+/// \brief Test microservice that accepts three arguments and performs no work.
 int msiTakeThreeArgumentsAndDoNothing(msParam_t *arg1, msParam_t *arg2, msParam_t *arg3, ruleExecInfo_t *rei);
 
 namespace irods

@@ -2,7 +2,7 @@
 #include "irods/procApiRequest.h"
 #include "irods/apiNumber.h"
 
-/**
+/*
  * \fn rcSubStructFileRename( rcComm_t *conn, subStructFileRenameInp_t *subStructFileRenameInp )
  *
  * \brief Rename a subfile within a structured file object.
@@ -18,7 +18,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 int
 rcSubStructFileRename( rcComm_t *conn, subStructFileRenameInp_t *subStructFileRenameInp ) {
     int status;

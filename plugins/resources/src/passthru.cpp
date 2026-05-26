@@ -896,8 +896,10 @@ irods::error passthru_file_notify(
 //    necessary to do custom parsing of the context string to place
 //    any useful values into the property map for reference in later
 //    operations.  semicolon is the preferred delimiter
+/// Resource plugin implementing passthrough resource behavior.
 class passthru_resource : public irods::resource {
     public:
+        /// Constructs the passthrough resource plugin instance.
         passthru_resource(
             const std::string& _inst_name,
             const std::string& _context ) :
@@ -1111,5 +1113,4 @@ irods::resource* plugin_factory( const std::string& _inst_name, const std::strin
     return dynamic_cast<irods::resource*>( resc );
 
 } // plugin_factory
-
 

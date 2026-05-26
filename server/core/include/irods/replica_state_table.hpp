@@ -13,6 +13,7 @@
 
 /// \file
 
+/// \brief Forward declaration of the server communication type.
 struct RsComm;
 
 /// \brief Library that maintains a globally accessible JSON structure describing the changes to opened data objects.
@@ -96,13 +97,13 @@ struct RsComm;
 /// \since 4.2.9
 namespace irods::replica_state_table
 {
-    // data_id serves as the key to entries
+    /// \brief Key type used to identify replica state table entries by data ID.
     using key_type = long long;
 
-    // replica_id_type serves as a varying way of identifying a replica
+    /// \brief Variant type used to identify a replica by number or leaf resource name.
     using replica_id_type = std::variant<const int, const std::string_view>;
 
-    /// \var Used when a particular replica is unknown or unneeded
+    /// \brief Sentinel value used when a particular replica is unknown or unneeded.
     constexpr auto unknown_replica_id = -1;
 
     /// \brief Specify which version of the data object information to fetch from the map entry
@@ -110,9 +111,9 @@ namespace irods::replica_state_table
     /// \since 4.2.9
     enum class state_type
     {
-        before,
-        after,
-        both
+        before, ///< Return the state captured when the replica was opened.
+        after, ///< Return the current in-memory state for the replica.
+        both ///< Return both the before and after states.
     }; // enum class state_type
 
     /// \brief Initialize the replica_state_table by making sure it is completely cleared out
@@ -151,7 +152,7 @@ namespace irods::replica_state_table
 
     /// \brief Erase replica_state_table entry indicated by _key
     ///
-    /// \param[in] _key
+    /// \param[in] _key The key identifying the entry to erase.
     ///
     /// \throws irods::exception If no key matches _key
     ///
@@ -160,8 +161,8 @@ namespace irods::replica_state_table
 
     /// \brief Erase replica from the replica_state_table entry indicated by _key and _leaf_resource_name
     ///
-    /// \param[in] _key
-    /// \param[in] _leaf_resource_name
+    /// \param[in] _key The key identifying the entry containing the replica.
+    /// \param[in] _leaf_resource_name The leaf resource name identifying the replica to erase.
     ///
     /// \throws irods::exception If no key matches _key
     ///
@@ -170,8 +171,8 @@ namespace irods::replica_state_table
 
     /// \brief Erase replica from the replica_state_table entry indicated by _key and _replica_number
     ///
-    /// \param[in] _key
-    /// \param[in] _replica_number
+    /// \param[in] _key The key identifying the entry containing the replica.
+    /// \param[in] _replica_number The replica number identifying the replica to erase.
     ///
     /// \throws irods::exception If no key matches _key
     ///
@@ -180,7 +181,7 @@ namespace irods::replica_state_table
 
     /// \brief Returns whether or not an entry in the replica state table keys on the provided logical path
     ///
-    /// \param[in] _key
+    /// \param[in] _key The key identifying the entry to search for.
     ///
     /// \retval true if replica state table contains key _key
     /// \retval false if replica state table does not contain key _key
@@ -190,8 +191,8 @@ namespace irods::replica_state_table
 
     /// \brief Returns whether or not a replica exists for an existing entry replica state table
     ///
-    /// \param[in] _key
-    /// \param[in] _leaf_resource_name
+    /// \param[in] _key The key identifying the entry to inspect.
+    /// \param[in] _leaf_resource_name The leaf resource name identifying the replica.
     ///
     /// \retval true if replica state table contains key _key and a replica on the specified leaf resource
     /// \retval false if replica state table does not contain key _key or a replica on the specified leaf resource
@@ -202,8 +203,8 @@ namespace irods::replica_state_table
 
     /// \brief Returns whether or not a replica exists for an existing entry replica state table
     ///
-    /// \param[in] _key
-    /// \param[in] _replica_number
+    /// \param[in] _key The key identifying the entry to inspect.
+    /// \param[in] _replica_number The replica number identifying the replica.
     ///
     /// \retval true if replica state table contains key _key and a replica with the specified replica number
     /// \retval false if replica state table does not contain key _key or a replica with the specified replica number
@@ -214,7 +215,7 @@ namespace irods::replica_state_table
 
     /// \brief return all information for all states of all replicas for a particular data object
     ///
-    /// \param[in] _key
+    /// \param[in] _key The key identifying the entry to return.
     ///
     /// \returns JSON object of the following form: \parblock
     /// \code{.js}
@@ -271,11 +272,11 @@ namespace irods::replica_state_table
     /// \since 4.2.9
     auto at(const key_type& _key) -> nlohmann::json;
 
-    /// \brief return a specific replica by replica number with optional before/after specification (defaults to both)
+    /// \brief Returns a specific replica by leaf resource name with optional state selection.
     ///
-    /// \param[in] _key
-    /// \param[in] _replica_number Replica number in the "before" entry
-    /// \param[in] _state
+    /// \param[in] _key The key identifying the replica state table entry.
+    /// \param[in] _leaf_resource_name The leaf resource name identifying the replica in the entry.
+    /// \param[in] _state The state view to return.
     ///
     /// \returns JSON object of the following form: \parblock
     /// - For state_type::both:
@@ -326,7 +327,7 @@ namespace irods::replica_state_table
     ///     }
     /// \endcode
     ///
-    /// - For state_type::before/state_type::after:
+    /// - For \c state_type::before or \c state_type::after:
     /// \code{.js}
     ///     {
     ///         "data_id": <string>,
@@ -357,11 +358,11 @@ namespace irods::replica_state_table
             const std::string_view _leaf_resource_name,
             const state_type _state = state_type::both) -> nlohmann::json;
 
-    /// \brief return a specific replica by replica number with optional before/after specification (defaults to both)
+    /// \brief Returns a specific replica by replica number with optional state selection.
     ///
-    /// \param[in] _key
-    /// \param[in] _replica_number Replica number in the "before" entry
-    /// \param[in] _state
+    /// \param[in] _key The key identifying the replica state table entry.
+    /// \param[in] _replica_number The replica number identifying the replica in the entry.
+    /// \param[in] _state The state view to return.
     ///
     /// \returns JSON object of the following form: \parblock
     /// - For state_type::both...
@@ -412,7 +413,7 @@ namespace irods::replica_state_table
     ///     }
     /// \endcode
     ///
-    /// - For state_type::before/state_type::after...
+    /// - For \c state_type::before or \c state_type::after...
     /// \code{.js}
     ///     {
     ///         "data_id": <string>,
@@ -445,7 +446,7 @@ namespace irods::replica_state_table
 
     /// \brief Updates the specified replica with the specified changes (after state only)
     ///
-    /// \param[in] _key
+    /// \param[in] _key The key identifying the entry containing the replica.
     /// \param[in] _leaf_resource_name Leaf resource name in the "before" entry
     /// \param[in] _updates JSON input representing changes to be made. \parblock
     /// Must be of the following form (only fields which need updating need to be included):
@@ -465,7 +466,7 @@ namespace irods::replica_state_table
 
     /// \brief Updates the specified replica with the specified changes (after state only)
     ///
-    /// \param[in] _key
+    /// \param[in] _key The key identifying the entry containing the replica.
     /// \param[in] _replica_number Replica number in the "before" entry
     /// \param[in] _updates JSON input representing changes to be made. \parblock
     /// Must be of the following form (only fields which need updating need to be included):
@@ -484,7 +485,7 @@ namespace irods::replica_state_table
 
     /// \brief Updates all columns of the specified replica
     ///
-    /// \param[in] _key
+    /// \param[in] _key The key identifying the entry containing the replica.
     /// \param[in] _replica replica_proxy which is converted to JSON format: \parblock
     /// \code{.js}
     ///     {
@@ -500,9 +501,9 @@ namespace irods::replica_state_table
 
     /// \brief Returns the value of a given property of the given replica in the state table
     ///
-    /// \param[in] _key
+    /// \param[in] _key The key identifying the entry containing the replica.
     /// \param[in] _replica_number Replica number in the "before" entry
-    /// \param[in] _property_name
+    /// \param[in] _property_name The column name to fetch from the selected state.
     /// \param[in] _state Must be state_type::before or state_type::after
     ///
     /// \throws irods::exception If specified replica does not exist
@@ -521,10 +522,13 @@ namespace irods::replica_state_table
     /// to easily retrieve the logical path for a given entry in the table.
     /// \endparblock
     ///
+    /// \param[in] _key The key identifying the entry.
+    /// \return The logical path associated with the entry.
+    ///
     /// \since 4.2.9
     auto get_logical_path(const key_type& _key) -> std::string;
 
-    // Namespace having to do with publishing RST entries somewhere (for now, the catalog)
+    /// \brief Utilities for publishing replica state table entries to external systems.
     namespace publish
     {
         /// \brief Structure containing context for publishing an RST entry (to the catalog)
@@ -534,19 +538,19 @@ namespace irods::replica_state_table
         {
             // Variables
 
-            /// \var Key into the RST
+            /// \brief Key into the replica state table.
             ///
             /// \since 4.2.9
             key_type key;
 
-            /// \var Identifier for a particular replica in an entry
+            /// \brief Identifier for a particular replica in an entry.
             ///
             /// \p Default value: unknown_replica_id, indicates no replica is being targeted within the entry
             ///
             /// \since 4.2.9
             replica_id_type replica_id = unknown_replica_id;
 
-            /// \var JSON structure of key-value pairs which fileModified interface cares about
+            /// \brief JSON structure of key-value pairs consumed by fileModified.
             ///
             /// \p If present, fileModified will be invoked in data_object_finalize API
             ///
@@ -555,14 +559,14 @@ namespace irods::replica_state_table
             /// \since 4.2.9
             nlohmann::json file_modified_parameters = {};
 
-            /// \var Indicates that data_object_finalize will be run with elevated privileges
+            /// \brief Indicates that data_object_finalize will run with elevated privileges.
             ///
             /// \p Default value: false, no elevation of privileges to be used
             ///
             /// \since 4.2.9
             bool privileged = false;
 
-            /// \var Indicates to data_object_finalize how many bytes were written in this operation
+            /// \brief Indicates how many bytes were written in the associated operation.
             ///
             /// \p Default value: 0, no bytes written
             ///
@@ -571,12 +575,13 @@ namespace irods::replica_state_table
 
             // Constructors
 
-            /// \brief Explicit constructor for all members
+            /// \brief Constructs a publishing context with explicit values for every member.
             ///
-            /// \param[in] _k Key to RST entry
-            /// \param[in] _id ID for a particular replica in the RST
-            /// \param[in] _fmp JSON list of key-value pairs for fileModified input
-            /// \param[in] _p Elevate privileges when publishing
+            /// \param[in] _k Key to the replica state table entry.
+            /// \param[in] _id Identifier for the target replica in the entry.
+            /// \param[in] _fmp JSON list of key-value pairs for fileModified input.
+            /// \param[in] _p Indicates whether publishing should use elevated privileges.
+            /// \param[in] _bw The number of bytes written during the associated operation.
             ///
             /// \since 4.2.9
             context(const key_type& _k,
@@ -648,9 +653,9 @@ namespace irods::replica_state_table
         /// \brief Prepares the specified data object as input to data_object_finalize and updates the catalog
         ///
         /// \param[in,out] _comm iRODS server comm struct
-        /// \param[in] _ctx Context for publishing an RST entry (see #context for details)
+        /// \param[in] _ctx Context for publishing an RST entry (see `publish::context` for details)
         ///
-        /// \returns tuple with output string and error code returned by rs_data_object_finalize
+        /// \return A tuple containing the JSON output and error code returned by `rs_data_object_finalize`.
         ///
         /// \throws irods::exception
         ///

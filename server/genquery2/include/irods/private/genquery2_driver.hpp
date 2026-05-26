@@ -20,24 +20,29 @@
 
 namespace irods::experimental::genquery2
 {
+    /// Coordinates scanning and parsing for GenQuery2 input.
     class driver
     {
       public:
+        /// Constructs an empty GenQuery2 driver.
         driver() = default;
 
+        /// Parses a GenQuery2 string and populates the generated AST.
+        ///
+        /// \param[in] _s The GenQuery2 string to parse.
+        /// \return Zero on success, or a non-zero parser error code on failure.
         auto parse(const std::string& _s) -> int;
 
-        // Holds an AST-like representation of a GenQuery2 string.
+        /// The AST-like representation produced by the parser.
         irods::experimental::genquery2::select select;
 
-        // The Flex scanner implementation.
+        /// The Flex scanner implementation.
         scanner lexer;
 
-        // Holds the current location of the parser.
+        /// The current parser location.
         yy::location location;
 
-        // Used by the lexer to capture string literals.
-        // This aids in handling escape sequences.
+        /// Temporary storage for string literals captured by the lexer.
         std::string string_literal;
     }; // class driver
 } // namespace irods::experimental::genquery2

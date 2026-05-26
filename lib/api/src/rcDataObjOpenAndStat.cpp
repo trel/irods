@@ -4,7 +4,7 @@
 
 #include <cstring>
 
-/**
+/*
  * \fn rcDataObjOpenAndStat (rcComm_t *conn, dataObjInp_t *dataObjInp,
  * openStat_t **openStat)
  *
@@ -57,7 +57,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 
 int
 rcDataObjOpenAndStat( rcComm_t *conn, dataObjInp_t *dataObjInp,
@@ -68,5 +68,4 @@ rcDataObjOpenAndStat( rcComm_t *conn, dataObjInp_t *dataObjInp,
 
     return status;
 }
-
 

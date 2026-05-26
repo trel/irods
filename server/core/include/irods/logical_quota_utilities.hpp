@@ -22,11 +22,23 @@ namespace irods::logical_quotas
     /// \since 5.1.0
     enum class violation : int
     {
+        /// No quota violation.
         none = 0,
+
+        /// Byte quota violation.
         bytes = 1,
+
+        /// Object count quota violation.
         objects = 2,
     };
 
+    /// Applies a bitwise operator to enum values via their underlying type.
+    ///
+    /// \tparam T  The enum type.
+    /// \tparam Op The bitwise operation template.
+    /// \param[in] _lhs The left-hand operand.
+    /// \param[in] _rhs The right-hand operand.
+    /// \param[in] op   The operation object to apply.
     template <typename T, template <typename> typename Op>
     inline T operator_impl(
         T _lhs,
@@ -37,31 +49,37 @@ namespace irods::logical_quotas
                                  static_cast<typename std::underlying_type_t<T>>(_rhs)));
     }
 
+    /// Returns the bitwise OR of two quota violation flags.
     inline violation operator|(violation _lhs, violation _rhs) noexcept
     {
         return operator_impl<violation, std::bit_or>(_lhs, _rhs);
     }
 
+    /// Applies bitwise OR to the left-hand quota violation flags.
     inline violation& operator|=(violation& _lhs, violation _rhs) noexcept
     {
         return _lhs = (_lhs | _rhs);
     }
 
+    /// Returns the bitwise AND of two quota violation flags.
     inline violation operator&(violation _lhs, violation _rhs) noexcept
     {
         return operator_impl<violation, std::bit_and>(_lhs, _rhs);
     }
 
+    /// Applies bitwise AND to the left-hand quota violation flags.
     inline violation& operator&=(violation& _lhs, violation _rhs) noexcept
     {
         return _lhs = (_lhs & _rhs);
     }
 
+    /// Returns the bitwise XOR of two quota violation flags.
     inline violation operator^(violation _lhs, violation _rhs) noexcept
     {
         return operator_impl<violation, std::bit_xor>(_lhs, _rhs);
     }
 
+    /// Applies bitwise XOR to the left-hand quota violation flags.
     inline violation& operator^=(violation& _lhs, violation _rhs) noexcept
     {
         return _lhs = (_lhs ^ _rhs);
@@ -73,7 +91,7 @@ namespace irods::logical_quotas
     /// On success, it will return an irods::logical_quotas::violation
     /// corresponding to the violated quotas on the input collection.
     ///
-    /// \param[in] _comm A pointer to a RsComm.
+    /// \param[in] _rsComm A pointer to a RsComm.
     /// \param[in] _coll_name The collection name to check for quota violations.
     ///
     /// \return An integer representing an iRODS error code or an irods::logical_quotas::violation flags value.

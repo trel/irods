@@ -20,14 +20,16 @@ namespace irods {
 /// @brief object for a PAM irods authentication scheme
     class pam_auth_object : public auth_object {
         public:
-            /// =-=-=-=-=-=-=-
-            /// @brief Ctor
+            /// @brief Constructs a PAM authentication object.
             pam_auth_object( rError_t* _r_error );
+
+            /// @brief Destroys the PAM authentication object.
             virtual ~pam_auth_object();
+
+            /// @brief Copy-constructs a PAM authentication object.
             pam_auth_object( const pam_auth_object& );
 
-            /// =-=-=-=-=-=-=-
-            /// @brief assignment operator
+            /// @brief Copies state from another PAM authentication object.
             virtual pam_auth_object&  operator=( const pam_auth_object& );
 
             /// =-=-=-=-=-=-=-
@@ -40,15 +42,14 @@ namespace irods {
                 const std::string&, // interface for which to resolve
                 plugin_ptr& );      // ptr to resolved plugin
 
-            /// =-=-=-=-=-=-=-
-            /// @brief serialize object to key-value pairs
+            /// @brief Populates rule-engine variables for this object.
             virtual error get_re_vars( rule_engine_vars_t& );
 
         private:
 
     }; // class pam_auth_object
 
-/// @brief Helpful typedef
+    /// @brief Shared-pointer type for `pam_auth_object` instances.
     typedef boost::shared_ptr<pam_auth_object> pam_auth_object_ptr;
 
 }; // namespace irods

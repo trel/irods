@@ -98,6 +98,8 @@ namespace
     } // make_msi
 } // anonymous namespace
 
+/// Registers the `msi_json_compare` microservice.
+/// Registers the `msi_json_compare` microservice.
 extern "C" auto plugin_factory() -> irods::ms_table_entry*
 {
     return make_msi<MsParam*, MsParam*, MsParam*, MsParam*, MsParam*>("msi_json_compare", msi_impl);

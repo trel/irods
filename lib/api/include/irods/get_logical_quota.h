@@ -33,6 +33,7 @@ typedef struct GetLogicalQuotaInput
     keyValPair_t cond_input;
 } getLogicalQuotaInp_t;
 
+/// Packing instruction string for ::getLogicalQuotaInp_t.
 #define getLogicalQuotaInp_PI "str *collName; struct KeyValPair_PI;"
 
 /// The type that represents a single logical quota entry.
@@ -70,6 +71,7 @@ typedef struct LogicalQuota
     rodsLong_t over_objects;
 } logicalQuota_t;
 
+/// Packing instruction string for ::logicalQuota_t.
 #define logicalQuota_PI "str *collName; double maxBytes; double maxObjects; double overBytes; double overObjects;"
 
 /// The type that represents a list of logical quota entries.
@@ -89,6 +91,7 @@ typedef struct LogicalQuotaList
     logicalQuota_t* list;
 } logicalQuotaList_t;
 
+/// Packing instruction string for ::logicalQuotaList_t.
 #define logicalQuotaList_PI "int len; struct *logicalQuota_PI(len);"
 
 /// \brief Free memory associated with a heap-allocated GetLogicalQuotaInput.
@@ -122,7 +125,7 @@ void clear_logical_quota_list(void* _logical_quota_list);
 /// Note that the struct itself, *_logicalQuotaList, still needs to be free()'d by the caller.
 /// \endparblock
 ///
-/// \param[in] _comm A pointer to a RcComm.
+/// \param[in] _conn A pointer to a RcComm.
 /// \param[in] _getLogicalQuotaInp \parblock
 /// A pointer to a GetLogicalQuotaInput. Stores the collection name that will be used to find applicable quotas.
 /// e.g. Passing in "/tempZone/home" will find quotas for "/tempZone", and "/tempZone/home", if any such quotas exist.

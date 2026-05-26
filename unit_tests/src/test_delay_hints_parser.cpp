@@ -10,17 +10,19 @@
 #include <string_view>
 #include <array>
 
+/// Input values supplied to the delay hint parser test helper.
 struct input
 {
-    std::string current_time;
-    std::string frequency;
+    std::string current_time; ///< Starting timestamp passed to the parser.
+    std::string frequency; ///< Frequency string passed to the parser.
 };
 
+/// Expected results returned by the delay hint parser test helper.
 struct output
 {
-    int expected_action_code;
-    std::string expected_next_time;
-    std::string expected_frequency;
+    int expected_action_code; ///< Expected action code returned by the parser.
+    std::string expected_next_time; ///< Expected next execution time.
+    std::string expected_frequency; ///< Expected normalized frequency string.
 };
 
 auto test_execution_frequency_handler(const input& _input, const output& _output)
@@ -286,4 +288,3 @@ TEST_CASE("#5503: getNextRepeatTime parses frequency correctly")
         }
     }
 }
-

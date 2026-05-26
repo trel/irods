@@ -3,7 +3,7 @@
 #include "irods/procApiRequest.h"
 #include "irods/apiNumber.h"
 
-/**
+/*
  * \fn rcModAVUMetadata( rcComm_t *conn, modAVUMetadataInp_t *modAVUMetadataInp )
  *
  * \brief Modifies the Attribute-Value-Units of various iRODS entities.
@@ -36,7 +36,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 int
 rcModAVUMetadata( rcComm_t *conn, modAVUMetadataInp_t *modAVUMetadataInp ) {
     int status;

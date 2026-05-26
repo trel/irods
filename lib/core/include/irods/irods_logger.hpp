@@ -51,9 +51,11 @@
 
 #if FMT_VERSION >= 100000
 #  include <fmt/chrono.h>
+#  /// Indicates whether fmt's chrono formatter support is available.
 #  define IRODS_CHRONO_FORMATTER_FMT 1
 #else
 #  include <ctime>
+#  /// Indicates whether fmt's chrono formatter support is available.
 #  define IRODS_CHRONO_FORMATTER_FMT 0
 #endif
 
@@ -74,12 +76,12 @@ namespace irods::experimental::log
     /// \since 4.3.0
     enum class level
     {
-        trace,
-        debug,
-        info,
-        warn,
-        error,
-        critical
+        trace,    ///< Most verbose diagnostic output.
+        debug,    ///< Diagnostic output intended for development and troubleshooting.
+        info,     ///< Informational messages describing normal operation.
+        warn,     ///< Warnings about unusual but non-fatal conditions.
+        error,    ///< Errors indicating a failed operation.
+        critical  ///< Severe failures requiring immediate attention.
     }; // enum class level
 
     /// Pre-defined log categories.
@@ -91,21 +93,21 @@ namespace irods::experimental::log
     namespace category
     {
         // clang-format off
-        struct legacy {};
-        struct server {};
-        struct agent_factory {};
-        struct agent {};
-        struct delay_server {};
-        struct genquery1 {};
-        struct genquery2 {};
-        struct resource {};
-        struct database {};
-        struct authentication {};
-        struct api {};
-        struct microservice {};
-        struct network {};
-        struct rule_engine {};
-        struct sql {};
+        struct legacy {};         ///< Tag type for legacy log messages.
+        struct server {};         ///< Tag type for server log messages.
+        struct agent_factory {};  ///< Tag type for agent factory log messages.
+        struct agent {};          ///< Tag type for agent log messages.
+        struct delay_server {};   ///< Tag type for delay server log messages.
+        struct genquery1 {};      ///< Tag type for GenQuery1 log messages.
+        struct genquery2 {};      ///< Tag type for GenQuery2 log messages.
+        struct resource {};       ///< Tag type for resource log messages.
+        struct database {};       ///< Tag type for database log messages.
+        struct authentication {}; ///< Tag type for authentication log messages.
+        struct api {};            ///< Tag type for API log messages.
+        struct microservice {};   ///< Tag type for microservice log messages.
+        struct network {};        ///< Tag type for network log messages.
+        struct rule_engine {};    ///< Tag type for rule engine log messages.
+        struct sql {};            ///< Tag type for SQL log messages.
         // clang-format on
     } // namespace category
 
@@ -134,8 +136,8 @@ namespace irods::experimental::log
     /// \since 4.3.0
     template <typename Category> class logger_config;
 
-    // A forward declaration used to define type aliases for various loggers.
-    // See implementation of class template for more information.
+    /// @brief Logger class template used to emit messages for a category.
+    /// @tparam Category Tag type identifying the log category.
     template <typename Category> class logger;
 
     /// \name Log Categories
@@ -147,21 +149,21 @@ namespace irods::experimental::log
     /// \p microservice logger should be used in microservice specific code. Choosing not to follow
     /// this recommendation will result in confusing log messages.
     ///@{
-    using legacy         = logger<category::legacy>;
-    using server         = logger<category::server>;
-    using agent_factory  = logger<category::agent_factory>;
-    using agent          = logger<category::agent>;
-    using delay_server   = logger<category::delay_server>;
-    using genquery1      = logger<category::genquery1>;
-    using genquery2      = logger<category::genquery2>;
-    using resource       = logger<category::resource>;
-    using database       = logger<category::database>;
-    using authentication = logger<category::authentication>;
-    using api            = logger<category::api>;
-    using microservice   = logger<category::microservice>;
-    using network        = logger<category::network>;
-    using rule_engine    = logger<category::rule_engine>;
-    using sql            = logger<category::sql>;
+    using legacy         = logger<category::legacy>; ///< Logger type for legacy log messages.
+    using server         = logger<category::server>; ///< Logger type for server log messages.
+    using agent_factory  = logger<category::agent_factory>; ///< Logger type for agent factory log messages.
+    using agent          = logger<category::agent>; ///< Logger type for agent log messages.
+    using delay_server   = logger<category::delay_server>; ///< Logger type for delay server log messages.
+    using genquery1      = logger<category::genquery1>; ///< Logger type for GenQuery1 log messages.
+    using genquery2      = logger<category::genquery2>; ///< Logger type for GenQuery2 log messages.
+    using resource       = logger<category::resource>; ///< Logger type for resource log messages.
+    using database       = logger<category::database>; ///< Logger type for database log messages.
+    using authentication = logger<category::authentication>; ///< Logger type for authentication log messages.
+    using api            = logger<category::api>; ///< Logger type for API log messages.
+    using microservice   = logger<category::microservice>; ///< Logger type for microservice log messages.
+    using network        = logger<category::network>; ///< Logger type for network log messages.
+    using rule_engine    = logger<category::rule_engine>; ///< Logger type for rule engine log messages.
+    using sql            = logger<category::sql>; ///< Logger type for SQL log messages.
     ///@}
     // clang-format on
 
@@ -281,7 +283,7 @@ namespace irods::experimental::log
     ///
     /// This function is not thread-safe.
     ///
-    /// \param[in] _host A string representing the hostname or IP of the connected client.
+    /// \param[in] _hostname A string representing the hostname or IP of the connected client.
     ///
     /// \since 4.3.0
     auto set_request_client_hostname(std::string _hostname) noexcept -> void;
@@ -345,7 +347,7 @@ namespace irods::experimental::log
     ///
     /// This function is not thread-safe.
     ///
-    /// \param[in] _host A string containing the hostname of the iRODS server.
+    /// \param[in] _hostname A string containing the hostname of the iRODS server.
     ///
     /// \since 4.3.0
     auto set_server_hostname(std::string _hostname) noexcept -> void;
@@ -397,6 +399,8 @@ namespace irods::experimental::log
     namespace detail
     {
 #ifdef IRODS_ENABLE_SYSLOG
+        /// @brief Returns the shared backend logger used by the logging API.
+        /// @return A shared pointer to the configured spdlog logger.
         auto get_logger() noexcept -> std::shared_ptr<spdlog::logger>;
 #endif // IRODS_ENABLE_SYSLOG
     } // namespace detail
@@ -412,9 +416,9 @@ namespace irods::experimental::log
         namespace log
         {
             // clang-format off
-            inline constexpr const char* category = "log_category";
-            inline constexpr const char* message  = "log_message";
-            inline constexpr const char* level    = "log_level";
+            inline constexpr const char* category = "log_category"; ///< JSON key storing the log category name.
+            inline constexpr const char* message  = "log_message";  ///< JSON key storing the rendered log message.
+            inline constexpr const char* level    = "log_level";    ///< JSON key storing the log level.
             // clang-format on
         } // namespace log
 
@@ -424,13 +428,13 @@ namespace irods::experimental::log
         namespace request
         {
             // clang-format off
-            inline constexpr const char* release_version = "request_release_version";
-            inline constexpr const char* api_version     = "request_api_version";
-            inline constexpr const char* host            = "request_host";
-            inline constexpr const char* client_user     = "request_client_user";
-            inline constexpr const char* proxy_user      = "request_proxy_user";
-            inline constexpr const char* api_number      = "request_api_number";
-            inline constexpr const char* api_name        = "request_api_name";
+            inline constexpr const char* release_version = "request_release_version"; ///< JSON key storing the client release version.
+            inline constexpr const char* api_version     = "request_api_version";     ///< JSON key storing the client API version.
+            inline constexpr const char* host            = "request_host";            ///< JSON key storing the client hostname or IP.
+            inline constexpr const char* client_user     = "request_client_user";     ///< JSON key storing the client username.
+            inline constexpr const char* proxy_user      = "request_proxy_user";      ///< JSON key storing the proxy username.
+            inline constexpr const char* api_number      = "request_api_number";      ///< JSON key storing the API number.
+            inline constexpr const char* api_name        = "request_api_name";        ///< JSON key storing the API name.
             // clang-forexprmat on
         } // namespace request
 
@@ -440,12 +444,12 @@ namespace irods::experimental::log
         namespace server
         {
             // clang-format off
-            inline constexpr const char* type      = "server_type";
-            inline constexpr const char* host      = "server_host";
-            inline constexpr const char* pid       = "server_pid";
-            inline constexpr const char* name      = "server_name";
-            inline constexpr const char* timestamp = "server_timestamp";
-            inline constexpr const char* zone      = "server_zone";
+            inline constexpr const char* type      = "server_type";      ///< JSON key storing the server type.
+            inline constexpr const char* host      = "server_host";      ///< JSON key storing the server hostname.
+            inline constexpr const char* pid       = "server_pid";       ///< JSON key storing the server process ID.
+            inline constexpr const char* name      = "server_name";      ///< JSON key storing the configured server name.
+            inline constexpr const char* timestamp = "server_timestamp"; ///< JSON key storing the message timestamp.
+            inline constexpr const char* zone      = "server_zone";      ///< JSON key storing the server zone.
             // clang-format on
         } // namespace server
     } // namespace tag
@@ -478,13 +482,17 @@ namespace irods::experimental::log
         class impl // NOLINT(cppcoreguidelines-special-member-functions)
         {
           public:
+            /// Grants the enclosing logger access to implementation internals.
             friend class logger<Category>;
 
+            /// @brief Disabled copy construction for logger implementations.
             impl(const impl&) = delete;
+            /// @brief Disabled copy assignment for logger implementations.
             auto operator=(const impl&) -> impl& = delete;
 
 #ifdef IRODS_ENABLE_SYSLOG
             template <typename T>
+            /// @brief Detects whether a type supports iteration.
             using is_iterable = decltype(std::begin(std::declval<std::decay_t<T>>()));
 
             /// Writes a formatted string to the log file.
@@ -646,25 +654,32 @@ namespace irods::experimental::log
 
             // clang-format on
 
+            /// @brief No-op overload retained for client-side builds.
+            /// @param[in] _list Ignored key-value list.
             constexpr auto operator()(std::initializer_list<key_value> _list) const noexcept -> void
             {
             } // operator()
 
             template <typename... Args>
+            /// @brief No-op overload retained for client-side builds.
+            /// Accepts arbitrary arguments and ignores them.
             constexpr auto operator()(Args&&...) const noexcept -> void
             {
             } // operator()
 #endif // IRODS_ENABLE_SYSLOG
 
           private:
+            /// Constructs a logger implementation.
             impl() = default;
 
 #ifdef IRODS_ENABLE_SYSLOG
+            /// Reports whether the logger should emit messages at this level.
             [[nodiscard]] auto should_log() const noexcept -> bool
             {
                 return Level >= logger_config<Category>::level;
             } // should_log
 
+            /// Returns the current log level as a string literal.
             static constexpr auto log_level_as_string() noexcept -> const char*
             {
                 // clang-format off
@@ -679,6 +694,7 @@ namespace irods::experimental::log
                 return "?";
             } // log_level_as_string
 
+            /// Renders log properties and ambient request metadata as a JSON string.
             template <typename ForwardIt>
             auto to_json_string(ForwardIt _first, ForwardIt _last) const -> std::string
             {
@@ -728,6 +744,7 @@ namespace irods::experimental::log
                 return object.dump(-1, ' ', false, json::error_handler_t::replace);
             } // to_json_string
 
+            /// Writes a prepared JSON log message and mirrors it to the error stack when configured.
             template <
                 typename ForwardIt,
                 typename ValueType = typename std::iterator_traits<ForwardIt>::value_type,
@@ -758,6 +775,7 @@ namespace irods::experimental::log
                 append_to_r_error_stack(_first, _last);
             } // log_message
 
+            /// Appends the emitted message fields to the associated error stack.
             template <typename ForwardIt>
             constexpr auto append_to_r_error_stack(ForwardIt _first, ForwardIt _last) const -> void
             {
@@ -780,9 +798,12 @@ namespace irods::experimental::log
 #endif // IRODS_ENABLE_SYSLOG
         }; // class impl
 
+        /// @brief Loggers cannot be instantiated directly.
         logger() = delete;
 
+        /// @brief Loggers are not copyable.
         logger(const logger&) = delete;
+        /// @brief Loggers are not copy-assignable.
         auto operator=(const logger&) -> logger& = delete;
 
         /// Sets the log level for a specific logger.
@@ -798,12 +819,12 @@ namespace irods::experimental::log
         } // set_level
 
         // clang-format off
-        inline static const auto trace    = impl<level::trace>{};
-        inline static const auto debug    = impl<level::debug>{};
-        inline static const auto info     = impl<level::info>{};
-        inline static const auto warn     = impl<level::warn>{};
-        inline static const auto error    = impl<level::error>{};
-        inline static const auto critical = impl<level::critical>{};
+        inline static const auto trace    = impl<level::trace>{};    ///< Logger entry point for trace-level messages.
+        inline static const auto debug    = impl<level::debug>{};    ///< Logger entry point for debug-level messages.
+        inline static const auto info     = impl<level::info>{};     ///< Logger entry point for info-level messages.
+        inline static const auto warn     = impl<level::warn>{};     ///< Logger entry point for warning-level messages.
+        inline static const auto error    = impl<level::error>{};    ///< Logger entry point for error-level messages.
+        inline static const auto critical = impl<level::critical>{}; ///< Logger entry point for critical-level messages.
         // clang-format on
     }; // class logger
 
@@ -811,141 +832,200 @@ namespace irods::experimental::log
     // Pre-defined Logger Category Configurations
     //
 
+    /// @brief Logger configuration specialization for the legacy category.
     template <>
     class logger_config<category::legacy>
     {
+        /// Name written into log messages for this category.
         static constexpr const char* const name = "legacy";
+        /// Default minimum level for this category.
         inline static level level = level::info; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+        /// Grants the logger access to configuration internals.
         friend class logger<category::legacy>;
     }; // class logger_config<category::legacy>
 
+    /// @brief Logger configuration specialization for the server category.
     template <>
     class logger_config<category::server>
     {
+        /// Name written into log messages for this category.
         static constexpr const char* const name = "server";
+        /// Default minimum level for this category.
         inline static level level = level::info; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+        /// Grants the logger access to configuration internals.
         friend class logger<category::server>;
     }; // class logger_config<category::server>
 
+    /// @brief Logger configuration specialization for the agent factory category.
     template <>
     class logger_config<category::agent_factory>
     {
+        /// Name written into log messages for this category.
         static constexpr const char* const name = "agent_factory";
+        /// Default minimum level for this category.
         inline static level level = level::info; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+        /// Grants the logger access to configuration internals.
         friend class logger<category::agent_factory>;
     }; // class logger_config<category::agent_factory>
 
+    /// @brief Logger configuration specialization for the agent category.
     template <>
     class logger_config<category::agent>
     {
+        /// Name written into log messages for this category.
         static constexpr const char* const name = "agent";
+        /// Default minimum level for this category.
         inline static level level = level::info; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+        /// Grants the logger access to configuration internals.
         friend class logger<category::agent>;
     }; // class logger_config<category::agent>
 
+    /// @brief Logger configuration specialization for the delay server category.
     template <>
     class logger_config<category::delay_server>
     {
+        /// Name written into log messages for this category.
         static constexpr const char* const name = "delay_server";
+        /// Default minimum level for this category.
         inline static level level = level::info; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+        /// Grants the logger access to configuration internals.
         friend class logger<category::delay_server>;
     }; // class logger_config<category::delay_server>
 
+    /// @brief Logger configuration specialization for the GenQuery1 category.
     template <>
     class logger_config<category::genquery1>
     {
+        /// Name written into log messages for this category.
         static constexpr const char* const name = "genquery1";
+        /// Default minimum level for this category.
         inline static level level = level::info; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+        /// Grants the logger access to configuration internals.
         friend class logger<category::genquery1>;
     }; // class logger_config<category::genquery1>
 
+    /// @brief Logger configuration specialization for the GenQuery2 category.
     template <>
     class logger_config<category::genquery2>
     {
+        /// Name written into log messages for this category.
         static constexpr const char* const name = "genquery2";
+        /// Default minimum level for this category.
         inline static level level = level::info; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+        /// Grants the logger access to configuration internals.
         friend class logger<category::genquery2>;
     }; // class logger_config<category::genquery2>
 
+    /// @brief Logger configuration specialization for the resource category.
     template <>
     class logger_config<category::resource>
     {
+        /// Name written into log messages for this category.
         static constexpr const char* const name = "resource";
+        /// Default minimum level for this category.
         inline static level level = level::info; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+        /// Grants the logger access to configuration internals.
         friend class logger<category::resource>;
     }; // class logger_config<category::resource>
 
+    /// @brief Logger configuration specialization for the database category.
     template <>
     class logger_config<category::database>
     {
+        /// Name written into log messages for this category.
         static constexpr const char* const name = "database";
+        /// Default minimum level for this category.
         inline static level level = level::info; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+        /// Grants the logger access to configuration internals.
         friend class logger<category::database>;
     }; // class logger_config<category::database>
 
+    /// @brief Logger configuration specialization for the authentication category.
     template <>
     class logger_config<category::authentication>
     {
+        /// Name written into log messages for this category.
         static constexpr const char* const name = "authentication";
+        /// Default minimum level for this category.
         inline static level level = level::info; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+        /// Grants the logger access to configuration internals.
         friend class logger<category::authentication>;
     }; // class logger_config<category::authentication>
 
+    /// @brief Logger configuration specialization for the API category.
     template <>
     class logger_config<category::api>
     {
+        /// Name written into log messages for this category.
         static constexpr const char* const name = "api";
+        /// Default minimum level for this category.
         inline static level level = level::info; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+        /// Grants the logger access to configuration internals.
         friend class logger<category::api>;
     }; // class logger_config<category::api>
 
+    /// @brief Logger configuration specialization for the microservice category.
     template <>
     class logger_config<category::microservice>
     {
+        /// Name written into log messages for this category.
         static constexpr const char* const name = "microservice";
+        /// Default minimum level for this category.
         inline static level level = level::info; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+        /// Grants the logger access to configuration internals.
         friend class logger<category::microservice>;
     }; // class logger_config<category::microservice>
 
+    /// @brief Logger configuration specialization for the network category.
     template <>
     class logger_config<category::network>
     {
+        /// Name written into log messages for this category.
         static constexpr const char* const name = "network";
+        /// Default minimum level for this category.
         inline static level level = level::info; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+        /// Grants the logger access to configuration internals.
         friend class logger<category::network>;
     }; // class logger_config<category::network>
 
+    /// @brief Logger configuration specialization for the rule engine category.
     template <>
     class logger_config<category::rule_engine>
     {
+        /// Name written into log messages for this category.
         static constexpr const char* const name = "rule_engine";
+        /// Default minimum level for this category.
         inline static level level = level::info; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+        /// Grants the logger access to configuration internals.
         friend class logger<category::rule_engine>;
     }; // class logger_config<category::rule_engine>
 
+    /// @brief Logger configuration specialization for the SQL category.
     template <>
     class logger_config<category::sql>
     {
+        /// Name written into log messages for this category.
         static constexpr const char* const name = "sql";
+        /// Default minimum level for this category.
         inline static level level = level::info; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+        /// Grants the logger access to configuration internals.
         friend class logger<category::sql>;
     }; // class logger_config<category::sql>
 } // namespace irods::experimental::log
 
 #endif // IRODS_LOGGER_HPP
-

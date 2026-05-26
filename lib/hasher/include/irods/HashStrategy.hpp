@@ -14,16 +14,24 @@
 
 namespace irods {
 
+    /// Defines the interface implemented by hashing strategies.
     class HashStrategy {
         public:
 
+            /// Destroys the hashing strategy.
             virtual ~HashStrategy() {};
 
+            /// Returns the strategy name.
             virtual std::string name() const = 0;
+            /// Initializes the hashing context.
             virtual error init( boost::any& context ) const = 0;
+            /// Feeds data into the hashing context.
             virtual error update( const std::string&, boost::any& context ) const = 0;
+            /// Produces the digest using default formatting.
             virtual error digest( std::string& messageDigest, boost::any& context ) const = 0;
+            /// Reports whether the provided string matches this strategy's checksum format.
             virtual bool isChecksum( const std::string& ) const = 0;
+            /// Releases resources owned by the hashing context.
             virtual void free_context(boost::any& _context) const = 0;
 
             /// Produce a digest in string form based on the provided options.

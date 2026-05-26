@@ -5,7 +5,7 @@
 #include "irods/procApiRequest.h"
 #include "irods/apiNumber.h"
 
-/**
+/*
  * \fn rcRuleExecDel( rcComm_t *conn, ruleExecDelInp_t *ruleExecDelInp )
  *
  * \brief Delete a queued delayed execution rule on the iCAT.
@@ -30,7 +30,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 int
 rcRuleExecDel( rcComm_t *conn, ruleExecDelInp_t *ruleExecDelInp ) {
     int status;
@@ -39,4 +39,3 @@ rcRuleExecDel( rcComm_t *conn, ruleExecDelInp_t *ruleExecDelInp ) {
 
     return status;
 }
-

@@ -34,6 +34,7 @@ namespace
 } // anonymous namespace
 
 extern "C"
+/// Registers the `msi_get_hostname` microservice.
 auto plugin_factory() -> irods::ms_table_entry* {
     return make_msi<msParam_t*>("msi_get_hostname",msi_impl);
 }

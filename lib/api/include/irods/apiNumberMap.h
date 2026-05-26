@@ -8,9 +8,11 @@
 
 namespace irods
 {
+    /// \cond IRODS_DOXYGEN_INTERNAL
     const std::unordered_map<int, std::string> api_number_names{
         #include "irods/apiNumberData.h"
     };
+    /// \endcond
 } // namespace irods
 
 #undef API_NUMBER

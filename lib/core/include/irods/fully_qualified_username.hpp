@@ -46,12 +46,19 @@ namespace irods::experimental
             zone_.assign(_zone.data(), _zone.size());
         } // constructor
 
+        /// Copies a fully-qualified username.
         fully_qualified_username(const fully_qualified_username& _other) = default;
+
+        /// Copy-assigns a fully-qualified username.
         auto operator=(const fully_qualified_username& _other) -> fully_qualified_username& = default;
 
+        /// Moves a fully-qualified username.
         fully_qualified_username(fully_qualified_username&& _other) = default;
+
+        /// Move-assigns a fully-qualified username.
         auto operator=(fully_qualified_username&& _other) -> fully_qualified_username& = default;
 
+        /// Destroys a fully-qualified username.
         ~fully_qualified_username() = default;
 
         /// Returns the part of the username preceding the pound sign.
@@ -86,7 +93,10 @@ namespace irods::experimental
         } // full_name
 
       private:
+        /// Stores the user name component.
         std::string name_;
+
+        /// Stores the zone component.
         std::string zone_;
     }; // class fully_qualified_username
 } // namespace irods::experimental

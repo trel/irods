@@ -17013,8 +17013,10 @@ irods::error db_start_operation( irods::plugin_property_map& _props ) {
 // derive a new tcp network plugin from
 // the network plugin base class for handling
 // tcp communications
-class postgres_database_plugin : public irods::database {
+/// Database plugin implementation for PostgreSQL-backed ICAT deployments.
+ class postgres_database_plugin : public irods::database {
     public:
+        /// Constructs the PostgreSQL database plugin instance.
         postgres_database_plugin(const std::string& _nm, const std::string& _ctx)
             : irods::database(_nm, _ctx)
         {

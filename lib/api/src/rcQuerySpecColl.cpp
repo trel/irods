@@ -2,7 +2,7 @@
 #include "irods/procApiRequest.h"
 #include "irods/apiNumber.h"
 
-/**
+/*
  * \fn rcQuerySpecColl( rcComm_t *conn, dataObjInp_t *querySpecCollInp, genQueryOut_t **genQueryOut )
  *
  * \brief Query a special collection.
@@ -28,7 +28,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 int
 rcQuerySpecColl( rcComm_t *conn, dataObjInp_t *querySpecCollInp,
                  genQueryOut_t **genQueryOut ) {

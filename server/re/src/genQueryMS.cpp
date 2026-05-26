@@ -194,6 +194,7 @@ msiGetContInxFromGenQueryOut( msParam_t* genQueryOutParam, msParam_t* continueIn
 
 
 int
+/// rief Builds a simple SQL select statement from the select and condition strings.
 _makeQuery( char *sel, char *cond, char **sql ) {
     *sql = ( char * ) malloc( strlen( sel ) + strlen( cond ) + 20 );
     if ( strlen( cond ) >  0 ) {
@@ -220,7 +221,7 @@ _makeQuery( char *sel, char *cond, char **sql ) {
  * \param[in] selectListParam - a STR_MS_T containing the parameters.
  * \param[in] conditionsParam - a STR_MS_T containing the conditions.
  * \param[out] queryOutParam - a STR_MS_T containing the parameters and conditions as sql.
- * \param[in,out] - The RuleExecInfo structure that is automatically
+ * \param[in,out] rei - The RuleExecInfo structure that is automatically
  *    handled by the rule engine. The user does not include rei as a
  *    parameter in the rule invocation.
  *

@@ -4,9 +4,12 @@
 #include "irods/rodsType.h"
 #include "irods/rcConnect.h"
 
+/**
+ * \brief Input passed to `rcFileReaddir`.
+ */
 typedef struct FileReadDirInp
 {
-    int fileInx;
+    int fileInx; ///< File descriptor index for the open directory stream.
 } fileReaddirInp_t;
 #define fileReaddirInp_PI "int fileInx;"
 

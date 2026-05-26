@@ -19,18 +19,24 @@
 #  include "irods/rsGeneralAdmin.hpp"
 #  include "irods/rsUserAdmin.hpp"
 
+// Server-side communication object.
 struct RsComm;
 #else
 // NOLINTBEGIN(cppcoreguidelines-macro-usage)
+/// Selects the client-side namespace implementation.
 #  define NAMESPACE_IMPL client
+/// Aliases the client-side communication type.
 #  define RxComm         RcComm
+/// Aliases the client-side GeneralAdmin API.
 #  define rxGeneralAdmin rcGeneralAdmin
+/// Aliases the client-side UserAdmin API.
 #  define rxUserAdmin    rcUserAdmin
 // NOLINTEND(cppcoreguidelines-macro-usage)
 
 #  include "irods/generalAdmin.h"
 #  include "irods/userAdmin.h"
 
+// Client-side communication object.
 struct RcComm;
 #endif // IRODS_USER_ADMINISTRATION_ENABLE_SERVER_SIDE_API
 
@@ -48,6 +54,8 @@ struct RcComm;
 #include <string_view>
 #include <vector>
 
+/// Namespace containing user and group administration types and operations.
+///
 /// \since 4.2.8
 namespace irods::experimental::administration
 {
@@ -81,11 +89,11 @@ namespace irods::experimental::administration
     /// \since 4.3.1
     struct user_password_property
     {
-        /// Constructs an instance of #user_password_property.
+        /// Constructs an instance of `user_password_property`.
         ///
         /// \param[in] _value              The new password for a user.
         /// \param[in] _requester_password The plaintext password of the user requesting the
-        ///                                change. If passed, #obfGetPw will not be used.
+        ///                                change. If passed, `obfGetPw` will not be used.
         ///
         /// \since 4.3.1
         explicit user_password_property(std::string _value,
@@ -109,6 +117,7 @@ namespace irods::experimental::administration
     /// \since 4.3.1
     struct user_type_property
     {
+        /// The new user type.
         user_type value;
     }; // struct user_type_property
 
@@ -165,7 +174,11 @@ namespace irods::experimental::administration
 
     /// Obfuscates a user password.
     ///
-    /// See #user_password_property for additional details.
+    /// See `user_password_property` for additional details.
+    ///
+    /// \param[in] _property The password property to obfuscate.
+    ///
+    /// \return The obfuscated password.
     ///
     /// \since 4.3.1
     auto obfuscate_password(const user_password_property& _property) -> std::string;
@@ -201,8 +214,6 @@ namespace irods::experimental::administration
         ///
         /// \throws irods::exception If an error occurs.
         ///
-        /// \return An error code.
-        ///
         /// \since 4.2.8
         auto add_user(
             RxComm& _comm,
@@ -214,8 +225,6 @@ namespace irods::experimental::administration
         ///
         /// \param[in] _comm The communication object.
         /// \param[in] _user The user to remove.
-        ///
-        /// \return An error code.
         ///
         /// \since 4.2.8
         auto remove_user(RxComm& _comm, const user& _user) -> void;
@@ -372,7 +381,7 @@ namespace irods::experimental::administration
         /// \param[in] _user The user to verify exists.
         ///
         /// \return A boolean.
-        /// \retval true  If the user exists.
+        /// \retval true  If the group exists.
         /// \retval false Otherwise.
         ///
         /// \since 4.2.8

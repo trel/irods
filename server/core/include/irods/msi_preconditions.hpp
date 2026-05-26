@@ -12,6 +12,7 @@
 #include <algorithm>
 
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+/// Returns `SYS_INVALID_INPUT_PARAM` if the pointer is null.
 #define IRODS_MSI_REQUIRE_VALID_POINTER(ptr)                                                      \
   if (!(ptr)) {                                                                                   \
     using log_msi = irods::experimental::log::microservice;                                       \
@@ -20,6 +21,7 @@
   }
 
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+/// Returns `SYS_INVALID_INPUT_PARAM` if the value does not match one of the allowed types.
 #define IRODS_MSI_REQUIRE_TYPE(ptr, ...)                                                                           \
   {                                                                                                                \
     const auto types = {__VA_ARGS__};                                                                              \

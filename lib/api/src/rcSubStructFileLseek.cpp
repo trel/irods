@@ -2,7 +2,7 @@
 #include "irods/procApiRequest.h"
 #include "irods/apiNumber.h"
 
-/**
+/*
  * \fn rcSubStructFileLseek( rcComm_t *conn, subStructFileLseekInp_t *subStructFileLseekInp, fileLseekOut_t **subStructFileLseekOut )
  *
  * \brief Seek within a subfile of a structured file object.
@@ -19,7 +19,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 int
 rcSubStructFileLseek( rcComm_t *conn, subStructFileLseekInp_t *subStructFileLseekInp,
                       fileLseekOut_t **subStructFileLseekOut ) {

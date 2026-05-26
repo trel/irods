@@ -6,17 +6,25 @@
 
 namespace irods::experimental::genquery2
 {
+    /// Maps a GenQuery2 column token to a catalog table and column name.
     struct column_info
     {
+        /// Catalog table containing the column.
         std::string_view table; // NOLINT(misc-non-private-member-variables-in-classes)
+        /// Catalog column name.
         std::string_view name; // NOLINT(misc-non-private-member-variables-in-classes)
 
+        /// Compares two column mappings for equality.
+        ///
+        /// \param[in] _rhs The column mapping to compare against.
+        /// \return True if both mappings reference the same table and column name.
         auto operator==(const column_info& _rhs) const noexcept -> bool
         {
             return table == _rhs.table && name == _rhs.name;
         }
     }; // struct column_info
 
+    /// Maps public GenQuery column tokens to their backing catalog columns.
     const std::map<std::string_view, column_info> column_name_mappings{
         {"ZONE_ID", {"R_ZONE_MAIN", "zone_id"}},
         {"ZONE_NAME", {"R_ZONE_MAIN", "zone_name"}},

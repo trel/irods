@@ -5,7 +5,7 @@
 #include "irods/rcMisc.h"
 #include "irods/apiNumber.h"
 
-/**
+/*
  * \fn rcExecMyRule( rcComm_t *conn, execMyRuleInp_t *execMyRuleInp, msParamArray_t **outParamArray )
  *
  * \brief Execute my rule.
@@ -31,7 +31,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 int
 rcExecMyRule( rcComm_t *conn, execMyRuleInp_t *execMyRuleInp,
               msParamArray_t **outParamArray ) {

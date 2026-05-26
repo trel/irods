@@ -2,7 +2,7 @@
 #include "irods/procApiRequest.h"
 #include "irods/apiNumber.h"
 
-/**
+/*
  * \fn rcRegReplica( rcComm_t *conn, regReplica_t *regReplicaInp )
  *
  * \brief Register a replica.
@@ -18,7 +18,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 int
 rcRegReplica( rcComm_t *conn, regReplica_t *regReplicaInp ) {
     int status;

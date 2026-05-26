@@ -9,36 +9,38 @@
 
 namespace irods
 {
+    /// @brief Sentinel value representing an empty resource host.
     extern const std::string EMPTY_RESC_HOST;
+
+    /// @brief Sentinel value representing an empty resource path.
     extern const std::string EMPTY_RESC_PATH;
 
     // =-=-=-=-=-=-=-
     /// @brief definition of the resource interface
     extern const std::string RESOURCE_INTERFACE;
 
+    /// @brief Manages resource plugin instances and resource hierarchy lookups.
     class resource_manager {
         public:
             // =-=-=-=-=-=-=-
-            /// @brief constructors
+            /// @brief Constructs an empty resource manager.
             resource_manager();
+
+            /// @brief Copy-constructs a resource manager.
             resource_manager( const resource_manager& );
 
-            // =-=-=-=-=-=-=-
-            // @brief  destructor
+            /// @brief Destroys the resource manager.
             virtual ~resource_manager();
 
-            // =-=-=-=-=-=-=-
-            // @brief  resolve a resource from a key into the resource table
+            /// @brief Resolves a resource by name.
             error resolve( std::string,     // resource key
                            resource_ptr& ); // resource out variable
 
-            // =-=-=-=-=-=-=-
-            // @brief  resolve a resource from a key into the resource table
+            /// @brief Resolves a resource by ID.
             error resolve( rodsLong_t,      // resource id
                            resource_ptr& ); // resource out variable
 
-            // =-=-=-=-=-=-=-
-            // @brief  resolve a resource from a match with a given property
+            /// @brief Validates that a physical path is contained by a vault path.
             error validate_vault_path( std::string,       // physical path  of the data object
                                        rodsServerHost_t*, // host for which we find the path
                                        std::string& );    // match vault path
@@ -59,8 +61,7 @@ namespace irods
                                   std::string,     // resource context
                                   resource_ptr& ); // resource out variable
 
-            // =-=-=-=-=-=-=-
-            /// @brief create a list of resources who do not have parents ( roots )
+            /// @brief Returns the list of root resources.
             error get_root_resources( std::vector< std::string >& );
 
             /// \brief create a partial hier string for a given resource to the root
@@ -78,10 +79,10 @@ namespace irods
             /// \since 4.2.9
             std::string get_hier_to_root_for_resc(std::string_view _resource_name);
 
-            // =-=-=-=-=-=-=-
-            /// @brief groups decedent leafs by child
-            // throws irods::exception
+            /// @brief Type grouping descendant leaf IDs under a child resource.
             typedef std::vector<rodsLong_t> leaf_bundle_t;
+
+            /// @brief Groups descendant leaf resources by child resource.
             std::vector<leaf_bundle_t> gather_leaf_bundles_for_resc(const std::string& _resource_name);
 
             // =-=-=-=-=-=-=-
@@ -168,8 +169,7 @@ namespace irods
             /// @brief check whether the specified resource name is a coordinating resource
             bool is_coordinating_resource(const std::string& _resc_name);
 
-            // =-=-=-=-=-=-=-
-            /// @brief resolve a resource from a match with a given property
+            /// @brief Resolves a resource by matching one of its properties.
             template< typename value_type >
             error resolve_from_property( std::string   _prop,    // property key
                                          value_type    _value,   // property value
@@ -235,8 +235,13 @@ namespace irods
 
             } // resolve_from_property
 
+            /// @brief Iterator type over resources keyed by name.
             typedef lookup_table< resource_ptr >::iterator iterator;
+
+            /// @brief Returns an iterator to the first resource entry.
             iterator begin() { return resource_name_map_.begin(); }
+
+            /// @brief Returns an iterator one past the last resource entry.
             iterator end()   { return resource_name_map_.end();   }
 
         private:
@@ -277,10 +282,13 @@ namespace irods
             /// @brief given a resource name get the parent name from the id
             error get_parent_name( resource_ptr, std::string& );
 
-            // =-=-=-=-=-=-=-
-            // Attributes
+            /// @brief Lookup table for resources keyed by name.
             lookup_table< resource_ptr >                        resource_name_map_;
+
+            /// @brief Lookup table for resources keyed by ID.
             lookup_table< resource_ptr, long, std::hash<long> > resource_id_map_;
+
+            /// @brief Post-disconnect maintenance operations grouped by execution order.
             std::vector< std::vector< pdmo_type > > maintenance_operations_;
     }; // class resource_manager
 } // namespace irods

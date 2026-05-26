@@ -3,7 +3,7 @@
 #include "irods/apiNumber.h"
 #include "irods/procApiRequest.h"
 
-/**
+/*
  * \fn rcRuleExecMod( rcComm_t *conn, ruleExecModInp_t *ruleExecModInp )
  *
  * \brief Modify a queued delayed execution rule on the iCAT.
@@ -28,7 +28,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 int rcRuleExecMod( RcComm* _comm, RuleExecModifyInput* _ruleExecModInp )
 {
     return procApiRequest(_comm, RULE_EXEC_MOD_AN, _ruleExecModInp, nullptr, nullptr, nullptr);

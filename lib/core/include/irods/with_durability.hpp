@@ -15,35 +15,41 @@ namespace irods::experimental
     /// retry on failure of a function-like object.
     struct retries
     {
+        /// Constructs a retry-count wrapper.
+        /// \param[in] v The maximum number of retries.
         explicit constexpr retries(int v) noexcept
             : value{v}
         {
         }
 
-        const int value;
+        const int value; ///< The maximum number of retries.
     };
 
     /// A type that specifies how long (in milliseconds) \p with_durability
     /// should wait before attempting to invoke a function-like object.
     struct delay
     {
+        /// Constructs a delay wrapper.
+        /// \param[in] v The delay between retries.
         explicit constexpr delay(std::chrono::milliseconds v) noexcept
             : value{v}
         {
         }
 
-        const std::chrono::milliseconds value;
+        const std::chrono::milliseconds value; ///< The delay between retries.
     };
 
     /// A type that specifies a multiplier of \p delay.
     struct delay_multiplier
     {
+        /// Constructs a delay-multiplier wrapper.
+        /// \param[in] v The multiplier applied after each retry delay.
         explicit constexpr delay_multiplier(float v) noexcept
             : value{v}
         {
         }
 
-        const float value;
+        const float value; ///< The multiplier applied after each retry delay.
     };
 
     /// A type that holds options used to control the behavior of \p with_durability.
@@ -54,6 +60,8 @@ namespace irods::experimental
         std::chrono::milliseconds delay_;
         float delay_multiplier_;
 
+        /// Throws if \p v is negative.
+        /// \param[in] v The value to validate.
         template <typename T>
         constexpr auto throw_if_less_than_zero(T v) -> void
         {
@@ -62,31 +70,39 @@ namespace irods::experimental
             }
         }
 
+        /// Updates the retry count.
+        /// \param[in] v The retry-count wrapper.
         constexpr auto set(struct retries v) -> void
         {
             throw_if_less_than_zero(v.value);
             retries_ = v.value;
         }
 
+        /// Updates the retry delay.
+        /// \param[in] v The delay wrapper.
         constexpr auto set(struct delay v) -> void
         {
             throw_if_less_than_zero(v.value.count());
             delay_ = v.value;
         }
 
+        /// Updates the retry delay multiplier.
+        /// \param[in] v The delay-multiplier wrapper.
         constexpr auto set(struct delay_multiplier v) -> void
         {
             throw_if_less_than_zero(v.value);
             delay_multiplier_ = v.value;
         }
 
-        // Fallback case. Ignores unknown arguments.
+        /// Ignores unsupported option types.
+        /// Input: an ignored unsupported argument.
         template <typename T>
         constexpr auto set(T&&) const noexcept -> void
         {
         }
 
     public:
+        /// Constructs options with default retry behavior.
         constexpr durability_options() noexcept
             : retries_{1}
             , delay_{1000}
@@ -94,24 +110,32 @@ namespace irods::experimental
         {
         }
 
+        /// Constructs options and sets the retry count.
+        /// \param[in] other The retry-count wrapper.
         explicit constexpr durability_options(retries other)
             : durability_options{}
         {
             set(other);
         }
 
+        /// Constructs options and sets the retry delay.
+        /// \param[in] other The delay wrapper.
         explicit constexpr durability_options(delay other)
             : durability_options{}
         {
             set(other);
         }
 
+        /// Constructs options and sets the delay multiplier.
+        /// \param[in] other The delay-multiplier wrapper.
         explicit constexpr durability_options(delay_multiplier other)
             : durability_options{}
         {
             set(other);
         }
 
+        /// Constructs options from a pack of supported option wrappers.
+        /// \param[in] args The option wrappers to apply.
         template <typename ...Args>
         constexpr durability_options(Args&&... args)
             : durability_options{}
@@ -119,33 +143,45 @@ namespace irods::experimental
             (set(std::forward<Args>(args)), ...);
         }
 
+        /// Returns the configured retry count.
+        /// \return The maximum number of retries.
         constexpr auto retries() const noexcept -> int
         {
             return retries_;
         }
 
+        /// Returns the configured retry delay.
+        /// \return The delay between retries.
         constexpr auto delay() const noexcept -> std::chrono::milliseconds
         {
             return delay_;
         }
 
+        /// Returns the configured delay multiplier.
+        /// \return The multiplier applied after each retry delay.
         constexpr auto delay_multiplier() const noexcept -> float
         {
             return delay_multiplier_;
         }
 
+        /// Updates the retry count.
+        /// \param[in] v The maximum number of retries.
         auto set_retries(int v)
         {
             throw_if_less_than_zero(v);
             retries_ = v;
         }
 
+        /// Updates the retry delay.
+        /// \param[in] v The delay between retries.
         auto set_delay(std::chrono::milliseconds v)
         {
             throw_if_less_than_zero(v.count());
             delay_ = v;
         }
 
+        /// Updates the delay multiplier.
+        /// \param[in] v The multiplier applied after each retry delay.
         auto set_delay_multiplier(float v)
         {
             throw_if_less_than_zero(v);
@@ -155,22 +191,33 @@ namespace irods::experimental
 
     namespace detail
     {
+        /// Type trait yielding the final type in a parameter pack.
         template <typename ...Ts>
         struct last_type
         {
-            template <typename T> struct tag { using type = T; };
+            /// Helper tag carrying one type from the pack.
+            template <typename T> struct tag { using type = T; ///< Stored type carried by the helper tag.
+            };
+            /// Final type selected from the parameter pack.
             using type = typename decltype((tag<Ts>{}, ...))::type;
         };
 
+        /// Alias for the final type in a parameter pack.
         template <typename ...Ts>
         using last_type_t = typename last_type<Ts...>::type;
 
+        /// Returns the final argument from a parameter pack.
+        /// \param[in] t The argument to forward.
+        /// \return The forwarded final argument.
         template <typename T>
         constexpr auto last_arg(T&& t) noexcept
         {
             return std::forward<T>(t);
         }
 
+        /// Returns the final argument from a parameter pack.
+        /// \param[in] ts The remaining arguments.
+        /// \return The forwarded final argument.
         template <typename T, typename ...Ts>
         constexpr auto last_arg(T&&, Ts&&... ts) noexcept
         {
@@ -293,4 +340,3 @@ namespace irods::experimental
 } // namespace irods::experimental
 
 #endif // IRODS_WITH_DURABILITY_HPP
-

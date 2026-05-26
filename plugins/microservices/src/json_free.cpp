@@ -45,6 +45,7 @@ namespace
     } // make_msi
 } // anonymous namespace
 
+/// Registers the `msi_json_free` microservice.
 extern "C" auto plugin_factory() -> irods::ms_table_entry*
 {
     return make_msi<MsParam*>("msi_json_free", msi_impl);

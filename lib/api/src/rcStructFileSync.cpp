@@ -2,7 +2,7 @@
 #include "irods/procApiRequest.h"
 #include "irods/apiNumber.h"
 
-/**
+/*
  * \fn rcStructFileSync( rcComm_t *conn, structFileOprInp_t *structFileOprInp )
  *
  * \brief Sync a structured file object with its extracted subfiles.
@@ -18,7 +18,7 @@
  * \pre none
  * \post none
  * \sa none
-**/
+ */
 int
 rcStructFileSync( rcComm_t *conn, structFileOprInp_t *structFileOprInp ) {
     int status;

@@ -1,6 +1,9 @@
 #ifndef RODS_ERROR_H__
 #define RODS_ERROR_H__
 
+/// \file
+/// \brief Declares error stack types and helpers.
+
 #ifdef __cplusplus
 #  include <cstdio>
 #  include <string>
@@ -8,32 +11,28 @@
 #  include <stdio.h>
 #endif
 
+/// \brief Maximum length of an individual error message.
 #define ERR_MSG_LEN             1024
+/// \brief Maximum number of messages stored in an error stack.
 #define MAX_ERROR_MESSAGES      100
 
-// Special status that suppresses reError header printing
+/// \brief Special status that suppresses error stack header printing.
 static const int STDOUT_STATUS = 1000000;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/// \brief A struct containing an error code and a message
-///
-/// \var status Error code for this error message
-/// \var msg String containing a message related to this error
+/// \brief A struct containing an error code and a message.
 typedef struct ErrorMessage {
-    int status;
-    char msg[ERR_MSG_LEN];
+    int status; ///< Error code for this error message.
+    char msg[ERR_MSG_LEN]; ///< Message associated with this error.
 } rErrMsg_t;
 
-/// \brief A struct containing a stack of error codes and messages
-///
-/// \var len Number of errors in the stack.
-/// \var errMsg An array of pointers to the ErrorMessage struct.
+/// \brief A struct containing a stack of error codes and messages.
 typedef struct ErrorStack {
-    int len;
-    struct ErrorMessage **errMsg;
+    int len; ///< Number of errors in the stack.
+    struct ErrorMessage **errMsg; ///< Array of pointers to error messages.
 } rError_t;
 
 /// \brief Allocate memory for the ErrorStack struct if the dereferenced pointer is null.
@@ -52,7 +51,7 @@ void allocate_error_stack_if_necessary(struct ErrorStack** _stack);
 
 /// \brief Add an error msg to the ErrorStack struct up to MAX_ERROR_MESSAGES.
 ///
-/// \param[in/out] myError the ErrorStack struct for the error msg.
+/// \param[in,out] myError the ErrorStack struct for the error msg.
 /// \param[in] status the input error status.
 /// \param[in] msg the error msg string. This string will be copied to myError.
 ///
@@ -82,7 +81,7 @@ int allocate_if_necessary_and_add_rError_msg(struct ErrorStack** _stack, const i
 
 /// \brief Frees the ErrorStack and its contents
 ///
-/// \param[in/out] myError the ErrorStack to be free'd
+/// \param[in,out] myError the ErrorStack to be free'd
 ///
 /// \returns error code
 /// \retval 0 on success
@@ -101,7 +100,7 @@ int replErrorStack(struct ErrorStack *srcRError, struct ErrorStack *destRError);
 
 /// \brief Frees the contents of the provided ErrorStack but not the struct itself
 ///
-/// \param[in/out] myError the ErrorStack which is to have its contents free'd
+/// \param[in,out] myError the ErrorStack which is to have its contents free'd
 ///
 /// \returns error code
 /// \retval 0 always
@@ -113,15 +112,15 @@ int freeRErrorContent(struct ErrorStack *myError);
 /// \parblock
 /// The output takes the following form:
 ///
-/// Level 0: <error message>
-/// Level 1: <error message>
+/// Level 0: error message
+/// Level 1: error message
 /// ...
-/// Level 99: <error message>
+/// Level 99: error message
 ///
-/// If the error status for a particular ErrorMessage is STDOUT_STATUS, "Level <int>: " is not printed.
+/// If the error status for a particular ErrorMessage is STDOUT_STATUS, the "Level N:" prefix is not printed.
 /// \endparblock
 ///
-/// \param[in/out] rError the ErrorStack which is to have its contents printed
+/// \param[in,out] rError the ErrorStack which is to have its contents printed
 ///
 /// \returns error code
 /// \retval 0 always
@@ -133,12 +132,12 @@ int printErrorStack(struct ErrorStack *rError);
 /// \parblock
 /// The output takes the following form:
 ///
-/// Level 0: <error message>
-/// Level 1: <error message>
+/// Level 0: error message
+/// Level 1: error message
 /// ...
-/// Level 99: <error message>
+/// Level 99: error message
 ///
-/// If the error status for a particular ErrorMessage is STDOUT_STATUS, "Level <int>: " is not printed.
+/// If the error status for a particular ErrorMessage is STDOUT_STATUS, the "Level N:" prefix is not printed.
 /// \endparblock
 ///
 /// \param[in,out] rError the ErrorStack which is to have its contents printed

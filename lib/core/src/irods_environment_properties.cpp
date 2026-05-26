@@ -74,6 +74,7 @@ namespace irods {
         return instance;
     }
 
+    /// \cond IRODS_DOXYGEN_INTERNAL
     environment_properties::environment_properties() {
         capture();
     } // ctor
@@ -114,6 +115,7 @@ namespace irods {
         }
 
     } // capture_json
+    /// \endcond
 
     void environment_properties::remove(const std::string& _key ) {
         config_props_.remove(_key);

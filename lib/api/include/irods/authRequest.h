@@ -8,8 +8,11 @@
 #include "irods/authenticate.h"
 #include "irods/icatDefines.h"
 
+/**
+ * \brief Output returned by `rcAuthRequest`.
+ */
 typedef struct {
-    char *challenge;
+    char *challenge; ///< Authentication challenge returned by the server.
 } authRequestOut_t;
 
 #define authRequestOut_PI "bin *challenge(CHALLENGE_LEN);"

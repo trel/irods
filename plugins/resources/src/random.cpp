@@ -790,28 +790,23 @@ irods::error random_file_rebalance(
 
 } // random_file_rebalance
 
-// =-=-=-=-=-=-=-
-// 3. create derived class to handle unix file system resources
-//    necessary to do custom parsing of the context string to place
-//    any useful values into the property map for reference in later
-//    operations.  semicolon is the preferred delimiter
+/// @brief Implements the random resource plugin.
 class random_resource : public irods::resource {
     public:
+        /// @brief Constructs a random resource plugin instance.
         random_resource(
             const std::string& _inst_name,
             const std::string& _context ) :
             irods::resource( _inst_name, _context ) {
         }
 
-        // =-=-=-=-=-=-
-        // override from plugin_base
+        /// @brief Indicates whether post-disconnect maintenance is required.
         irods::error need_post_disconnect_maintenance_operation( bool& _flg ) {
             _flg = false;
             return ERROR( -1, "nop" );
         }
 
-        // =-=-=-=-=-=-
-        // override from plugin_base
+        /// @brief Performs post-disconnect maintenance.
         irods::error post_disconnect_maintenance_operation( irods::pdmo_type& ) {
             return ERROR( -1, "nop" );
         }

@@ -12,24 +12,45 @@
 
 namespace irods::experimental::api {
 
+    /// @brief Filesystem namespace used by experimental API operations.
     namespace fs   = irods::experimental::filesystem;
+    /// @brief Client-side filesystem namespace used by experimental API operations.
     namespace fscl = irods::experimental::filesystem::client;
 
+    /// @brief Base helper for filesystem operations that can process collections in parallel.
     class parallel_filesystem_operation : public base {
         public:
+            /// @brief Constructs the operation helper for a named plugin instance.
+            /// @param[in] n Plugin instance name.
             parallel_filesystem_operation(const std::string& n) : base(n) {}
+
+            /// @brief Cleans up resources owned by the operation helper.
             virtual ~parallel_filesystem_operation() {}
 
         protected:
+            /// @brief Value type produced by the recursive collection iterator.
             using entry_type    = fscl::recursive_collection_iterator::value_type;
+
+            /// @brief Dispatch processor used to schedule collection traversal work.
             using dispatch_type = dispatch_processor<fscl::recursive_collection_iterator>;
 
+            /// @brief Fallback thread count used when configuration does not provide one.
             const int DEFAULT_NUMBER_OF_THREADS = 4;
 
+            /// @brief Validates state before a collection walk begins.
+            /// @details Receives the communication handle and request payload for the collection operation.
             virtual void collection_precondition(rcComm_t&, const json&) {};
+
+            /// @brief Processes a single data object.
+            /// @details Receives the communication handle, data-object path, and request payload.
             virtual void process_object(rcComm_t&, const fs::path&, const json&) = 0;
+
+            /// @brief Performs cleanup after a collection walk completes successfully.
+            /// @details Receives the communication handle and request payload for the collection operation.
             virtual void collection_postcondition(rcComm_t&, const json&) {}
 
+            /// @brief Returns the configured worker-thread count for the plugin instance.
+            /// @return Number of worker threads to use.
             auto get_thread_count()
             {
                 std::string path{};
@@ -51,6 +72,10 @@ namespace irods::experimental::api {
                 return DEFAULT_NUMBER_OF_THREADS;
             }
 
+            /// @brief Returns whether a string ends with a suffix.
+            /// @param[in] str String to inspect.
+            /// @param[in] suffix Candidate suffix.
+            /// @return `true` if `str` ends with `suffix`.
             auto ends_with(const std::string &str, const std::string &suffix)
             {
                 return str.size() >= suffix.size() &&
@@ -58,6 +83,10 @@ namespace irods::experimental::api {
                                    suffix.size(), suffix) == 0;
             } // ends_with
 
+            /// @brief Counts data objects beneath a logical path.
+            /// @param[in] comm Communication handle used for the query.
+            /// @param[in] path Logical path to count beneath.
+            /// @return Number of matching data objects.
             auto get_object_count(rcComm_t& comm, const fs::path& path)
             {
                 auto p_str = path.string();
@@ -76,6 +105,9 @@ namespace irods::experimental::api {
 
             } // get_object_count
 
+            /// @brief Processes all data objects contained in a collection request.
+            /// @param[in,out] bb Blackboard tracking status and progress.
+            /// @param[in] req JSON request payload.
             void process_collection(locking_json& bb, const json& req)
             {
                 try {
@@ -140,8 +172,14 @@ namespace irods::experimental::api {
 
             } // process_collection
 
+            /// @brief Indicates that filesystem operations execute asynchronously.
+            /// @return Always `true`.
             bool enable_asynchronous_operation() { return true; }
 
+            /// @brief Executes the filesystem operation for a path or collection.
+            /// @param[in] comm Server communication handle.
+            /// @param[in] req JSON request payload.
+            /// @return Blackboard state describing the operation result.
             auto operation(rsComm_t* comm, const json req) -> json
             {
                 try {
