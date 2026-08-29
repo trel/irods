@@ -237,6 +237,67 @@ class Test_ibun(resource_suite.ResourceBase, unittest.TestCase):
             if os.path.exists(local_file):
                 os.unlink(local_file)
 
+    def test_ibun_reports_resource_mismatch_for_mounted_collection__issue_5423(self):
+        replication = 'issue_5423_repl'
+        resource_0 = 'issue_5423_ufs0'
+        resource_1 = 'issue_5423_ufs1'
+        mount_resource = 'issue_5423_mount_resc'
+        collection_path = os.path.join(self.admin.session_collection, 'issue_5423_src')
+        mounted_collection = os.path.join(collection_path, 'mnt')
+        archive_path = collection_path + '.zip'
+        mountpoint_directory = os.path.join(self.admin.local_session_dir, 'issue_5423_phymount')
+        rule_file = os.path.join(self.admin.local_session_dir, 'issue_5423_register_mount.r')
+
+        rule_text = '''\
+register_issue_5423_mount {{
+    msiCollCreate(*irodsColl, 0, *status);
+    msiPhyPathReg(*irodsColl, *irodsResc, *phyDir, "mountPoint", *status);
+}}
+
+INPUT *irodsColl="{mounted_collection}", *irodsResc="{mount_resource}", *phyDir="{mountpoint_directory}"
+OUTPUT ruleExecOut
+'''.format(**locals())
+
+        try:
+            lib.create_replication_resource(self.admin, replication)
+            lib.create_ufs_resource(self.admin, resource_0, test.settings.HOSTNAME_2)
+            lib.create_ufs_resource(self.admin, resource_1, test.settings.HOSTNAME_3)
+            lib.create_ufs_resource(self.admin, mount_resource, test.settings.HOSTNAME_1)
+            lib.add_child_resource(self.admin, replication, resource_0)
+            lib.add_child_resource(self.admin, replication, resource_1)
+
+            os.mkdir(mountpoint_directory)
+            with open(os.path.join(mountpoint_directory, 'foo'), 'w') as f:
+                f.write('payload')
+
+            with open(rule_file, 'w') as f:
+                f.write(rule_text)
+
+            self.admin.assert_icommand(['imkdir', collection_path])
+            self.admin.assert_icommand(['irule', '-F', rule_file])
+            self.admin.assert_icommand(['ils', '-AL', mounted_collection], 'STDOUT_SINGLELINE', 'mountP')
+
+            out, err, ec = self.admin.run_icommand(
+                ['ibun', '-c', '-Dzip', '-R', replication, archive_path, collection_path])
+            self.assertNotEqual(0, ec)
+            self.assertEqual('', out)
+            self.assertIn('SYS_COPY_NOT_EXIST_IN_RESC', err)
+            self.assertNotIn('SYS_INTERNAL_ERR', err)
+
+        finally:
+            self.admin.run_icommand(['imcoll', '-U', mounted_collection])
+            self.admin.run_icommand(['irm', '-f', archive_path])
+            self.admin.run_icommand(['irm', '-r', '-f', collection_path])
+            self.admin.run_icommand(['iadmin', 'rmchildfromresc', replication, resource_0])
+            self.admin.run_icommand(['iadmin', 'rmchildfromresc', replication, resource_1])
+            self.admin.run_icommand(['iadmin', 'rmresc', replication])
+            self.admin.run_icommand(['iadmin', 'rmresc', resource_0])
+            self.admin.run_icommand(['iadmin', 'rmresc', resource_1])
+            self.admin.run_icommand(['iadmin', 'rmresc', mount_resource])
+            shutil.rmtree(mountpoint_directory, ignore_errors=True)
+            if os.path.exists(rule_file):
+                os.unlink(rule_file)
+
     def test_ibun(self):
         test_file = "ibun_test_file"
         lib.make_file(test_file, 1000)
