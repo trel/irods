@@ -183,6 +183,60 @@ class Test_ibun(resource_suite.ResourceBase, unittest.TestCase):
         do_test_ibun_atop_existing_archive_file_in_replication_hierarchy(self, 1038425, 1044480)
         do_test_ibun_atop_existing_archive_file_in_replication_hierarchy(self, 1040425, 1054720)
 
+    def test_ibun_zip_to_replication_resource_with_archive_name_matching_source_collection__issue_5423(self):
+        replication = 'issue_5423_repl'
+        resource_0 = 'issue_5423_ufs0'
+        resource_1 = 'issue_5423_ufs1'
+        collection_name = 'new'
+        filename = 'foo'
+        local_file = os.path.join(self.user0.local_session_dir, filename)
+        collection_path = os.path.join(self.user0.session_collection, collection_name)
+        put_path = os.path.join(collection_path, filename)
+        archive_path = os.path.join(self.user0.session_collection, collection_name + '.zip')
+
+        def assert_archive_replicas_are_good():
+            query = "select DATA_RESC_NAME, DATA_REPL_STATUS where COLL_NAME = '{}' and DATA_NAME = '{}'".format(
+                os.path.dirname(archive_path), os.path.basename(archive_path))
+            out, err, ec = self.admin.run_icommand(['iquest', '%s...%s', query])
+
+            self.assertEqual(0, ec)
+            self.assertEqual(0, len(err))
+
+            rows = [line.split('...') for line in out.splitlines()]
+            self.assertEqual(2, len(rows), out)
+            self.assertEqual(set([resource_0, resource_1]), set([row[0] for row in rows]))
+
+            for _, repl_status in rows:
+                self.assertEqual(1, int(repl_status))
+
+        try:
+            lib.create_replication_resource(self.admin, replication)
+            lib.create_ufs_resource(self.admin, resource_0, test.settings.HOSTNAME_2)
+            lib.create_ufs_resource(self.admin, resource_1, test.settings.HOSTNAME_3)
+            lib.add_child_resource(self.admin, replication, resource_0)
+            lib.add_child_resource(self.admin, replication, resource_1)
+
+            lib.make_file(local_file, 1024, 'random')
+            self.user0.assert_icommand(['imkdir', collection_path])
+            self.user0.assert_icommand(['iput', local_file, put_path])
+
+            self.user0.assert_icommand(['ibun', '-c', '-Dzip', '-R', replication, archive_path, collection_path])
+            assert_archive_replicas_are_good()
+
+            self.user0.assert_icommand(['ibun', '-c', '-Dzip', '-f', '-R', replication, archive_path, collection_path])
+            assert_archive_replicas_are_good()
+
+        finally:
+            self.user0.run_icommand(['irm', '-f', archive_path])
+            self.user0.run_icommand(['irm', '-r', '-f', collection_path])
+            lib.remove_child_resource(self.admin, replication, resource_0)
+            lib.remove_child_resource(self.admin, replication, resource_1)
+            lib.remove_resource(self.admin, replication)
+            lib.remove_resource(self.admin, resource_0)
+            lib.remove_resource(self.admin, resource_1)
+            if os.path.exists(local_file):
+                os.unlink(local_file)
+
     def test_ibun(self):
         test_file = "ibun_test_file"
         lib.make_file(test_file, 1000)
