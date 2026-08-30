@@ -118,18 +118,19 @@ namespace
             }
         }
 
-        if ( ( structFileBundleInp->oprType & ADD_TO_TAR_OPR ) == 0 &&
-             fs::server::exists(*rsComm, structFileBundleInp->objPath) &&
-             !getValByKey(&structFileBundleInp->condInput, FORCE_FLAG_KW)) {
+        if ((structFileBundleInp->oprType & ADD_TO_TAR_OPR) == 0 &&
+            fs::server::exists(*rsComm, structFileBundleInp->objPath) &&
+            !getValByKey(&structFileBundleInp->condInput, FORCE_FLAG_KW))
+        {
             return OVERWRITE_WITHOUT_FORCE_FLAG;
         }
 
         // =-=-=-=-=-=-
         // get the resc hier string
         std::string resc_hier;
-        char* resc_hier_ptr = getValByKey( &structFileBundleInp->condInput, RESC_HIER_STR_KW );
-        if ( !resc_hier_ptr ) {
-            rodsLog( LOG_NOTICE, "%s :: RESC_HIER_STR_KW is NULL", __FUNCTION__ );
+        char* resc_hier_ptr = getValByKey(&structFileBundleInp->condInput, RESC_HIER_STR_KW);
+        if (!resc_hier_ptr) {
+            rodsLog(LOG_NOTICE, "%s :: RESC_HIER_STR_KW is NULL", __FUNCTION__);
             return SYS_INVALID_RESC_INPUT;
         }
 
@@ -152,17 +153,19 @@ namespace
         // prevents the archive path from shadowing the source collection during
         // recursive collection reads.
         chkObjPermAndStat_t chkObjPermAndStatInp;
-        memset( &chkObjPermAndStatInp, 0, sizeof( chkObjPermAndStatInp ) );
-        rstrcpy( chkObjPermAndStatInp.objPath, structFileBundleInp->collection, MAX_NAME_LEN );
+        memset(&chkObjPermAndStatInp, 0, sizeof(chkObjPermAndStatInp));
+        rstrcpy(chkObjPermAndStatInp.objPath, structFileBundleInp->collection, MAX_NAME_LEN);
         chkObjPermAndStatInp.flags = CHK_COLL_FOR_BUNDLE_OPR;
-        addKeyVal( &chkObjPermAndStatInp.condInput, RESC_NAME_KW, resource.c_str() );
-        addKeyVal( &chkObjPermAndStatInp.condInput, RESC_HIER_STR_KW, resc_hier.c_str() );
-        status = rsChkObjPermAndStat( rsComm, &chkObjPermAndStatInp );
-        clearKeyVal( &chkObjPermAndStatInp.condInput );
+        addKeyVal(&chkObjPermAndStatInp.condInput, RESC_NAME_KW, resource.c_str());
+        addKeyVal(&chkObjPermAndStatInp.condInput, RESC_HIER_STR_KW, resc_hier.c_str());
+        status = rsChkObjPermAndStat(rsComm, &chkObjPermAndStatInp);
+        clearKeyVal(&chkObjPermAndStatInp.condInput);
 
-        if ( status < 0 ) {
-            rodsLog( LOG_ERROR, "rsStructFileBundle: rsChkObjPermAndStat of %s error. stat = %d",
-                     chkObjPermAndStatInp.objPath, status );
+        if (status < 0) {
+            rodsLog(LOG_ERROR,
+                    "rsStructFileBundle: rsChkObjPermAndStat of %s error. stat = %d",
+                    chkObjPermAndStatInp.objPath,
+                    status);
             return status;
         }
 
