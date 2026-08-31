@@ -293,19 +293,19 @@ chkCollForBundleOpr( rsComm_t *rsComm,
  */
 int
 saveCollEntForChkColl( collEnt_t *collEnt ) {
-    if ( collEnt == NULL ) {
+    if ( collEnt == nullptr ) {
         return 0;
     }
-    if ( collEnt->collName != NULL ) {
+    if ( collEnt->collName != nullptr ) {
         collEnt->collName = strdup( collEnt->collName );
     }
-    if ( collEnt->dataName != NULL ) {
+    if ( collEnt->dataName != nullptr ) {
         collEnt->dataName = strdup( collEnt->dataName );
     }
-    if ( collEnt->resource != NULL ) {
+    if ( collEnt->resource != nullptr ) {
         collEnt->resource = strdup( collEnt->resource );
     }
-    if ( collEnt->resc_hier != NULL ) {
+    if ( collEnt->resc_hier != nullptr ) {
         collEnt->resc_hier = strdup( collEnt->resc_hier );
     }
     return 0;
@@ -313,19 +313,19 @@ saveCollEntForChkColl( collEnt_t *collEnt ) {
 
 int
 freeCollEntForChkColl( collEnt_t *collEnt ) {
-    if ( collEnt == NULL ) {
+    if ( collEnt == nullptr ) {
         return 0;
     }
-    if ( collEnt->collName != NULL ) {
+    if ( collEnt->collName != nullptr ) {
         free( collEnt->collName );
     }
-    if ( collEnt->dataName != NULL ) {
+    if ( collEnt->dataName != nullptr ) {
         free( collEnt->dataName );
     }
-    if ( collEnt->resource != NULL ) {
+    if ( collEnt->resource != nullptr ) {
         free( collEnt->resource );
     }
-    if (collEnt->resc_hier != NULL) {
+    if (collEnt->resc_hier != nullptr) {
         free(collEnt->resc_hier);
     }
 
