@@ -193,7 +193,7 @@ namespace irods
 
         for (auto&& k : _keys) {
             if (!tmp->contains(k)) {
-                THROW(KEY_NOT_FOUND, fmt::format("get_property :: path does not exist [{}]", fmt::join(_keys, ".")));
+                THROW(KEY_NOT_FOUND, "get_property :: path does not exist [" + detail::join_key_path(_keys) + "]");
             }
 
             tmp = &tmp->at(k);

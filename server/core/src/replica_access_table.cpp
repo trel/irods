@@ -22,8 +22,190 @@
 
 #include <memory>
 #include <algorithm>
+#include <map>
+#include <mutex>
 #include <vector>
 #include <chrono>
+
+#ifdef __FILC__
+
+namespace irods::experimental::replica_access_table
+{
+    namespace
+    {
+        struct access_entry
+        {
+            data_id_type data_id;
+            replica_number_type replica_number;
+            std::vector<pid_t> agent_pids;
+        };
+
+        std::string g_segment_name;
+        std::size_t g_segment_size;
+        pid_t g_owner_pid;
+        std::map<std::string, access_entry, std::less<>> g_map;
+        std::mutex g_mutex;
+
+        auto generate_replica_token() -> std::string
+        {
+            auto uuid = to_string(boost::uuids::random_generator{}());
+            while (g_map.find(uuid) != g_map.end()) {
+                uuid = to_string(boost::uuids::random_generator{}());
+            }
+
+            return uuid;
+        }
+
+        auto current_timestamp_in_seconds() noexcept -> std::int64_t
+        {
+            using std::chrono::system_clock;
+            using std::chrono::seconds;
+            using std::chrono::duration_cast;
+
+            return duration_cast<seconds>(system_clock::now().time_since_epoch()).count();
+        }
+    } // anonymous namespace
+
+    auto init(const std::string_view _shm_name, std::size_t _shm_size) -> void
+    {
+        if (getpid() == g_owner_pid) {
+            return;
+        }
+
+        std::scoped_lock lk{g_mutex};
+        g_segment_name = fmt::format("{}_{}_{}", _shm_name, getpid(), current_timestamp_in_seconds());
+        g_segment_size = _shm_size;
+        g_owner_pid = getpid();
+        g_map.clear();
+    }
+
+    auto deinit() noexcept -> void
+    {
+        if (getpid() != g_owner_pid) {
+            return;
+        }
+
+        try {
+            std::scoped_lock lk{g_mutex};
+            g_owner_pid = 0;
+            g_map.clear();
+        }
+        catch (...) {}
+    }
+
+    auto create_new_entry(data_id_type _data_id,
+                          replica_number_type _replica_number,
+                          pid_t _pid) -> replica_token_type
+    {
+        std::scoped_lock lk{g_mutex};
+        const auto exists = [_data_id, _replica_number](const auto& v)
+        {
+            return v.second.data_id == _data_id && v.second.replica_number == _replica_number;
+        };
+
+        if (std::find_if(g_map.begin(), g_map.end(), exists) != g_map.end()) {
+            throw replica_access_table_error{"replica_access_table: Entry already exists"};
+        }
+
+        auto uuid = generate_replica_token();
+        g_map.emplace(uuid, access_entry{_data_id, _replica_number, {_pid}});
+
+        return uuid;
+    }
+
+    auto append_pid(replica_token_view_type _token,
+                    data_id_type _data_id,
+                    replica_number_type _replica_number,
+                    pid_t _pid) -> void
+    {
+        std::scoped_lock lk{g_mutex};
+        auto iter = g_map.find(_token);
+        if (iter == g_map.end()) {
+            throw replica_access_table_error{"replica_access_table: Invalid token"};
+        }
+
+        auto& v = iter->second;
+        if (v.data_id != _data_id || v.replica_number != _replica_number) {
+            throw replica_access_table_error{"replica_access_table: Invalid data id or replica number"};
+        }
+
+        v.agent_pids.push_back(_pid);
+    }
+
+    auto contains(data_id_type _data_id, replica_number_type _replica_number) -> bool
+    {
+        std::scoped_lock lk{g_mutex};
+        return std::any_of(g_map.begin(), g_map.end(), [_data_id, _replica_number](const auto& v) {
+            return v.second.data_id == _data_id && v.second.replica_number == _replica_number;
+        });
+    }
+
+    auto contains(replica_token_view_type _token,
+                  data_id_type _data_id,
+                  replica_number_type _replica_number) -> bool
+    {
+        std::scoped_lock lk{g_mutex};
+        if (const auto iter = g_map.find(_token); iter != g_map.end()) {
+            return iter->second.data_id == _data_id && iter->second.replica_number == _replica_number;
+        }
+
+        return false;
+    }
+
+    auto erase_pid(replica_token_view_type _token, pid_t _pid) -> std::optional<restorable_entry>
+    {
+        std::scoped_lock lk{g_mutex};
+        if (const auto iter = g_map.find(_token); iter != g_map.end()) {
+            auto& pids = iter->second.agent_pids;
+            if (const auto pos = std::find(pids.begin(), pids.end(), _pid); pos != pids.end()) {
+                restorable_entry entry{_token, iter->second.data_id, iter->second.replica_number, *pos};
+                pids.erase(pos);
+
+                if (pids.empty()) {
+                    g_map.erase(iter);
+                }
+
+                return entry;
+            }
+        }
+
+        return std::nullopt;
+    }
+
+    auto erase_pid(pid_t _pid) -> void
+    {
+        std::scoped_lock lk{g_mutex};
+        for (auto iter = g_map.begin(); iter != g_map.end();) {
+            auto& pids = iter->second.agent_pids;
+            pids.erase(std::remove(pids.begin(), pids.end(), _pid), pids.end());
+
+            if (pids.empty()) {
+                iter = g_map.erase(iter);
+            }
+            else {
+                ++iter;
+            }
+        }
+    }
+
+    auto restore(const restorable_entry& _entry) -> void
+    {
+        std::scoped_lock lk{g_mutex};
+        if (auto iter = g_map.find(_entry.token); iter != g_map.end()) {
+            auto& v = iter->second;
+            if (v.data_id != _entry.data_id || v.replica_number != _entry.replica_number) {
+                throw replica_access_table_error{"replica_access_table: Invalid data id or replica number"};
+            }
+
+            v.agent_pids.push_back(_entry.pid);
+        }
+        else {
+            g_map.emplace(_entry.token, access_entry{_entry.data_id, _entry.replica_number, {_entry.pid}});
+        }
+    }
+} // namespace irods::experimental::replica_access_table
+
+#else
 
 namespace irods::experimental::replica_access_table
 {
@@ -297,3 +479,4 @@ namespace irods::experimental::replica_access_table
     } // restore
 } // namespace irods::experimental::replica_access_table
 
+#endif

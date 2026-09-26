@@ -66,6 +66,7 @@ Build these dependencies before configuring iRODS:
 - `libarchive 3.7.7`
 - `Boost 1.81.0`
 - `unixODBC 2.3.12`
+- `psqlODBC 18.00.0004`
 - `nanodbc 2.14.0`
 - `Catch2 3.4.0`
 
@@ -291,11 +292,24 @@ Apply these changes to the generated source/build tree:
   from `libodbc_la_LDFLAGS`.
 - In `odbcinst/Makefile`, remove `-export-symbols ./odbcinst.exp` from
   `libodbcinst_la_LDFLAGS`.
-- In `libltdl/ltdl.c`, after the internal includes, add:
+- In `libltdl/ltdl.c`, after the internal includes, add a preload table for
+  the statically linked `dlopen` loader. The generated libtool preload table was
+  not usable with Fil-C and caused `lt_dlinit()` or driver loading to fail.
 
 ```c
-const lt_dlsymlist lt_libltdlc_LTX_preloaded_symbols[] = {{0, 0}};
+extern lt_dlvtable *dlopen_LTX_get_vtable (lt_user_data loader_data);
+
+const lt_dlsymlist lt_libltdlc_LTX_preloaded_symbols[] = {
+  {"libltdlc", 0},
+  {"dlopen", 0},
+  {"get_vtable", (void *) dlopen_LTX_get_vtable},
+  {0, 0}
+};
 ```
+- In `DriverManager/SQLConnect.c`, do not hold `mutex_lib_entry()` while
+  calling the driver's environment allocation and environment attribute
+  functions. With Fil-C-built psqlODBC, calling `SQLAllocHandle` and
+  `SQLSetEnvAttr` under that mutex can deadlock during driver initialization.
 
 Build and install the ODBC headers and driver-manager libraries:
 
@@ -333,6 +347,98 @@ int main(void) {
 }
 EOF
 /tmp/opencode/odbc-link-test
+```
+
+### psqlODBC 18.00.0004
+
+iRODS needs a PostgreSQL ODBC driver built with Fil-C. Build psqlODBC after
+installing the Fil-C-built unixODBC libraries:
+
+```bash
+curl -L --fail --show-error \
+  --output /tmp/opencode/psqlodbc-18.00.0004.tar.gz \
+  https://github.com/postgresql-interfaces/psqlodbc/archive/refs/tags/REL-18_00_0004.tar.gz
+tar -xf /tmp/opencode/psqlodbc-18.00.0004.tar.gz -C /tmp/opencode
+cd /tmp/opencode/psqlodbc-REL-18_00_0004
+CPPFLAGS="-I/opt/fil/include -DSQLCOLATTRIBUTE_SQLLEN" \
+LDFLAGS="-L/opt/fil/lib -Wl,-rpath,/opt/fil/lib" \
+./configure \
+  --prefix=/opt/fil \
+  --with-unixodbc=/opt/fil \
+  --with-libpq=/opt/fil \
+  --disable-dependency-tracking
+```
+
+Apply these changes to the generated `Makefile`:
+
+- Remove `-export-symbols-regex '^SQL'` from `AM_LDFLAGS`, otherwise Fil-C's
+  transformed exported symbols are hidden.
+- Add `-Wl,-Bsymbolic-functions` to `LDFLAGS`, otherwise ODBC entry-point
+  symbol interposition can route psqlODBC calls back through `libodbc` and cause
+  recursive driver-manager connection setup.
+
+Then build and install:
+
+```bash
+make -j30
+make install
+```
+
+Configure the Fil-C ODBC files:
+
+```ini
+# /opt/fil/etc/odbcinst.ini
+[PostgreSQL ANSI]
+Description=PostgreSQL ODBC driver (ANSI version)
+Driver=/opt/fil/lib/psqlodbca.so
+Driver64=/opt/fil/lib/psqlodbca.so
+Debug=0
+CommLog=1
+DisableGetFunctions=1
+
+[PostgreSQL Unicode]
+Description=PostgreSQL ODBC driver (Unicode version)
+Driver=/opt/fil/lib/psqlodbcw.so
+Driver64=/opt/fil/lib/psqlodbcw.so
+Debug=0
+CommLog=1
+DisableGetFunctions=1
+```
+
+```ini
+# /opt/fil/etc/odbc.ini
+[iRODS Catalog]
+Driver=PostgreSQL ANSI
+Description=iRODS Catalog
+Trace=No
+Debug=0
+CommLog=0
+TraceFile=
+Database=ICAT
+Servername=localhost
+Port=5432
+ReadOnly=No
+Ksqo=0
+RowVersioning=No
+ShowSystemTables=No
+ShowOidColumn=No
+FakeOidIndex=No
+ConnSettings=
+```
+
+Verify the driver stack with a Fil-C ODBC caller:
+
+```bash
+ODBCINI=/opt/fil/etc/odbc.ini \
+ODBCSYSINI=/opt/fil/etc \
+LD_LIBRARY_PATH=/opt/fil/lib \
+  /tmp/opencode/odbc-connect-test
+```
+
+Expected result:
+
+```text
+connect rc=0
 ```
 
 ### nanodbc 2.14.0
@@ -457,7 +563,7 @@ cmake -S . -B build-filc -G Ninja \
   -DIRODS_BUILD_WITH_CLANG=OFF \
   -DIRODS_BUILD_WITH_WERROR=OFF \
   -DIRODS_USE_LIBSYSTEMD=OFF \
-  -DCMAKE_CXX_FLAGS=-DFMT_USE_CONSTEVAL=0 \
+  -DCMAKE_CXX_FLAGS="-DFMT_USE_CONSTEVAL=0 -UBOOST_STACKTRACE_USE_ADDR2LINE -DBOOST_STACKTRACE_USE_NOOP -DBOOST_INTERPROCESS_FORCE_GENERIC_EMULATION" \
   -DCMAKE_PREFIX_PATH=/opt/fil \
   -Dfmt_DIR=/opt/fil/lib/cmake/fmt \
   -Dspdlog_DIR=/opt/fil/lib/cmake/spdlog \
@@ -520,7 +626,7 @@ cmake -S . -B build-filc -G Ninja \
   -DIRODS_BUILD_WITH_WERROR=OFF \
   -DIRODS_USE_LIBSYSTEMD=OFF \
   -DIRODS_UNIT_TESTS_BUILD=YES \
-  -DCMAKE_CXX_FLAGS=-DFMT_USE_CONSTEVAL=0 \
+  -DCMAKE_CXX_FLAGS="-DFMT_USE_CONSTEVAL=0 -UBOOST_STACKTRACE_USE_ADDR2LINE -DBOOST_STACKTRACE_USE_NOOP -DBOOST_INTERPROCESS_FORCE_GENERIC_EMULATION" \
   -DCMAKE_PREFIX_PATH=/opt/fil \
   -Dfmt_DIR=/opt/fil/lib/cmake/fmt \
   -Dspdlog_DIR=/opt/fil/lib/cmake/spdlog \
@@ -565,10 +671,10 @@ exit "$failures"
 ```
 
 Observed direct unit-test result after rebuilding Catch2 with
-`CATCH_CONFIG_NO_POSIX_SIGNALS`:
+`CATCH_CONFIG_NO_POSIX_SIGNALS` and adding the Fil-C shared-memory fallbacks:
 
 ```text
-SUMMARY total=73 passed=27 failed=46
+SUMMARY total=73 passed=34 failed=39
 ```
 
 The following tests passed:
@@ -585,6 +691,7 @@ The following tests passed:
 - `irods_getRodsEnv`
 - `irods_hashers`
 - `irods_host_list_context_string`
+- `irods_hostname_cache`
 - `irods_json_events`
 - `irods_key_value_proxy`
 - `irods_lifetime_manager`
@@ -596,6 +703,7 @@ The following tests passed:
 - `irods_rerror_stack`
 - `irods_scoped_privileged_client`
 - `irods_server_utilities`
+- `irods_server_properties`
 - `irods_shared_memory_object`
 - `irods_system_error`
 - `irods_version`
@@ -608,9 +716,13 @@ Most failures are not build failures. They fall into these categories:
   or server state.
 - Fil-C `Not implemented` panics when iRODS exception formatting calls
   `irods::stacktrace::dump()`, which reaches `_Unwind_Backtrace` through
-  `boost::stacktrace`.
-- Fil-C `cannot handle inline asm` panics in Boost.Interprocess code paths that
-  use inline atomic `lock cmpxchg` with pointer arguments.
+  `boost::stacktrace`. Configure with `-UBOOST_STACKTRACE_USE_ADDR2LINE` and
+  `-DBOOST_STACKTRACE_USE_NOOP` to avoid this path.
+- Boost.Interprocess managed shared memory is not safe for Fil-C capabilities in
+  several iRODS tests and server code paths. Use
+  `-DBOOST_INTERPROCESS_FORCE_GENERIC_EMULATION` and the iRODS `__FILC__`
+  in-process fallbacks for host cache, DNS cache, replica access table, and
+  access-time queue behavior.
 - Fil-C use-after-free/null-object reports in a smaller number of tests, for
   example `irods_data_object_finalize`, `irods_logical_locking`, and
   `irods_server_properties`.
@@ -637,9 +749,43 @@ The verified output included the iCommands help text and:
 irodsServer v5.1.0-7fb3557
 ```
 
+## Installed Server Smoke Test
+
+The generated packages still declare normal system package dependencies. Install
+the Fil-C-built packages with `dpkg --force-depends`, then patch ELF RPATHs so
+installed iRODS binaries can find both packaged iRODS libraries and `/opt/fil`:
+
+```bash
+dpkg --force-depends -i \
+  build-filc/irods-runtime_5.1.0-0~noble_amd64.deb \
+  build-filc/irods-icommands_5.1.0-0~noble_amd64.deb \
+  build-filc/irods-server_5.1.0-0~noble_amd64.deb \
+  build-filc/irods-database-plugin-postgres_5.1.0-0~noble_amd64.deb
+```
+
+After installation, use `/opt/fil/bin/patchelf --set-rpath /usr/lib:/opt/fil/lib`
+on the installed ELF binaries and shared objects from the iRODS packages. Do not
+add `/opt/fil/lib` to the global loader cache because that breaks normal system
+tools by loading Fil-C libraries into non-Fil-C processes.
+
+This smoke test passed with the Fil-C-built server and PostgreSQL catalog stack:
+
+```bash
+su - irods -c 'irodsServer -d'
+su - irods -c 'printf "rods\n" | iinit && ils'
+```
+
+Observed output:
+
+```text
+Connecting as rods#tempZone to cfec0e96ddc2:1247 ...
+/tempZone/home/rods:
+```
+
 ## Remaining Caveats
 
-- Full package installation and server smoke testing have not been performed.
+- The installed server smoke test passes, but the packaging metadata still needs
+  work before these packages can be installed normally with `apt`.
 - Unit tests were built and executed directly from the build tree. Some failures
   are expected without an installed/configured iRODS server environment, but the
   Fil-C stacktrace and inline-assembly panics are real follow-up work.

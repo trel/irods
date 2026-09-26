@@ -19,9 +19,238 @@
 #include <cstring>
 #include <utility>
 #include <algorithm>
+#include <map>
+#include <shared_mutex>
+#include <vector>
 
 #include <sys/types.h>
 #include <unistd.h>
+
+#ifdef __FILC__
+
+namespace
+{
+    using std::chrono::duration_cast;
+    using std::chrono::seconds;
+    using clock_type = std::chrono::system_clock;
+
+    struct address_info
+    {
+        int flags;
+        int family;
+        int socktype;
+        int protocol;
+        socklen_t addrlen;
+        std::vector<char> addr;
+        std::string canonname;
+        std::int64_t expiration;
+        std::int64_t expires_after;
+    };
+
+    std::string g_segment_name;
+    std::size_t g_segment_size;
+    pid_t g_owner_pid;
+    std::map<std::string, std::vector<address_info>, std::less<>> g_map;
+    std::shared_mutex g_mutex;
+
+    auto current_timestamp_in_seconds() noexcept -> std::int64_t
+    {
+        return duration_cast<seconds>(clock_type::now().time_since_epoch()).count();
+    }
+
+    auto free_address_info(addrinfo* _p) -> void
+    {
+        for (addrinfo* current = _p, *prev = nullptr; current;) {
+            std::free(current->ai_addr);
+            std::free(current->ai_canonname);
+            prev = current;
+            current = current->ai_next;
+            std::free(prev);
+        }
+    }
+
+    auto make_address_info(const addrinfo& _info, seconds _expires_after) -> address_info
+    {
+        address_info info{_info.ai_flags,
+                          _info.ai_family,
+                          _info.ai_socktype,
+                          _info.ai_protocol,
+                          _info.ai_addrlen,
+                          {},
+                          {},
+                          {},
+                          _expires_after.count()};
+
+        if (_info.ai_addr) {
+            const auto* p = reinterpret_cast<const char*>(_info.ai_addr);
+            info.addr.assign(p, p + _info.ai_addrlen);
+        }
+
+        if (_info.ai_canonname) {
+            info.canonname = _info.ai_canonname;
+        }
+
+        const auto tp = clock_type::now() + _expires_after;
+        info.expiration = duration_cast<seconds>(tp.time_since_epoch()).count();
+        return info;
+    }
+
+    auto to_addrinfo(const address_info& _info) -> addrinfo*
+    {
+        auto* p = static_cast<addrinfo*>(std::malloc(sizeof(addrinfo)));
+        std::memset(p, 0, sizeof(addrinfo));
+        p->ai_flags = _info.flags;
+        p->ai_family = _info.family;
+        p->ai_socktype = _info.socktype;
+        p->ai_protocol = _info.protocol;
+        p->ai_addrlen = _info.addrlen;
+
+        if (!_info.addr.empty()) {
+            p->ai_addr = static_cast<sockaddr*>(std::malloc(_info.addr.size()));
+            std::memcpy(p->ai_addr, _info.addr.data(), _info.addr.size());
+        }
+
+        if (!_info.canonname.empty()) {
+            p->ai_canonname = static_cast<char*>(std::malloc(_info.canonname.size() + 1));
+            std::strncpy(p->ai_canonname, _info.canonname.c_str(), _info.canonname.size());
+            p->ai_canonname[_info.canonname.size()] = 0;
+        }
+
+        return p;
+    }
+} // anonymous namespace
+
+namespace irods::experimental::net::dns_cache
+{
+    auto init(const std::string_view _shm_name, std::size_t _shm_size) -> void
+    {
+        if (getpid() == g_owner_pid) {
+            return;
+        }
+
+        std::unique_lock lk{g_mutex};
+        g_segment_name = fmt::format("{}_{}_{}", _shm_name, getpid(), current_timestamp_in_seconds());
+        g_segment_size = _shm_size;
+        g_owner_pid = getpid();
+        g_map.clear();
+    }
+
+    auto deinit() noexcept -> void
+    {
+        if (getpid() != g_owner_pid) {
+            return;
+        }
+
+        try {
+            std::unique_lock lk{g_mutex};
+            g_owner_pid = 0;
+            g_map.clear();
+        }
+        catch (...) {}
+    }
+
+    auto init_no_create(const std::string_view _shm_name) -> void
+    {
+        std::unique_lock lk{g_mutex};
+        g_owner_pid = 0;
+        g_segment_name = std::string{_shm_name};
+    }
+
+    auto shared_memory_name() -> std::string_view
+    {
+        return g_segment_name;
+    }
+
+    auto insert_or_assign(const std::string_view _key,
+                          const addrinfo& _info,
+                          seconds _expires_after) -> bool
+    {
+        std::unique_lock lk{g_mutex};
+        auto [iter, inserted] = g_map.insert_or_assign(std::string{_key}, std::vector<address_info>{});
+
+        for (const auto* p = &_info; p; p = p->ai_next) {
+            iter->second.push_back(make_address_info(*p, _expires_after));
+        }
+
+        return inserted;
+    }
+
+    auto lookup(const std::string_view _key) -> std::unique_ptr<addrinfo, addrinfo_deleter_type>
+    {
+        std::shared_lock lk{g_mutex};
+        if (auto iter = g_map.find(_key); iter != g_map.end()) {
+            if (auto& list = iter->second; !list.empty() && current_timestamp_in_seconds() < list.front().expiration) {
+                addrinfo* first{};
+                addrinfo* prev{};
+
+                for (auto& node : list) {
+                    auto* current = to_addrinfo(node);
+                    if (!prev) {
+                        first = current;
+                    }
+                    else {
+                        prev->ai_next = current;
+                    }
+
+                    prev = current;
+                }
+
+                return {first, free_address_info};
+            }
+        }
+
+        return {nullptr, nullptr};
+    }
+
+    auto erase(const std::string_view _key) -> void
+    {
+        std::unique_lock lk{g_mutex};
+        g_map.erase(std::string{_key});
+    }
+
+    auto erase_expired_entries() -> void
+    {
+        std::unique_lock lk{g_mutex};
+        const auto now = current_timestamp_in_seconds();
+        for (auto iter = g_map.begin(), end = g_map.end(); iter != end;) {
+            if (!iter->second.empty() && now >= iter->second.front().expiration) {
+                iter = g_map.erase(iter);
+            }
+            else {
+                ++iter;
+            }
+        }
+    }
+
+    auto clear() -> void
+    {
+        std::unique_lock lk{g_mutex};
+        g_map.clear();
+    }
+
+    auto size() -> std::size_t
+    {
+        std::shared_lock lk{g_mutex};
+        return g_map.size();
+    }
+
+    auto available_memory() -> std::size_t
+    {
+        std::shared_lock lk{g_mutex};
+
+        std::size_t used{};
+        for (const auto& [key, values] : g_map) {
+            used += key.size() + sizeof(values);
+            for (const auto& value : values) {
+                used += sizeof(value) + value.addr.size() + value.canonname.size();
+            }
+        }
+
+        return used < g_segment_size ? g_segment_size - used : 0;
+    }
+} // namespace irods::experimental::net::dns_cache
+
+#else
 
 namespace
 {
@@ -331,3 +560,4 @@ namespace irods::experimental::net::dns_cache
     } // available_memory
 } // namespace irods::experimental::net::dns_cache
 
+#endif

@@ -18,9 +18,150 @@
 #include <cstring>
 #include <utility>
 #include <algorithm>
+#include <map>
+#include <shared_mutex>
 
 #include <sys/types.h>
 #include <unistd.h>
+
+#ifdef __FILC__
+
+namespace
+{
+    using std::chrono::duration_cast;
+    using std::chrono::seconds;
+    using clock_type = std::chrono::system_clock;
+
+    struct alias
+    {
+        std::string hostname;
+        std::int64_t expiration;
+        std::int64_t expires_after;
+    };
+
+    std::string g_segment_name;
+    std::size_t g_segment_size;
+    pid_t g_owner_pid;
+    std::map<std::string, alias, std::less<>> g_map;
+    std::shared_mutex g_mutex;
+
+    auto current_timestamp_in_seconds() noexcept -> std::int64_t
+    {
+        return duration_cast<seconds>(clock_type::now().time_since_epoch()).count();
+    }
+} // anonymous namespace
+
+namespace irods::experimental::net::hostname_cache
+{
+    auto init(const std::string_view _shm_name, std::size_t _shm_size) -> void
+    {
+        if (getpid() == g_owner_pid) {
+            return;
+        }
+
+        std::unique_lock lk{g_mutex};
+        g_segment_name = fmt::format("{}_{}_{}", _shm_name, getpid(), current_timestamp_in_seconds());
+        g_segment_size = _shm_size;
+        g_owner_pid = getpid();
+        g_map.clear();
+    }
+
+    auto deinit() noexcept -> void
+    {
+        if (getpid() != g_owner_pid) {
+            return;
+        }
+
+        try {
+            std::unique_lock lk{g_mutex};
+            g_owner_pid = 0;
+            g_map.clear();
+        }
+        catch (...) {}
+    }
+
+    auto init_no_create(const std::string_view _shm_name) -> void
+    {
+        std::unique_lock lk{g_mutex};
+        g_owner_pid = 0;
+        g_segment_name = std::string{_shm_name};
+    }
+
+    auto shared_memory_name() -> std::string_view
+    {
+        return g_segment_name;
+    }
+
+    auto insert_or_assign(const std::string_view _key,
+                          const std::string_view _alias,
+                          std::chrono::seconds _expires_after) -> bool
+    {
+        std::unique_lock lk{g_mutex};
+        const auto tp = clock_type::now() + _expires_after;
+        const auto expiration = duration_cast<seconds>(tp.time_since_epoch()).count();
+        const auto [iter, inserted] = g_map.insert_or_assign(
+            std::string{_key}, alias{std::string{_alias}, expiration, _expires_after.count()});
+        return inserted;
+    }
+
+    auto lookup(const std::string_view _key) -> std::optional<std::string>
+    {
+        std::shared_lock lk{g_mutex};
+        if (auto iter = g_map.find(_key); iter != g_map.end()) {
+            if (current_timestamp_in_seconds() < iter->second.expiration) {
+                return iter->second.hostname;
+            }
+        }
+
+        return std::nullopt;
+    }
+
+    auto erase(const std::string_view _key) -> void
+    {
+        std::unique_lock lk{g_mutex};
+        g_map.erase(std::string{_key});
+    }
+
+    auto erase_expired_entries() -> void
+    {
+        std::unique_lock lk{g_mutex};
+        const auto now = current_timestamp_in_seconds();
+        for (auto iter = g_map.begin(), end = g_map.end(); iter != end;) {
+            if (now >= iter->second.expiration) {
+                iter = g_map.erase(iter);
+            }
+            else {
+                ++iter;
+            }
+        }
+    }
+
+    auto clear() -> void
+    {
+        std::unique_lock lk{g_mutex};
+        g_map.clear();
+    }
+
+    auto size() -> std::size_t
+    {
+        std::shared_lock lk{g_mutex};
+        return g_map.size();
+    }
+
+    auto available_memory() -> std::size_t
+    {
+        std::shared_lock lk{g_mutex};
+
+        std::size_t used{};
+        for (const auto& [key, value] : g_map) {
+            used += key.size() + value.hostname.size() + sizeof(value);
+        }
+
+        return used < g_segment_size ? g_segment_size - used : 0;
+    }
+} // namespace irods::experimental::net::hostname_cache
+
+#else
 
 namespace
 {
@@ -223,3 +364,4 @@ namespace irods::experimental::net::hostname_cache
     } // available_memory
 } // namespace irods::experimental::net::hostname_cache
 
+#endif

@@ -20,6 +20,24 @@
 
 namespace irods
 {
+    namespace detail
+    {
+        inline auto join_key_path(const configuration_parser::key_path_t& _keys) -> std::string
+        {
+            std::string path;
+
+            for (const auto& k : _keys) {
+                if (!path.empty()) {
+                    path += '.';
+                }
+
+                path += k;
+            }
+
+            return path;
+        }
+    } // namespace detail
+
     /// @brief kw for server property map storing strict acl configuration
     extern const std::string STRICT_ACL_KW;
 
@@ -103,7 +121,7 @@ namespace irods
 
             for (auto&& k : _keys) {
                 if (!tmp->contains(k)) {
-                    THROW(KEY_NOT_FOUND, fmt::format("path does not exist [{}].", fmt::join(_keys, ".")));
+                    THROW(KEY_NOT_FOUND, "path does not exist [" + detail::join_key_path(_keys) + "].");
                 }
 
                 tmp = &tmp->at(k);

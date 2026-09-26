@@ -81,12 +81,14 @@ auto set_session_signature_client_side(rcComm_t* _comm, const char* _buffer, std
 
     std::memset(_comm->session_signature, 0, sizeof(RcComm::session_signature));
 
-    const std::string_view bytes{_buffer, required_size};
-    const auto* end = fmt::format_to(_comm->session_signature, "{:02x}", fmt::join(bytes, ""))
-#if FMT_VERSION >= 110000
-        .out
-#endif
-        ;
+    constexpr char hex[] = "0123456789abcdef";
+    auto* out = _comm->session_signature;
+    for (std::size_t i = 0; i < required_size; ++i) {
+        const auto byte = static_cast<unsigned char>(_buffer[i]);
+        *out++ = hex[byte >> 4];
+        *out++ = hex[byte & 0x0f];
+    }
+    const auto* end = out;
 
     // If the difference in position is not double the original size, something went wrong.
     // The session signature is expected to be 32 bytes long (w/o the null byte). Each byte
