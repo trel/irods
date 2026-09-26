@@ -67,6 +67,7 @@ Build these dependencies before configuring iRODS:
 - `Boost 1.81.0`
 - `unixODBC 2.3.12`
 - `nanodbc 2.14.0`
+- `Catch2 3.4.0`
 
 ### fmt 8.1.1
 
@@ -398,12 +399,47 @@ cmake --build /tmp/opencode/nanodbc-2.14.0-build-filc \
 cmake --install /tmp/opencode/nanodbc-2.14.0-build-filc
 ```
 
+### Catch2 3.4.0
+
+Build Catch2 into `/opt/fil` before enabling iRODS unit tests. The system
+Catch2 package is not suitable for Fil-C unit tests because it is built for the
+system ABI.
+
+Disable Catch2's POSIX signal handling. Fil-C 0.685 reports `sigaltstack` as
+unsupported, and Catch2's fatal-condition handler uses `sigaltstack` unless
+`CATCH_CONFIG_NO_POSIX_SIGNALS` is defined when Catch2 is built.
+
+```bash
+curl -L --fail --show-error \
+  --output /tmp/opencode/Catch2-3.4.0.tar.gz \
+  https://github.com/catchorg/Catch2/archive/refs/tags/v3.4.0.tar.gz
+tar -xf /tmp/opencode/Catch2-3.4.0.tar.gz -C /tmp/opencode
+cmake -S /tmp/opencode/Catch2-3.4.0 \
+  -B /tmp/opencode/Catch2-3.4.0-build-filc \
+  -G Ninja \
+  -DCMAKE_CXX_COMPILER=/opt/fil/bin/fil++ \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX=/opt/fil \
+  -DCMAKE_CXX_FLAGS=-DCATCH_CONFIG_NO_POSIX_SIGNALS \
+  -DBUILD_TESTING=OFF \
+  -DCATCH_INSTALL_DOCS=OFF \
+  -DCATCH_INSTALL_EXTRAS=ON
+cmake --build /tmp/opencode/Catch2-3.4.0-build-filc --parallel 30
+cmake --install /tmp/opencode/Catch2-3.4.0-build-filc
+```
+
 ## iRODS Source Requirement
 
 Use a source tree containing the `plugins/microservices/src/json_parse.cpp`
 fix for `IntArray_MS_T` input. That code must copy integer byte values to a
 string before calling `nlohmann::json::parse`. Without that change,
 nlohmann-json instantiates `std::char_traits<int>` under libc++.
+
+Use a source tree containing the `unit_tests/src/test_data_obj_stat_api.cpp`
+fix for its local object-stat helper. The helper should not be named `stat`,
+and its `std::unique_ptr` deleter should be `decltype(&freeRodsObjStat)` rather
+than `decltype(freeRodsObjStat)&`. Without that change, libc++ instantiates
+`std::unique_ptr<rodsObjStat, int (&)(rodsObjStat*)>`, which fails under Fil-C.
 
 ## Configure iRODS
 
@@ -426,6 +462,7 @@ cmake -S . -B build-filc -G Ninja \
   -Dfmt_DIR=/opt/fil/lib/cmake/fmt \
   -Dspdlog_DIR=/opt/fil/lib/cmake/spdlog \
   -Dnlohmann_json_DIR=/opt/fil/share/cmake/nlohmann_json \
+  -DCatch2_DIR=/opt/fil/lib/cmake/Catch2 \
   -DPKG_CONFIG_EXECUTABLE=/opt/fil/bin/pkg-config \
   -DIRODS_EXTERNALS_FULLPATH_BOOST=/opt/fil \
   -DIRODS_EXTERNALS_FULLPATH_JSONCONS=/opt/fil \
@@ -442,6 +479,8 @@ Important configure flags:
   package, it injects `/usr/include` into many compile commands.
 - `fmt_DIR` and `spdlog_DIR` should also be pinned to `/opt/fil` to avoid system
   ABI contamination.
+- `Catch2_DIR` must point at the Fil-C-built Catch2 package before enabling
+  unit tests.
 
 ## Build iRODS
 
@@ -468,6 +507,117 @@ This produced:
 - `build-filc/irods-runtime_5.1.0-0~noble_amd64.deb`
 - `build-filc/irods-server_5.1.0-0~noble_amd64.deb`
 
+## Build Unit Tests
+
+Enable unit tests in the same build tree after installing Fil-C-built Catch2:
+
+```bash
+cmake -S . -B build-filc -G Ninja \
+  -DCMAKE_C_COMPILER=/opt/fil/bin/filcc \
+  -DCMAKE_CXX_COMPILER=/opt/fil/bin/fil++ \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DIRODS_BUILD_WITH_CLANG=OFF \
+  -DIRODS_BUILD_WITH_WERROR=OFF \
+  -DIRODS_USE_LIBSYSTEMD=OFF \
+  -DIRODS_UNIT_TESTS_BUILD=YES \
+  -DCMAKE_CXX_FLAGS=-DFMT_USE_CONSTEVAL=0 \
+  -DCMAKE_PREFIX_PATH=/opt/fil \
+  -Dfmt_DIR=/opt/fil/lib/cmake/fmt \
+  -Dspdlog_DIR=/opt/fil/lib/cmake/spdlog \
+  -Dnlohmann_json_DIR=/opt/fil/share/cmake/nlohmann_json \
+  -DCatch2_DIR=/opt/fil/lib/cmake/Catch2 \
+  -DPKG_CONFIG_EXECUTABLE=/opt/fil/bin/pkg-config \
+  -DIRODS_EXTERNALS_FULLPATH_BOOST=/opt/fil \
+  -DIRODS_EXTERNALS_FULLPATH_JSONCONS=/opt/fil \
+  -DIRODS_EXTERNALS_FULLPATH_NANODBC=/opt/fil \
+  -DODBC_LIBRARY=/opt/fil/lib/libodbc.so
+cmake --build build-filc --target all-unit_tests --parallel 30
+```
+
+`ctest -N` still reported zero tests in this build, so run the unit-test
+binaries directly.
+
+```bash
+rm -rf /tmp/opencode/irods-filc-unit-test-logs
+mkdir -p /tmp/opencode/irods-filc-unit-test-logs
+failures=0
+total=0
+passed=0
+for t in build-filc/unit_tests/irods_*; do
+  if [ -x "$t" ] && [ -f "$t" ]; then
+    name=$(basename "$t")
+    total=$((total + 1))
+    log="/tmp/opencode/irods-filc-unit-test-logs/${name}.log"
+    printf 'RUN %s\n' "$name"
+    if LD_LIBRARY_PATH="/src/irods/build-filc/lib:/src/irods/build-filc/lib/core:/src/irods/build-filc/server:/opt/fil/lib" \
+      timeout 120s "$t" >"$log" 2>&1; then
+      printf 'PASS %s\n' "$name"
+      passed=$((passed + 1))
+    else
+      rc=$?
+      printf 'FAIL %s rc=%s log=%s\n' "$name" "$rc" "$log"
+      failures=$((failures + 1))
+    fi
+  fi
+done
+printf 'SUMMARY total=%s passed=%s failed=%s\n' "$total" "$passed" "$failures"
+exit "$failures"
+```
+
+Observed direct unit-test result after rebuilding Catch2 with
+`CATCH_CONFIG_NO_POSIX_SIGNALS`:
+
+```text
+SUMMARY total=73 passed=27 failed=46
+```
+
+The following tests passed:
+
+- `irods_capped_memory_resource`
+- `irods_client_server_negotiation`
+- `irods_data_object_proxy`
+- `irods_delay_hints_parser`
+- `irods_environment_variables`
+- `irods_file_object`
+- `irods_fixed_buffer_resource`
+- `irods_fully_qualified_username`
+- `irods_generate_random_alphanumeric_string`
+- `irods_getRodsEnv`
+- `irods_hashers`
+- `irods_host_list_context_string`
+- `irods_json_events`
+- `irods_key_value_proxy`
+- `irods_lifetime_manager`
+- `irods_linked_list_iterator`
+- `irods_packstruct`
+- `irods_process_stash`
+- `irods_rc_data_obj_repl`
+- `irods_re_serialization`
+- `irods_rerror_stack`
+- `irods_scoped_privileged_client`
+- `irods_server_utilities`
+- `irods_shared_memory_object`
+- `irods_system_error`
+- `irods_version`
+- `irods_with_durability`
+
+Most failures are not build failures. They fall into these categories:
+
+- Missing installed iRODS runtime environment, such as
+  `/root/.irods/irods_environment.json`, for tests that expect configured client
+  or server state.
+- Fil-C `Not implemented` panics when iRODS exception formatting calls
+  `irods::stacktrace::dump()`, which reaches `_Unwind_Backtrace` through
+  `boost::stacktrace`.
+- Fil-C `cannot handle inline asm` panics in Boost.Interprocess code paths that
+  use inline atomic `lock cmpxchg` with pointer arguments.
+- Fil-C use-after-free/null-object reports in a smaller number of tests, for
+  example `irods_data_object_finalize`, `irods_logical_locking`, and
+  `irods_server_properties`.
+
+Representative logs are under
+`/tmp/opencode/irods-filc-unit-test-logs/<test-name>.log`.
+
 ## Verify Build Tree Binaries
 
 Use `LD_LIBRARY_PATH` so binaries find the build-tree iRODS libraries and the
@@ -490,6 +640,9 @@ irodsServer v5.1.0-7fb3557
 ## Remaining Caveats
 
 - Full package installation and server smoke testing have not been performed.
+- Unit tests were built and executed directly from the build tree. Some failures
+  are expected without an installed/configured iRODS server environment, but the
+  Fil-C stacktrace and inline-assembly panics are real follow-up work.
 - The generated `.deb` metadata still describes normal iRODS/system dependency
   packages. It does not yet describe the ad hoc `/opt/fil` dependency stack.
 - These packages are build artifacts for exploration, not redistributable Fil-C

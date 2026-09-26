@@ -41,7 +41,7 @@ namespace fs = irods::experimental::filesystem;
 namespace io = irods::experimental::io;
 namespace adm = irods::experimental::administration;
 
-auto stat(RcComm& _comm, const fs::path& _path) -> std::unique_ptr<rodsObjStat, decltype(freeRodsObjStat)&>
+auto obj_stat(RcComm& _comm, const fs::path& _path) -> std::unique_ptr<rodsObjStat, decltype(&freeRodsObjStat)>
 {
     dataObjInp_t input{};
     std::strncpy(static_cast<char*>(input.objPath), _path.c_str(), sizeof(input.objPath) - 1);
@@ -100,7 +100,7 @@ TEST_CASE("rcObjStat on a data object with no hierarchy returns the object statu
         io::odstream out{transport, path};
     }
 
-    auto res{stat(conn, path)};
+    auto res{obj_stat(conn, path)};
     REQUIRE(res->objSize == 0);
 }
 
@@ -253,7 +253,7 @@ TEST_CASE_METHOD(test_fixture_for_issue_8993,
     REQUIRE(irods::experimental::replica::replica_status(comm, test_data_object, 0) == GOOD_REPLICA);
     REQUIRE(irods::experimental::replica::replica_status(comm, test_data_object, 1) == GOOD_REPLICA);
 
-    auto res{stat(conn, test_data_object)};
+    auto res{obj_stat(conn, test_data_object)};
     REQUIRE(res->objSize == 0);
 }
 
@@ -269,7 +269,7 @@ TEST_CASE_METHOD(
     REQUIRE(irods::experimental::replica::replica_status(comm, test_data_object, 0) == STALE_REPLICA);
     REQUIRE(irods::experimental::replica::replica_status(comm, test_data_object, 1) == GOOD_REPLICA);
 
-    auto res{stat(conn, test_data_object)};
+    auto res{obj_stat(conn, test_data_object)};
 
     // We expect the good replica size
     REQUIRE(res->objSize == 0);
@@ -290,7 +290,7 @@ TEST_CASE_METHOD(test_fixture_for_issue_8993,
     REQUIRE(irods::experimental::replica::replica_status(comm, test_data_object, 0) == STALE_REPLICA);
     REQUIRE(irods::experimental::replica::replica_status(comm, test_data_object, 1) == STALE_REPLICA);
 
-    auto res{stat(conn, test_data_object)};
+    auto res{obj_stat(conn, test_data_object)};
 
     // We expect the first replica to give the stat when both replicas are stale
     REQUIRE(res->objSize == bad_size_one);
@@ -308,7 +308,7 @@ TEST_CASE_METHOD(
     REQUIRE(irods::experimental::replica::replica_status(comm, test_data_object, 0) == bad_status);
     REQUIRE(irods::experimental::replica::replica_status(comm, test_data_object, 1) == GOOD_REPLICA);
 
-    auto res{stat(conn, test_data_object)};
+    auto res{obj_stat(conn, test_data_object)};
 
     // We expect to have the size of the good replica
     REQUIRE(res->objSize == 0);
@@ -331,7 +331,7 @@ TEST_CASE_METHOD(test_fixture_for_issue_8993,
     REQUIRE(irods::experimental::replica::replica_status(comm, test_data_object, 0) == bad_status_one);
     REQUIRE(irods::experimental::replica::replica_status(comm, test_data_object, 1) == bad_status_two);
 
-    auto res{stat(conn, test_data_object)};
+    auto res{obj_stat(conn, test_data_object)};
 
     // We expect the first replica to give the stat when both replicas are stale
     REQUIRE(res->objSize == bad_size_one);
