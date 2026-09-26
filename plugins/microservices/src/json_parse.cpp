@@ -73,8 +73,14 @@ namespace
                 std::span<const int> s(int_array->value, buf_size);
                 log_msi::debug("IntArray => [{}]", fmt::format("{}", fmt::join(s, ", ")));
 
-                // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-                handle = irods::process_stash::insert(json::parse(int_array->value, int_array->value + buf_size));
+                std::string json_text;
+                json_text.reserve(buf_size);
+
+                for (const auto v : s) {
+                    json_text.push_back(static_cast<char>(v));
+                }
+
+                handle = irods::process_stash::insert(json::parse(json_text));
             }
 
             log_msi::debug("New JSON handle [{}].", handle);
