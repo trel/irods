@@ -215,6 +215,7 @@ int updateCache( const char* _inst_name, size_t size, Cache *cache ) {
                 } else {
                     long diff = shared - cacheCopy->address;
                     unsigned char *pointers = cacheCopy->pointers;
+                    auto* shared_pointers = shared + (pointers - cacheCopy->address);
 
                     applyDiff( pointers, pointersSize, diff, 0 );
                     applyDiffToPointers( pointers, pointersSize, diff );
@@ -223,7 +224,7 @@ int updateCache( const char* _inst_name, size_t size, Cache *cache ) {
                     /* copy data */
                     memcpy( shared, buf, cacheCopy->dataSize );
                     /* copy pointers */
-                    memcpy( cacheCopy->pointers, pointers, pointersSize );
+                    memcpy( shared_pointers, pointers, pointersSize );
                     ret = 0;
                 }
                 unlockWriteMutex(_inst_name, &mutex);
@@ -241,6 +242,5 @@ int updateCache( const char* _inst_name, size_t size, Cache *cache ) {
         }
 
 }
-
 
 

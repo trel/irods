@@ -497,7 +497,9 @@ namespace irods
                     iter_ = std::make_unique<iterator>();
                 }
                 else {
-                    THROW(fetch_err, fmt::format("query failed for [{}] type [{}]", _query_string, _query_type));
+                    THROW(fetch_err,
+                          "query failed for [" + _query_string + "] type [" +
+                          std::to_string(static_cast<std::underlying_type_t<irods::query_type>>(_query_type)) + "]");
                 }
             }
 
@@ -584,4 +586,3 @@ namespace irods
 } // namespace irods
 
 #endif // IRODS_QUERY_HPP
-

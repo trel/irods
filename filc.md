@@ -547,6 +547,23 @@ and its `std::unique_ptr` deleter should be `decltype(&freeRodsObjStat)` rather
 than `decltype(freeRodsObjStat)&`. Without that change, libc++ instantiates
 `std::unique_ptr<rodsObjStat, int (&)(rodsObjStat*)>`, which fails under Fil-C.
 
+Use a source tree containing the `plugins/rule_engines/irods_rule_language/src/cache.cpp`
+fix for copying pointer metadata into the shared-memory cache. The destination
+for the pointer table must be calculated from the real shared-memory base, not
+from a pointer inside the temporary malloc buffer after pointer relocation.
+Without that change, Fil-C reports an out-of-bounds `memmove` during rule-engine
+startup.
+
+Use a source tree containing the `plugins/api/src/data_object_finalize.cpp` fix
+for malformed optional `file_modified` keyword payloads. Some paths can provide
+an empty serialized key-value payload that does not contain `key`/`value`
+members; this should not abort data object finalization.
+
+Use a source tree containing the `lib/core/include/irods/irods_query.hpp` fix
+for query error messages. Avoid formatting `irods::query_type` with fmt in this
+path because Fil-C has exposed fmt 8 range/formatter crashes in client and
+server query fallback paths.
+
 ## Configure iRODS
 
 iRODS normally selects `/opt/irods-externals/clang16.0.6-0` through
@@ -780,6 +797,23 @@ Observed output:
 ```text
 Connecting as rods#tempZone to cfec0e96ddc2:1247 ...
 /tempZone/home/rods:
+```
+
+The packaged Python `test_ils` suite also passed after a full iRODS shutdown,
+removing stale `/dev/shm/irods*` and `/dev/shm/sem.irods*` entries, restoring the
+`ShowCollAcls` built-in specific query if needed, and running:
+
+```bash
+su - irods -c 'cd /var/lib/irods/scripts && python3 run_tests.py --run_specific_test test_ils --no_buffer'
+```
+
+Observed result:
+
+```text
+Ran 17 tests in 778.689s
+
+OK
+python_test_status=0
 ```
 
 ## Remaining Caveats
