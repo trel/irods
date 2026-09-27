@@ -831,4 +831,3 @@ int rsDataObjClose(rsComm_t* rsComm, openedDataObjInp_t* dataObjCloseInp)
         return ec = SYS_UNKNOWN_ERROR;
     }
 } // rsDataObjClose
-

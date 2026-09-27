@@ -9,6 +9,7 @@
 
 #include <fmt/format.h>
 
+#include <algorithm>
 #include <map>
 #include <mutex>
 
@@ -164,6 +165,19 @@ namespace irods::replica_state_table
             }
         } // update_impl
 
+        auto contains_file_modified_parameters(const json& _json) -> bool
+        {
+            if (_json.is_array()) {
+                return std::any_of(std::begin(_json), std::end(_json), contains_file_modified_parameters);
+            }
+
+            if (_json.is_object()) {
+                return !_json.empty();
+            }
+
+            return false;
+        } // contains_file_modified_parameters
+
         auto publish_to_catalog_impl(
             RsComm& _comm,
             const key_type& _key,
@@ -172,7 +186,7 @@ namespace irods::replica_state_table
             const bool _privileged,
             const rodsLong_t _bytes_written) -> std::tuple<nlohmann::json, int>
         {
-            const bool trigger_file_modified = !_file_modified_parameters.empty();
+            const bool trigger_file_modified = contains_file_modified_parameters(_file_modified_parameters);
 
             const auto input = [&]() -> json
             {
@@ -588,4 +602,3 @@ namespace irods::replica_state_table
         } // to_catalog
     } // namespace publish
 } // namespace irods
-

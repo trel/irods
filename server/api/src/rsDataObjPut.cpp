@@ -754,4 +754,3 @@ int rsDataObjPut(rsComm_t* rsComm,
 
     return ec;
 } // rsDataObjPut
-

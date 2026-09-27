@@ -255,16 +255,25 @@ namespace
                         qb.zone_hint(*zone);
                     }
                     const auto path = fs::path{destDataObjInp->objPath};
-                    const auto qstr = fmt::format("select DATA_ID where COLL_NAME = '{0}' and DATA_NAME = '{1}' and "
-                                                  "DATA_RESC_HIER like '{2};%' || = '{2}'",
-                                                  irods::single_quotes_to_hex(path.parent_path()),
-                                                  irods::single_quotes_to_hex(path.object_name()),
-                                                  destination_resource);
+                    const auto coll_name = irods::single_quotes_to_hex(path.parent_path());
+                    const auto data_name = irods::single_quotes_to_hex(path.object_name());
+                    const auto resc_name = irods::single_quotes_to_hex(destination_resource);
+                    const auto exact_resource_query = fmt::format(
+                        "select DATA_ID where COLL_NAME = '{}' and DATA_NAME = '{}' and DATA_RESC_NAME = '{}'",
+                        coll_name,
+                        data_name,
+                        resc_name);
+                    const auto child_hierarchy_query = fmt::format(
+                        "select DATA_ID where COLL_NAME = '{}' and DATA_NAME = '{}' and DATA_RESC_HIER like '{};%'",
+                        coll_name,
+                        data_name,
+                        resc_name);
 
                     // If no results come back from the query, that means no replica exists on the target resource.
                     // Creating new replicas on existing data objects with copy is not allowed, so we throw an error
                     // indicating that an error occurred while resolving the hierarchy.
-                    if (auto q = qb.build(*rsComm, qstr); q.empty()) {
+                    if (qb.build(*rsComm, exact_resource_query).empty() &&
+                        qb.build(*rsComm, child_hierarchy_query).empty()) {
                         log_api::error(fmt::format(
                             "[{}]: Cannot overwrite [{}] on resource [{}] because resource does not hold a replica.",
                             __func__,
@@ -391,4 +400,3 @@ int rsDataObjCopy(rsComm_t* rsComm,
     // Do not update the collection mtime here because the open API call for the destination data object does it.
     return rsDataObjCopy_impl(rsComm, dataObjCopyInp, transStat);
 }
-

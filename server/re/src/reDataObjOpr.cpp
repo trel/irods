@@ -2499,6 +2499,8 @@ msiDataObjRsync( msParam_t *inpParam1, msParam_t *inpParam2,
 
     if ( rei->status >= 0 ) {
         fillIntInMsParam( outParam, rei->status );
+        rei->status = 0;
+        return 0;
     }
     else {
         rodsLogAndErrorMsg( LOG_ERROR, &rsComm->rError, rei->status,
