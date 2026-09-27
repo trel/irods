@@ -35,7 +35,16 @@ namespace
             }
         }
 
-        log_msi::debug("JSON handles [{}]", fmt::join(handles, ", "));
+        std::string joined_handles;
+        for (const auto& handle : handles) {
+            if (!joined_handles.empty()) {
+                joined_handles += ", ";
+            }
+
+            joined_handles += handle;
+        }
+
+        log_msi::debug("JSON handles [{}]", joined_handles);
 
         return handles;
     } // gather_all_json_handles

@@ -71,7 +71,17 @@ namespace
                 }
 
                 std::span<const int> s(int_array->value, buf_size);
-                log_msi::debug("IntArray => [{}]", fmt::format("{}", fmt::join(s, ", ")));
+
+                std::string joined_values;
+                for (const auto v : s) {
+                    if (!joined_values.empty()) {
+                        joined_values += ", ";
+                    }
+
+                    joined_values += std::to_string(v);
+                }
+
+                log_msi::debug("IntArray => [{}]", joined_values);
 
                 std::string json_text;
                 json_text.reserve(buf_size);

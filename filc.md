@@ -833,6 +833,98 @@ Ran 6 tests in 238.132s
 OK
 ```
 
+The packaged Python `test_all_rules.Test_AllRules` class has been exercised one
+method at a time under the Fil-C-built server. All discovered methods in the
+class either passed or were skipped by the upstream test decorators. This
+included the previously problematic `test_rulemsiDataObjRsync` case and the
+forced-copy path it exercises.
+
+```bash
+su - irods -c 'cd /var/lib/irods/scripts && python3 run_tests.py --run_specific_test test_all_rules.Test_AllRules.<method> --no_buffer'
+```
+
+The rsync rule work is captured in these commits:
+
+- `655cbecdd Fix Fil-C rsync rule blockers`
+- `9d53aaf9f Use one query for copy resource checks`
+
+The fixes were:
+
+- Ignore null-only file-modified JSON input such as `[[null]]` when publishing
+  replica state table entries. This prevents an empty serialized `KeyValPair`
+  from erasing the in-flight RST entry during overwrite handling.
+- Treat positive `msiDataObjRsync` statuses as successful microservice
+  execution after copying the status into the output parameter.
+- Avoid the GenQuery shorthand resource-hierarchy condition used by forced
+  copy. Query destination replica resource names and hierarchies once, then
+  check the requested resource in C++.
+
+Observed focused verification:
+
+```text
+test_all_rules.Test_AllRules.test_rulemsiDataObjRsync ... ok
+test_all_rules.Test_AllRules.test_str_2528 ... ok
+test_all_rules.Test_AllRules.test_datetimef_3767 ... ok
+test_all_rules.Test_AllRules.test_type_3575 ... ok
+test_all_rules.Test_AllRules.test_pattern_3575 ... ok
+test_all_rules.Test_AllRules.test_return_data_structure_non_null_2604 ... ok
+test_all_rules.Test_AllRules.test_writeLine_config_last_3477 ... skipped
+test_all_rules.Test_AllRules.test_writeLine_config_first_3477 ... skipped
+test_all_rules.Test_AllRules.test_msiAddKeyValToMspStr_works_with_empty_string__issue_6918 ... ok
+test_all_rules.Test_AllRules.test_msiRmColl_removes_trash__issue_6918 ... ok
+test_all_rules.Test_AllRules.test_msiRmColl_removes_collection__issue_6918 ... ok
+test_all_rules.Test_AllRules.test_msiRmColl_removes_collection_via_flag__issue_6918 ... ok
+test_all_rules.Test_AllRules.test_msiCheckAccess_3309 ... ok
+test_all_rules.Test_AllRules.test_msiTarFileExtract_big_file__issue_4118 ... ok
+test_all_rules.Test_AllRules.test_msiRenameCollection_does_rename_collections__issue_4597 ... ok
+test_all_rules.Test_AllRules.test_msiRenameCollection_does_not_support_renaming_data_objects__issue_5452 ... ok
+test_all_rules.Test_AllRules.test_msiDataObjPhymv_to_resource_hierarchy__3234 ... ok
+test_all_rules.Test_AllRules.test_msi_atomic_apply_metadata_operations__issue_4484 ... ok
+test_all_rules.Test_AllRules.test_msi_atomic_apply_metadata_operations_considers_group_permissions__issue_6190 ... ok
+test_all_rules.Test_AllRules.test_msi_atomic_apply_acl_operations__issue_5001 ... ok
+test_all_rules.Test_AllRules.test_msi_atomic_apply_acl_operations_considers_group_permissions__issue_6191 ... ok
+test_all_rules.Test_AllRules.test_msi_touch__issue_4669 ... ok
+test_all_rules.Test_AllRules.test_msiExit_prints_user_provided_error_information_on_client_side__issue_4463 ... ok
+test_all_rules.Test_AllRules.test_non_admins_are_not_allowed_to_rename_zone_collection__issue_5445 ... ok
+test_all_rules.Test_AllRules.test_rename_to_current_zone_collection_is_a_no_op__issue_5445 ... ok
+test_all_rules.Test_AllRules.test_rename_to_existing_collection_with_different_name_is_an_error__issue_5445 ... ok
+test_all_rules.Test_AllRules.test_rename_local_zone__issue_5693 ... ok
+test_all_rules.Test_AllRules.test_use_lowercase_select_in_genquery_conditions__issue_4697 ... ok
+test_all_rules.Test_AllRules.test_msiGetValByKey_does_not_crash_the_agent_on_bad_input_arguments__issue_5420 ... ok
+test_all_rules.Test_AllRules.test_data_obj_read_for_2100MB_file__5709 ... ok
+test_all_rules.Test_AllRules.test_msiDataObjRead_does_not_generate_a_stacktrace_on_bad_input_arguments__issue_4550 ... ok
+test_all_rules.Test_AllRules.test_msiGetStderrInExecCmdOut_does_not_segfault_when_using_failed_out_parameter_as_input__issue_5791 ... ok
+test_all_rules.Test_AllRules.test_msiDataObjChksum_with_admin_keyword__issue_6118 ... ok
+test_all_rules.Test_AllRules.test_adding_user_to_more_than_SQL_MAX_ROWS_groups_and_try_msiCheckAccess__issue_7050 ... ok
+test_all_rules.Test_AllRules.test_msiRemoveUserFromGroup__issue_7165 ... ok
+test_all_rules.Test_AllRules.test_msiRemoveUserFromGroup_supports_remote_users__issue_7165 ... ok
+test_all_rules.Test_AllRules.test_msiRemoveUserFromGroup_correctly_handles_incorrect_arguments__issue_7165 ... ok
+test_all_rules.Test_AllRules.test_msiRemoveUserFromGroup_returns_error_when_attempting_to_remove_user_from_group_which_they_are_not_a_member_of__issue_7165 ... ok
+test_all_rules.Test_AllRules.test_msiSetKeyValuePairsToObj_does_not_crash__issue_7027 ... ok
+test_all_rules.Test_AllRules.test_msiDataObjChksum_does_not_lead_to_segfault_on_good_verification_result__issue_7859 ... ok
+test_all_rules.Test_AllRules.test_vault_path_random_scheme_customization_options__issue_8917 ... ok
+test_all_rules.Test_AllRules.test_irule_cannot_modify_the_random_scheme_via_acSetVaultPathPolicy__issue_8917 ... ok
+test_all_rules.Test_AllRules.test_delay_server_executes_delay_rule_as_the_user_who_scheduled_it__issue_9059 ... ok
+```
+
+The packaged Python `test_all_rules.Test_JSON_microservices` class passed after
+removing remaining `fmt::join()` use from the JSON microservice debug paths:
+
+```bash
+su - irods -c 'cd /var/lib/irods/scripts && python3 run_tests.py --run_specific_test test_all_rules.Test_JSON_microservices --no_buffer'
+```
+
+Observed result:
+
+```text
+<__main__.RegisteredTestResult run=12 errors=0 failures=0>
+```
+
+The failing cases were `msi_json_names()` and then byte-list input to
+`msi_json_parse()`. Both failures were due to Fil-C-sensitive `fmt::join()` use in
+debug logging. Replacing those joins with straightforward string construction
+allowed the full JSON microservice class to pass.
+
 ## Remaining Caveats
 
 - The installed server smoke test passes, but the packaging metadata still needs

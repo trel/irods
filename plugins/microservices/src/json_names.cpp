@@ -48,7 +48,16 @@ namespace
             max_size = std::max(max_size, name.size() + 1);
         }
 
-        log_msi::debug("names = [{}]", fmt::format("{}", fmt::join(names, ", ")));
+        std::string joined_names;
+        for (const auto& name : names) {
+            if (!joined_names.empty()) {
+                joined_names += ", ";
+            }
+
+            joined_names += name;
+        }
+
+        log_msi::debug("names = [{}]", joined_names);
 
         return {names, max_size};
     } // gather_json_names
