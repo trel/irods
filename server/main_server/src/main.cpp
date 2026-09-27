@@ -39,6 +39,8 @@
 #include <jsoncons/json.hpp>
 #include <jsoncons_ext/jsonschema/jsonschema.hpp>
 
+#include <netdb.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -1853,30 +1855,59 @@ Signals:
     // could use this to determine if the leader was still responsive.
     auto is_server_listening_for_connections(const std::string& _host, const std::string& _port) -> int
     {
-        boost::asio::ip::tcp::iostream stream;
-        try {
-            log_server::debug("{}: Connecting to (host, port) = ([{}], [{}])", __func__, _host, _port);
-            stream.connect(_host, _port);
-            if (!stream) {
-                return -1;
-            }
-        }
-        catch (const std::exception& e) {
+        log_server::debug("{}: Connecting to (host, port) = ([{}], [{}])", __func__, _host, _port);
+
+        addrinfo hints{};
+        hints.ai_family = AF_UNSPEC;
+        hints.ai_socktype = SOCK_STREAM;
+
+        addrinfo* addresses{};
+        if (::getaddrinfo(_host.c_str(), _port.c_str(), &hints, &addresses) != 0) {
             return -1;
         }
+
+        irods::at_scope_exit free_addresses{[&addresses] { ::freeaddrinfo(addresses); }};
+
+        int socket_fd = -1;
+        for (auto* ai = addresses; ai; ai = ai->ai_next) {
+            socket_fd = ::socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+            if (socket_fd < 0) {
+                continue;
+            }
+
+            if (::connect(socket_fd, ai->ai_addr, ai->ai_addrlen) == 0) {
+                break;
+            }
+
+            ::close(socket_fd);
+            socket_fd = -1;
+        }
+
+        if (socket_fd < 0) {
+            return -1;
+        }
+
+        irods::at_scope_exit close_socket{[socket_fd] { ::close(socket_fd); }};
+
         log_server::debug("{}: Connected to server. Sending HEARTBEAT message.", __func__);
 
         // Send heartbeat to the agent to avoid a noisy log. This is important for startup
         // purposes. Sending the heartbeat message instructs the agent to end the server-side
         // connection cleanly.
         // NOLINTNEXTLINE(bugprone-string-literal-with-embedded-nul)
-        stream.write("\x00\x00\x00\x33<MsgHeader_PI><type>HEARTBEAT</type></MsgHeader_PI>", 55);
-        stream.flush();
+        const char heartbeat[] = "\x00\x00\x00\x33<MsgHeader_PI><type>HEARTBEAT</type></MsgHeader_PI>";
+        if (::send(socket_fd, heartbeat, sizeof(heartbeat) - 1, 0) != static_cast<ssize_t>(sizeof(heartbeat) - 1)) {
+            return -1;
+        }
 
         log_server::debug("{}: Reading response from server.", __func__);
         std::array<char, 256> buffer{};
-        stream.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
-        const std::string_view msg(buffer.data(), stream.gcount());
+        const auto bytes_read = ::recv(socket_fd, buffer.data(), buffer.size(), 0);
+        if (bytes_read < 0) {
+            return -1;
+        }
+
+        const std::string_view msg(buffer.data(), static_cast<std::size_t>(bytes_read));
         log_server::debug("{}: Received [{}] from server.", __func__, msg);
         if (msg != "HEARTBEAT") {
             log_server::debug("{}: Heartbeat Error: Did not get expected response.", __func__);

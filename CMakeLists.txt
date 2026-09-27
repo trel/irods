@@ -32,6 +32,7 @@ option(IRODS_ENABLE_ADDRESS_SANITIZER "Enables detection of memory leaks and oth
 option(IRODS_ENABLE_UNDEFINED_BEHAVIOR_SANITIZER "Enables detection of undefined behavior provided by Undefined Behavior Sanitizer." OFF)
 option(IRODS_ENABLE_UNDEFINED_BEHAVIOR_SANITIZER_IMPLICIT_CONVERSION_CHECK "Enables detection of implicit conversions by Undefined Behavior Sanitizer." OFF)
 option(IRODS_ENABLE_ALL_TESTS "Enables all tests (e.g. C/C++ unit tests, microservices specifically designed for testing)." OFF)
+option(IRODS_ACCESS_TIME_QUEUE_FILE_BACKEND "Use a file-backed queue for access-time updates instead of Boost.Interprocess." OFF)
 
 if (NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build {Debug, Release}." FORCE)

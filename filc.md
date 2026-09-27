@@ -816,6 +816,23 @@ OK
 python_test_status=0
 ```
 
+The packaged Python `test_access_time_updates` suite passed with the Fil-C-built
+server after enabling `IRODS_ACCESS_TIME_QUEUE_FILE_BACKEND`, replacing the main
+server listener probe with a POSIX socket check, and cleaning stale iRODS IPC
+objects before the run:
+
+```bash
+su - irods -c 'cd /var/lib/irods/scripts && python3 run_tests.py --run_specific_test test_access_time_updates --no_buffer'
+```
+
+Observed result:
+
+```text
+Ran 6 tests in 238.132s
+
+OK
+```
+
 ## Remaining Caveats
 
 - The installed server smoke test passes, but the packaging metadata still needs

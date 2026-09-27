@@ -198,6 +198,10 @@ if (IRODS_USE_LIBSYSTEMD)
   target_compile_definitions(irods_server_core PRIVATE IRODS_USE_LIBSYSTEMD)
 endif()
 
+if (IRODS_ACCESS_TIME_QUEUE_FILE_BACKEND)
+  target_compile_definitions(irods_server_core PRIVATE IRODS_ACCESS_TIME_QUEUE_FILE_BACKEND)
+endif()
+
 install(
   FILES ${IRODS_SERVER_CORE_HEADERS_PUBLIC}
   DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/irods"

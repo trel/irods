@@ -41,6 +41,36 @@ namespace
     using log_gq             = irods::experimental::log::genquery2;
     // clang-format on
 
+    auto join_strings(const std::vector<std::string>& _values, std::string_view _separator) -> std::string
+    {
+        std::string s;
+
+        for (const auto& v : _values) {
+            if (!s.empty()) {
+                s += _separator;
+            }
+
+            s += v;
+        }
+
+        return s;
+    }
+
+    auto join_placeholders(std::size_t _count, std::string_view _separator) -> std::string
+    {
+        std::string s;
+
+        for (std::size_t i = 0; i < _count; ++i) {
+            if (!s.empty()) {
+                s += _separator;
+            }
+
+            s += '?';
+        }
+
+        return s;
+    }
+
     struct gq_state
     {
         // Holds pointers to column objects which contain SQL CAST syntax.
@@ -253,12 +283,12 @@ namespace
         // Copy all entries from "_tables" into the list except the very first one.
         // The first element is the table we are trying to join to. So, we consider that one handled.
         std::vector<std::string> remaining{std::begin(_tables) + 1, std::end(_tables)};
-        log_gq::debug(fmt::format("remaining = [{}]", fmt::join(remaining, ", ")));
+        log_gq::debug("remaining = [{}]", join_strings(remaining, ", "));
 
         std::vector<std::string> processed;
         processed.reserve(_tables.size());
         processed.emplace_back(_tables.front());
-        log_gq::debug(fmt::format("processed = [{}]", fmt::join(processed, ", ")));
+        log_gq::debug("processed = [{}]", join_strings(processed, ", "));
 
         for (decltype(_tables.size()) i = 0; i < _tables.size() - 1; ++i) {
             const auto& last = processed.back();
@@ -764,10 +794,10 @@ namespace
         });
 
         if (_function.distinct) {
-            return fmt::format("{}(distinct {})", _function.name, fmt::join(args, ", "));
+            return fmt::format("{}(distinct {})", _function.name, join_strings(args, ", "));
         }
 
-        return fmt::format("{}({})", _function.name, fmt::join(args, ", "));
+        return fmt::format("{}({})", _function.name, join_strings(args, ", "));
     } // to_sql_for_order_or_group_by_clause
 
     auto generate_group_by_clause(
@@ -794,7 +824,7 @@ namespace
             group_expr.emplace_back(to_sql_for_order_or_group_by_clause(_state, fn));
         }
 
-        return fmt::format(" group by {}", fmt::join(group_expr, ", "));
+        return fmt::format(" group by {}", join_strings(group_expr, ", "));
     } // generate_group_by_clause
 
     auto generate_order_by_clause(
@@ -824,7 +854,7 @@ namespace
         }
 
         // All columns/expressions in the order by clause must exist in the list of columns to project.
-        return fmt::format(" order by {}", fmt::join(sort_expr, ", "));
+        return fmt::format(" order by {}", join_strings(sort_expr, ", "));
     } // generate_order_by_clause
 
     auto generate_with_clause_for_data_resc_hier(const gq_state& _state, const std::string_view _database)
@@ -1147,10 +1177,10 @@ namespace irods::experimental::genquery2
                 throw std::runtime_error{"use of DISTINCT keyword in function outside of SELECT clause is not allowed"};
             }
 
-            return fmt::format("{}(distinct {})", _function.name, fmt::join(args, ", "));
+            return fmt::format("{}(distinct {})", _function.name, join_strings(args, ", "));
         }
 
-        return fmt::format("{}({})", _function.name, fmt::join(args, ", "));
+        return fmt::format("{}({})", _function.name, join_strings(args, ", "));
     } // to_sql
 
     auto to_sql(gq_state& _state, const projections& _projections) -> std::string
@@ -1176,7 +1206,7 @@ namespace irods::experimental::genquery2
             cols.push_back(boost::apply_visitor(v, s));
         }
 
-        return fmt::format("{}", fmt::join(cols, ", "));
+        return join_strings(cols, ", ");
     } // to_sql
 
     auto to_sql(gq_state& _state, const condition_operator_not& _op_not) -> std::string
@@ -1232,21 +1262,7 @@ namespace irods::experimental::genquery2
         _state.values.insert(
             std::end(_state.values), std::begin(_in.list_of_string_literals), std::end(_in.list_of_string_literals));
 
-        struct
-        {
-            using result_type = std::string_view;
-            auto operator()() const noexcept -> result_type
-            {
-                return "?";
-            }
-        } gen;
-
-        using size_type = decltype(_in.list_of_string_literals)::size_type;
-
-        auto first = boost::make_function_input_iterator(gen, size_type{0});
-        auto last = boost::make_function_input_iterator(gen, _in.list_of_string_literals.size());
-
-        return fmt::format(" in ({})", fmt::join(first, last, ", "));
+        return fmt::format(" in ({})", join_placeholders(_in.list_of_string_literals.size(), ", "));
     } // to_sql
 
     auto to_sql(gq_state& _state, const condition_like& _like) -> std::string
@@ -1388,7 +1404,8 @@ namespace irods::experimental::genquery2
             auto sql = select_clause;
 
             if (!inner_joins.empty()) {
-                sql += fmt::format(" {}", fmt::join(inner_joins, " "));
+                sql += " ";
+                sql += join_strings(inner_joins, " ");
             }
 
             // Q. Should tickets be scoped to data objects and collections separately?

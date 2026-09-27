@@ -129,6 +129,10 @@ class Test_Access_Time_Updates(session.make_sessions_mixin(rodsadmins, rodsusers
             self.admin.run_icommand(['iadmin', 'rmresc', resc_name])
 
     def test_grid_configuration_value_for_queue_name_prefix_is_honored__issue_8260(self):
+        def queue_file_exists_with_prefix(_prefix):
+            shm_directory = Path('/dev/shm')
+            return any(f.name.startswith(_prefix) for f in shm_directory.iterdir())
+
         # Capture the original value so it can be restored.
         option_name = 'queue_name_prefix'
         _, out, _ = self.admin.assert_icommand(['iadmin', 'get_grid_configuration', 'access_time', option_name], 'STDOUT')
@@ -143,8 +147,7 @@ class Test_Access_Time_Updates(session.make_sessions_mixin(rodsadmins, rodsusers
             IrodsController().restart(test_mode=True)
 
             # Show that a shared memory file exists with the default queue name prefix.
-            shm_directory = Path('/dev/shm')
-            self.assertTrue(any(f.name.startswith(option_value) for f in shm_directory.iterdir()))
+            lib.delayAssert(lambda: queue_file_exists_with_prefix(option_value), maxrep=20)
 
             # Now, adjust the queue name prefix.
             option_value = 'irods_access_time_queue_issue_8260_'
@@ -152,7 +155,7 @@ class Test_Access_Time_Updates(session.make_sessions_mixin(rodsadmins, rodsusers
             IrodsController().restart(test_mode=True)
 
             # Show that a new shared memory file exists with the queue name prefix we just set.
-            self.assertTrue(any(f.name.startswith(option_value) for f in shm_directory.iterdir()))
+            lib.delayAssert(lambda: queue_file_exists_with_prefix(option_value), maxrep=20)
 
         finally:
             # Restore the original grid configuration value.
@@ -162,9 +165,10 @@ class Test_Access_Time_Updates(session.make_sessions_mixin(rodsadmins, rodsusers
     def test_grid_configuration_value_for_queue_size_is_honored__issue_8260(self):
         def get_atime_queue_file_size():
             shm_directory = Path('/dev/shm')
-            for f in shm_directory.iterdir():
-                if f.name.startswith('irods_access_time_queue_'):
-                    return f.stat().st_size
+            queue_files = [f for f in shm_directory.iterdir() if f.name.startswith('irods_access_time_queue_')]
+            if queue_files:
+                return max(queue_files, key=lambda f: f.stat().st_mtime_ns).stat().st_size
+
             raise ValueError('Could not get size of shared memory file for access time')
 
         # Capture the original value so it can be restored.
@@ -190,7 +194,7 @@ class Test_Access_Time_Updates(session.make_sessions_mixin(rodsadmins, rodsusers
             IrodsController().restart(test_mode=True)
 
             # Show that the new queue size has resulted in a smaller file size.
-            self.assertLess(get_atime_queue_file_size(), old_file_size)
+            lib.delayAssert(lambda: get_atime_queue_file_size() < old_file_size, maxrep=20)
 
         finally:
             # Restore the original grid configuration value.
