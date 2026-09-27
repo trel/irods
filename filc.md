@@ -925,6 +925,29 @@ The failing cases were `msi_json_names()` and then byte-list input to
 debug logging. Replacing those joins with straightforward string construction
 allowed the full JSON microservice class to pass.
 
+The remaining `test_all_rules` core entries also passed individually:
+
+```text
+test_all_rules.Test_msiDataObjRepl_checksum_keywords ... ok
+test_all_rules.test_msi_replica_truncate ... ok
+```
+
+The packaged Python auth tests passed once the required local OS account existed:
+
+```bash
+env -u LD_LIBRARY_PATH useradd -m irodsauthuser
+printf '%s:%s\n' 'irodsauthuser' ';=iamnotasecret' | env -u LD_LIBRARY_PATH chpasswd
+su - irods -c 'cd /var/lib/irods/scripts && python3 run_tests.py --run_specific_test test_auth.Test_Auth --no_buffer'
+su - irods -c 'cd /var/lib/irods/scripts && python3 run_tests.py --run_specific_test test_auth.test_iinit --no_buffer'
+```
+
+Observed results:
+
+```text
+test_auth.Test_Auth: rc=0
+test_auth.test_iinit: rc=0
+```
+
 ## Remaining Caveats
 
 - The installed server smoke test passes, but the packaging metadata still needs
