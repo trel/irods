@@ -948,6 +948,39 @@ test_auth.Test_Auth: rc=0
 test_auth.test_iinit: rc=0
 ```
 
+The packaged Python tests through `test_configuration` passed after the
+`test_all_rules` and auth work:
+
+```text
+test_catalog: rc=0
+test_client_hints: rc=0
+test_collection_mtime: rc=0
+test_configuration: rc=0
+```
+
+The delay queue class is not fully passing under Fil-C yet:
+
+```bash
+su - irods -c 'cd /var/lib/irods/scripts && python3 run_tests.py --run_specific_test test_delay_queue.Test_Delay_Queue --no_buffer'
+su - irods -c 'cd /var/lib/irods/scripts && python3 run_tests.py --run_specific_test test_delay_queue.Test_Delay_Queue.test_delay_queue_with_long_job --no_buffer'
+```
+
+Observed failure:
+
+```text
+test_delay_queue.Test_Delay_Queue.test_delay_queue_with_long_job ... FAIL
+AssertionError: 5 != 1
+AssertionError: 5 != 2
+```
+
+The failure appears to be timing-related rather than a crash. The test schedules
+five immediate jobs, five jobs due after 15 seconds, and one long-running job.
+It waits for all immediate jobs to finish and then asserts that all five later
+jobs are still queued. Under Fil-C, the immediate-job polling takes long enough
+that some later jobs are already due and have started or completed before that
+assertion. The observed queued later-rule count was one in the class run and two
+when the failing method was run in isolation.
+
 ## Remaining Caveats
 
 - The installed server smoke test passes, but the packaging metadata still needs
