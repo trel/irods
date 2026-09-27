@@ -35,6 +35,7 @@
 
 #include <boost/format.hpp>
 
+#include <algorithm>
 #include <chrono>
 
 namespace
@@ -257,23 +258,26 @@ namespace
                     const auto path = fs::path{destDataObjInp->objPath};
                     const auto coll_name = irods::single_quotes_to_hex(path.parent_path());
                     const auto data_name = irods::single_quotes_to_hex(path.object_name());
-                    const auto resc_name = irods::single_quotes_to_hex(destination_resource);
-                    const auto exact_resource_query = fmt::format(
-                        "select DATA_ID where COLL_NAME = '{}' and DATA_NAME = '{}' and DATA_RESC_NAME = '{}'",
+                    // Query all destination replicas once and check the target resource in C++.
+                    // This avoids GenQuery's shorthand OR form for hierarchy equality, which is
+                    // not supported consistently across database plugins.
+                    const auto replica_query = fmt::format(
+                        "select DATA_RESC_NAME, DATA_RESC_HIER where COLL_NAME = '{}' and DATA_NAME = '{}'",
                         coll_name,
-                        data_name,
-                        resc_name);
-                    const auto child_hierarchy_query = fmt::format(
-                        "select DATA_ID where COLL_NAME = '{}' and DATA_NAME = '{}' and DATA_RESC_HIER like '{};%'",
-                        coll_name,
-                        data_name,
-                        resc_name);
+                        data_name);
+
+                    auto q = qb.build(*rsComm, replica_query);
+                    const auto child_hierarchy_prefix = fmt::format("{};", destination_resource);
+                    const auto resource_has_replica = std::any_of(std::begin(q), std::end(q), [&](const auto& row) {
+                        const auto& leaf_resource = row[0];
+                        const auto& hierarchy = row[1];
+                        return leaf_resource == destination_resource || hierarchy.rfind(child_hierarchy_prefix, 0) == 0;
+                    });
 
                     // If no results come back from the query, that means no replica exists on the target resource.
                     // Creating new replicas on existing data objects with copy is not allowed, so we throw an error
                     // indicating that an error occurred while resolving the hierarchy.
-                    if (qb.build(*rsComm, exact_resource_query).empty() &&
-                        qb.build(*rsComm, child_hierarchy_query).empty()) {
+                    if (!resource_has_replica) {
                         log_api::error(fmt::format(
                             "[{}]: Cannot overwrite [{}] on resource [{}] because resource does not hold a replica.",
                             __func__,
