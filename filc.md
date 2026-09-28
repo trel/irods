@@ -1051,6 +1051,12 @@ test_iput.test_iput_with_checksums: rc=0
 test_iput_options.Test_iPut_Options: rc=0
 test_iput_options.Test_iPut_Options_Issue_3883: rc=0
 test_ipwd: rc=0
+test_iqmod: rc=0
+test_iqstat: rc=0
+test_iquery: rc=0
+test_iquest.Test_Iquest: rc=0
+test_iquest.test_iquest_logical_or_operator_with_data_resc_hier: rc=0
+test_iquest.test_iquest_with_data_resc_hier: rc=0
 ```
 
 The fixes were:
@@ -1071,6 +1077,10 @@ configuring the Fil-C tree with `IRODS_ENABLE_ALL_TESTS=ON`, building the
 `irods_test_issue_8733` target, and installing the generated `/usr/sbin` helper.
 The enabled install rules also require the test microservice plugin targets to
 exist before running `cmake --install`.
+
+The `test_iquest.Test_Iquest` class needed another `fmt::join()` removal in the
+GenQuery1 `DATA_RESC_HIER` condition translator used for resource-hierarchy
+`LIKE` queries.
 
 ## Remaining Caveats
 

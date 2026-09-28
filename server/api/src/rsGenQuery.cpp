@@ -15,7 +15,6 @@
 #include <boost/tokenizer.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <fmt/format.h>
-#include <fmt/ranges.h>
 
 #include <cstring>
 #include <regex>
@@ -213,7 +212,16 @@ namespace {
             return default_condition_str;
         }
 
-        return fmt::format("IN ({})", fmt::join(leaf_ids, ","));
+        std::string condition{"IN ("};
+        for (const auto& leaf_id : leaf_ids) {
+            if (condition.size() > 4) {
+                condition += ',';
+            }
+            condition += leaf_id;
+        }
+        condition += ')';
+
+        return condition;
     } // translate_single_data_resc_hier_condition_to_resc_id
 
     auto translate_data_resc_hier_where_clause_to_resc_id(const std::string& _condition) -> std::string
