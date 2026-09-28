@@ -1071,6 +1071,11 @@ test_irm: rc=0
 test_irmdir: rc=0
 test_irmtrash: rc=0
 test_irsync: rc=0
+test_irule: rc=0
+test_iscan: rc=0
+test_istream: rc=0
+test_isysmeta: rc=0
+test_iticket: rc=0
 ```
 
 The fixes were:
