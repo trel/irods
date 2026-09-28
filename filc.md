@@ -1007,6 +1007,11 @@ test_iadmin.test_moduser_group: rc=0
 test_iadmin.test_moduser_remove_password__issue_2899: rc=0
 test_iadmin.test_moduser_user: rc=0
 test_iadmin.test_modzone_conn_str_validation: rc=0
+test_iadmin_set_grid_configuration.test_get_grid_configuration: rc=0
+test_iadmin_set_grid_configuration.test_set_grid_configuration: rc=0
+test_ibun: rc=0
+test_icd: rc=0
+test_ichksum: rc=0
 ```
 
 The fixes were:
