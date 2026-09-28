@@ -1012,6 +1012,13 @@ test_iadmin_set_grid_configuration.test_set_grid_configuration: rc=0
 test_ibun: rc=0
 test_icd: rc=0
 test_ichksum: rc=0
+test_ichmod.Test_ichmod: rc=0
+test_ichmod.test_collection_acl_inheritance: rc=0
+test_icommands_file_operations.Test_ICommands_File_Operations_1: rc=0
+test_icommands_file_operations.Test_ICommands_File_Operations_2: rc=0
+test_icommands_file_operations.Test_ICommands_File_Operations_3: rc=0
+test_icommands_file_operations.Test_ICommands_File_Operations_4: rc=0
+test_icommands_file_operations.Test_ICommands_File_Operations_5: rc=0
 ```
 
 The fixes were:
