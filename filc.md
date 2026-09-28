@@ -1040,6 +1040,12 @@ test_imv.Test_Imv: rc=0
 test_imv.test_moving_and_renaming_collections_with_multibyte_characters__issue_6239: rc=0
 test_imv.test_renaming_collections_with_special_characters__issue_6239: rc=0
 test_ipasswd: rc=0
+test_iphymv.Test_iPhymv: rc=0
+test_iphymv.test_invalid_parameters: rc=0
+test_iphymv.test_iphymv_exit_codes: rc=0
+test_iphymv.test_iphymv_repl_status: rc=0
+test_iphymv.test_iphymv_with_two_basic_ufs_resources: rc=0
+test_ips: rc=0
 ```
 
 The fixes were:
@@ -1054,6 +1060,12 @@ The fixes were:
 - Set the new parent-context value passed to the modify-resource pre/post PEPs,
   instead of leaving the third rule argument unset for `iadmin modresc ...
   parent_context ...`.
+
+The `test_ips` entry requires the `irods_test_issue_8733` helper. Build it by
+configuring the Fil-C tree with `IRODS_ENABLE_ALL_TESTS=ON`, building the
+`irods_test_issue_8733` target, and installing the generated `/usr/sbin` helper.
+The enabled install rules also require the test microservice plugin targets to
+exist before running `cmake --install`.
 
 ## Remaining Caveats
 
