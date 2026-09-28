@@ -997,6 +997,16 @@ Fil-C-sensitive replication rebalance and resource-modification paths:
 test_iadmin.Test_Iadmin.test_empty_data_mode_does_not_cause_INVALID_LEXICAL_CAST_on_rebalance__issue_5227: rc=0
 test_iadmin.Test_Iadmin.test_modify_resource_changing_parent_context_string__issue__4022: rc=0
 test_iadmin.Test_Iadmin: rc=0
+test_iadmin.Test_Iadmin_Queries: rc=0
+test_iadmin.Test_Iadmin_Resources: rc=0
+test_iadmin.Test_Iadmin_modrepl: rc=0
+test_iadmin.Test_Issue3862: rc=0
+test_iadmin.test_making_groups: rc=0
+test_iadmin.test_mkzone_conn_str_validation: rc=0
+test_iadmin.test_moduser_group: rc=0
+test_iadmin.test_moduser_remove_password__issue_2899: rc=0
+test_iadmin.test_moduser_user: rc=0
+test_iadmin.test_modzone_conn_str_validation: rc=0
 ```
 
 The fixes were:
