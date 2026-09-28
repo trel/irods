@@ -17,7 +17,6 @@
 #include <boost/format.hpp>
 #include <boost/lexical_cast.hpp>
 #include <fmt/format.h>
-#include <fmt/ranges.h>
 
 #include <cstdlib>
 #include <cstring>
@@ -87,7 +86,9 @@ namespace {
         fmt::memory_buffer out;
         auto it = fmt::format_to(std::back_inserter(out), "IN (");
         for (const auto& b : _bundles) {
-            it = fmt::format_to(it, "'{}',", fmt::join(b, "','"));
+            for (const auto resc_id : b) {
+                it = fmt::format_to(it, "'{}',", resc_id);
+            }
         }
         auto cond_str = to_string(out);
         return cond_str.replace(out.size() - 1, 1, ")");
@@ -548,9 +549,9 @@ namespace irods {
                     chlGetReplListForLeafBundlesOffset(_batch_size,
                                                        i,
                                                        &_leaf_bundles,
-                                                       &_invocation_timestamp,
-                                                       &data_ids_needing_new_replicas,
-                                                       repls_to_skip);
+                                                        &_invocation_timestamp,
+                                                        &data_ids_needing_new_replicas,
+                                                        repls_to_skip);
                 if (status_chlGetReplListForLeafBundles != 0) {
                     THROW(status_chlGetReplListForLeafBundles,
                           boost::format("failed to get data objects needing new replicas for resource [%s] bundle index [%d] bundles [%s]")

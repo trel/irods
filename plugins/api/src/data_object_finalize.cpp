@@ -107,7 +107,13 @@ namespace
     {
         irods::log(LOG_DEBUG9, fmt::format("[{}:{}] - src:[{}]", __FUNCTION__, __LINE__, _src.dump()));
 
-        if (_src.is_array()) {
+        const auto* json_input = &_src;
+        if (_src.is_array() && _src.size() == 1 && _src.front().is_object() &&
+            (!_src.front().contains("key") || !_src.front().contains("value")))
+        {
+            json_input = &_src.front();
+        }
+        else if (_src.is_array()) {
             for (const auto& e : _src) {
                 if (!e.contains("key") || !e.contains("value")) {
                     return;
@@ -115,7 +121,7 @@ namespace
             }
         }
 
-        const auto src = irods::experimental::make_key_value_proxy(*irods::to_key_value_pair(_src));
+        const auto src = irods::experimental::make_key_value_proxy(*irods::to_key_value_pair(*json_input));
         const auto free_src = irods::at_scope_exit{[&src]
             {
                 clearKeyVal(src.get());

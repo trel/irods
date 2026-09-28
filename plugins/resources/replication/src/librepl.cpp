@@ -506,10 +506,16 @@ irods::error repl_file_modified(irods::plugin_context& _ctx) {
     if (!ret.ok()) {
         return PASS(ret);
     }
-    irods::hierarchy_parser sub_parser{};
-    sub_parser.set_string(file_obj->in_pdmo());
-    if (sub_parser.resc_in_hier(name)) {
-        return SUCCESS();
+
+    if (!file_obj->in_pdmo().empty()) {
+        irods::hierarchy_parser sub_parser{};
+        if (const auto ec = sub_parser.set_string(file_obj->in_pdmo()); !ec.ok()) {
+            return PASS(ec);
+        }
+
+        if (sub_parser.resc_in_hier(name)) {
+            return SUCCESS();
+        }
     }
 
     // The selected child resource is not added to the child list property

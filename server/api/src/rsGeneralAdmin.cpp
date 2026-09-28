@@ -1233,6 +1233,8 @@ int _rsGeneralAdmin(rsComm_t* rsComm, generalAdminInp_t* generalAdminInp)
                         generalAdminInp->arg2);
                     return SYS_INVALID_INPUT_PARAM;
                 }
+
+                args[2] = generalAdminInp->arg4;
             }
             else {
                 args[2] = generalAdminInp->arg4; // new value

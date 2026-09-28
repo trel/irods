@@ -13811,8 +13811,19 @@ irods::error db_get_repl_list_for_leaf_bundles_offset_op(irods::plugin_context& 
         return ERROR(SYS_INVALID_INPUT_PARAM, "invocation timestamp is empty");
     }
 
+    const auto leaf_bundle_to_sql_list = [](const leaf_bundle_t& _bundle) {
+        std::string list;
+        for (const auto resc_id : _bundle) {
+            if (!list.empty()) {
+                list += ',';
+            }
+            list += std::to_string(resc_id);
+        }
+        return list;
+    };
+
     // Get all data ids in the leaf resource selected by _child_index
-    std::string child_array{fmt::format("{}", fmt::join((*_bundles)[_child_index], ","))};
+    std::string child_array = leaf_bundle_to_sql_list((*_bundles)[_child_index]);
     if (child_array.empty()) {
         return ERROR(SYS_INVALID_INPUT_PARAM, "leaf array is empty");
     }
@@ -13824,11 +13835,13 @@ irods::error db_get_repl_list_for_leaf_bundles_offset_op(irods::plugin_context& 
             continue;
         }
 
+        const auto bundle_list = leaf_bundle_to_sql_list((*_bundles)[idx]);
         if (not_child_array.empty()) {
-            not_child_array = fmt::format("{}", fmt::join((*_bundles)[idx], ","));
+            not_child_array = bundle_list;
         }
-        else {
-            not_child_array = fmt::format("{},{}", not_child_array, fmt::join((*_bundles)[idx], ","));
+        else if (!bundle_list.empty()) {
+            not_child_array += ',';
+            not_child_array += bundle_list;
         }
     } // for idx
 

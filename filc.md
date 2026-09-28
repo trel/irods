@@ -981,6 +981,37 @@ that some later jobs are already due and have started or completed before that
 assertion. The observed queued later-rule count was one in the class run and two
 when the failing method was run in isolation.
 
+The next packaged Python modules passed individually after documenting the delay
+queue timing failure:
+
+```text
+test_delay_queue.Test_Execution_Frequency: rc=0
+test_dynamic_peps: rc=0
+test_genquery2_microservices: rc=0
+```
+
+The packaged Python `test_iadmin.Test_Iadmin` class passed after addressing
+Fil-C-sensitive replication rebalance and resource-modification paths:
+
+```text
+test_iadmin.Test_Iadmin.test_empty_data_mode_does_not_cause_INVALID_LEXICAL_CAST_on_rebalance__issue_5227: rc=0
+test_iadmin.Test_Iadmin.test_modify_resource_changing_parent_context_string__issue__4022: rc=0
+test_iadmin.Test_Iadmin: rc=0
+```
+
+The fixes were:
+
+- Normalize one-element array-wrapped key/value maps from `data_object_finalize`
+  before converting them to `KeyValPair`, so `openType` reaches the replication
+  resource during finalize.
+- Avoid parsing an empty `in_pdmo` string while handling replication resource
+  file-modified operations.
+- Remove `fmt::join()` from replication rebalance SQL list generation, including
+  the Postgres database plugin leaf-bundle query path.
+- Set the new parent-context value passed to the modify-resource pre/post PEPs,
+  instead of leaving the third rule argument unset for `iadmin modresc ...
+  parent_context ...`.
+
 ## Remaining Caveats
 
 - The installed server smoke test passes, but the packaging metadata still needs
