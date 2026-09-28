@@ -1024,6 +1024,10 @@ test_icp.test_overwriting: rc=0
 test_iexit: rc=0
 test_ifsck: rc=0
 test_iget: rc=0
+test_igroupadmin.Test_Igroupadmin: rc=0
+test_igroupadmin.test_making_groups: rc=0
+test_ihelp: rc=0
+test_ilsresc: rc=0
 ```
 
 The fixes were:
