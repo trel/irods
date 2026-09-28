@@ -1028,6 +1028,13 @@ test_igroupadmin.Test_Igroupadmin: rc=0
 test_igroupadmin.test_making_groups: rc=0
 test_ihelp: rc=0
 test_ilsresc: rc=0
+test_imeta_admin_mode: rc=0
+test_imeta_error_handling: rc=0
+test_imeta_help: rc=0
+test_imeta_set.Test_ImetaCp: rc=0
+test_imeta_set.Test_ImetaLsLongmode: rc=0
+test_imeta_set.Test_ImetaSet: rc=0
+test_imiscsvrinfo: rc=0
 ```
 
 The fixes were:
