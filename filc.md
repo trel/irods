@@ -1019,6 +1019,11 @@ test_icommands_file_operations.Test_ICommands_File_Operations_2: rc=0
 test_icommands_file_operations.Test_ICommands_File_Operations_3: rc=0
 test_icommands_file_operations.Test_ICommands_File_Operations_4: rc=0
 test_icommands_file_operations.Test_ICommands_File_Operations_5: rc=0
+test_icp.Test_Icp: rc=0
+test_icp.test_overwriting: rc=0
+test_iexit: rc=0
+test_ifsck: rc=0
+test_iget: rc=0
 ```
 
 The fixes were:
