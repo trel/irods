@@ -1046,6 +1046,11 @@ test_iphymv.test_iphymv_exit_codes: rc=0
 test_iphymv.test_iphymv_repl_status: rc=0
 test_iphymv.test_iphymv_with_two_basic_ufs_resources: rc=0
 test_ips: rc=0
+test_iput.Test_Iput: rc=0
+test_iput.test_iput_with_checksums: rc=0
+test_iput_options.Test_iPut_Options: rc=0
+test_iput_options.Test_iPut_Options_Issue_3883: rc=0
+test_ipwd: rc=0
 ```
 
 The fixes were:
