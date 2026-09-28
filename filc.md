@@ -1067,6 +1067,10 @@ test_irepl.test_irepl_repl_status: rc=0
 test_irepl.test_irepl_replication_hierarchy: rc=0
 test_irepl.test_irepl_with_special_resource_configurations: rc=0
 test_irepl.test_irepl_with_two_basic_ufs_resources: rc=0
+test_irm: rc=0
+test_irmdir: rc=0
+test_irmtrash: rc=0
+test_irsync: rc=0
 ```
 
 The fixes were:
