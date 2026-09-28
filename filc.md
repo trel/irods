@@ -1064,6 +1064,9 @@ test_irepl.Test_Irepl: rc=0
 test_irepl.test_all_permission_levels__issue_7444_7465_7816: rc=0
 test_irepl.test_invalid_parameters: rc=0
 test_irepl.test_irepl_repl_status: rc=0
+test_irepl.test_irepl_replication_hierarchy: rc=0
+test_irepl.test_irepl_with_special_resource_configurations: rc=0
+test_irepl.test_irepl_with_two_basic_ufs_resources: rc=0
 ```
 
 The fixes were:
