@@ -77,7 +77,6 @@
 #include <vector>
 
 #include <fmt/format.h>
-#include <fmt/ranges.h>
 
 #include <boost/make_shared.hpp>
 
@@ -519,10 +518,17 @@ namespace
                        std::cend(groups),
                        std::back_inserter(groups_with_quotes),
                        [](const auto& group) -> std::string { return fmt::format("'{}'", group.name); });
+        std::string group_list;
+        for (const auto& group : groups_with_quotes) {
+            if (!group_list.empty()) {
+                group_list += ", ";
+            }
+            group_list += group;
+        }
         const auto group_permission_query_string =
             fmt::format("select DATA_ACCESS_TYPE where USER_NAME in ({}) and USER_TYPE = 'rodsgroup' and DATA_ID = "
                         "'{}' and DATA_ACCESS_TYPE >= '{}'",
-                        fmt::join(groups_with_quotes, ", "),
+                        group_list,
                         _obj->data_id(),
                         static_cast<int>(minimum_permission_required_for_replication));
         auto group_permission_query = irods::query{&_comm, group_permission_query_string};

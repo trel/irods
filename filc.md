@@ -1057,6 +1057,13 @@ test_iquery: rc=0
 test_iquest.Test_Iquest: rc=0
 test_iquest.test_iquest_logical_or_operator_with_data_resc_hier: rc=0
 test_iquest.test_iquest_with_data_resc_hier: rc=0
+test_ireg.Test_Ireg: rc=0
+test_ireg.test_ireg_options: rc=0
+test_ireg.test_ireg_replica: rc=0
+test_irepl.Test_Irepl: rc=0
+test_irepl.test_all_permission_levels__issue_7444_7465_7816: rc=0
+test_irepl.test_invalid_parameters: rc=0
+test_irepl.test_irepl_repl_status: rc=0
 ```
 
 The fixes were:
@@ -1081,6 +1088,10 @@ exist before running `cmake --install`.
 The `test_iquest.Test_Iquest` class needed another `fmt::join()` removal in the
 GenQuery1 `DATA_RESC_HIER` condition translator used for resource-hierarchy
 `LIKE` queries.
+
+The `test_irepl.test_all_permission_levels__issue_7444_7465_7816` entry needed
+the same `fmt::join()` avoidance in the group-permission query assembled by the
+data object replication API.
 
 ## Remaining Caveats
 
