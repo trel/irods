@@ -1076,6 +1076,13 @@ test_iscan: rc=0
 test_istream: rc=0
 test_isysmeta: rc=0
 test_iticket: rc=0
+test_itouch: rc=0
+test_itree: rc=0
+test_itrim.Test_Itrim: rc=0
+test_itrim.test_itrim_target_replica_selection_decision_making__issue_7515: rc=0
+test_iunreg: rc=0
+test_iuserinfo: rc=0
+test_izonereport: rc=0
 ```
 
 The fixes were:
