@@ -1035,6 +1035,11 @@ test_imeta_set.Test_ImetaCp: rc=0
 test_imeta_set.Test_ImetaLsLongmode: rc=0
 test_imeta_set.Test_ImetaSet: rc=0
 test_imiscsvrinfo: rc=0
+test_imkdir: rc=0
+test_imv.Test_Imv: rc=0
+test_imv.test_moving_and_renaming_collections_with_multibyte_characters__issue_6239: rc=0
+test_imv.test_renaming_collections_with_special_characters__issue_6239: rc=0
+test_ipasswd: rc=0
 ```
 
 The fixes were:
