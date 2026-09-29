@@ -1083,6 +1083,17 @@ test_itrim.test_itrim_target_replica_selection_decision_making__issue_7515: rc=0
 test_iunreg: rc=0
 test_iuserinfo: rc=0
 test_izonereport: rc=0
+test_load_balanced_suite: rc=0
+test_logical_quotas: rc=0
+test_misc.test_server_side_libraries: rc=0
+test_native_authentication.test_configurations: rc=0
+test_native_rule_engine_plugin: rc=0
+test_negotiation: rc=0
+test_prep_genquery_iterator: rc=0
+test_python_rule_engine_plugin: rc=0
+test_quotas: rc=0
+test_resource_configuration: rc=0
+test_resource_tree: rc=0
 ```
 
 The fixes were:
@@ -1111,6 +1122,28 @@ GenQuery1 `DATA_RESC_HIER` condition translator used for resource-hierarchy
 The `test_irepl.test_all_permission_levels__issue_7444_7465_7816` entry needed
 the same `fmt::join()` avoidance in the group-permission query assembled by the
 data object replication API.
+
+The `test_misc.Test_Misc` class still has one Fil-C blocker:
+
+```text
+test_misc.Test_Misc.test_server_respawns_processes__issue_4977 ... FAIL
+```
+
+The respawn test repeatedly observed the delay server child process as
+`irodsDelayServe` and sometimes as a zombie, rather than observing both expected
+child process names within the test's polling window. No signal handling or child
+reaping changes were attempted.
+
+The `test_pam_password_authentication.test_configurations` entry still has one
+Fil-C blocker:
+
+```text
+test_password_extend_lifetime_set_to_false_invalidates_other_authentications_on_expiration ... FAIL
+```
+
+The test uses a four-second PAM password lifetime and expects both sessions to
+expire after disabling `password_extend_lifetime`. Under Fil-C, the final `ils`
+for the reauthenticated session still succeeded in both class and isolated runs.
 
 ## Remaining Caveats
 
