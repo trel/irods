@@ -1095,6 +1095,11 @@ test_quotas: rc=0
 test_resource_configuration: rc=0
 test_resource_tree: rc=0
 test_resource_types.Test_Resource_Compound: rc=0
+test_resource_types.Test_Resource_CompoundWithMockarchive: rc=0
+test_resource_types.Test_Resource_CompoundWithUnivmss: rc=0
+test_resource_types.Test_Resource_Deferred: rc=0
+test_resource_types.Test_Resource_MultiLayered: rc=0
+test_resource_types.Test_Resource_NonBlocking: rc=0
 ```
 
 The fixes were:
