@@ -1104,6 +1104,10 @@ test_resource_types.Test_Resource_Passthru: rc=0
 test_resource_types.Test_Resource_Random: rc=0
 test_resource_types.Test_Resource_RandomWithinRandom: rc=0
 test_resource_types.Test_Resource_RandomWithinReplication: rc=0
+test_resource_types.Test_Resource_Replication: rc=0
+test_resource_types.Test_Resource_ReplicationToTwoCompound: rc=0
+test_resource_types.Test_Resource_ReplicationToTwoCompoundResourcesWithPreferArchive: rc=0
+test_resource_types.Test_Resource_ReplicationWithinReplication: rc=0
 ```
 
 The fixes were:
