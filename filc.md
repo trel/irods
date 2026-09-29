@@ -1118,6 +1118,13 @@ test_rulebase.Test_Rulebase: rc=0
 test_session_tokens.test_session_token_lifetime_configuration: rc=0
 test_session_tokens.test_password_authentication_returning_session_tokens: rc=0
 test_session_tokens.test_remove_session_tokens: rc=0
+test_setting_user_password.test_modifying_user_password: rc=0
+test_setting_user_password.test_igroupadmin_mkuser: rc=0
+test_setting_user_password.test_invalid_configurations_and_options: rc=0
+test_setting_user_password.test_ipasswd_with_both_passwords_set: rc=0
+test_setting_user_password.test_ipasswd_with_only_native_password_set: rc=0
+test_setting_user_password.test_ipasswd_with_only_irods_password_set: rc=0
+test_setting_user_password.test_ipasswd_with_no_password_set: rc=0
 ```
 
 The fixes were:
