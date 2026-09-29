@@ -1215,6 +1215,16 @@ The test intentionally runs `msiSegFault()` and waits for a
 returned `SYS_INTERNAL_ERR`, but the expected stacktrace marker did not appear in
 the polling window.
 
+Manual investigation showed `msiSegFault()` does call `raise(SIGSEGV)` and the
+agent process handling the request exits, which explains the client-visible
+`SYS_INTERNAL_ERR`. The stacktrace directory remained empty. A minimal Fil-C
+probe which installs a `SIGSEGV` handler via `sigaction()` returned `Function not
+implemented`; an iRODS-linked probe behaved the same for a simple write-only
+handler. iRODS startup still succeeds because the crash-signal setup path does
+not check the return values from installing the SIGSEGV/SIGABRT/SIGILL/SIGFPE
+handlers. Therefore, Fil-C does not currently install the crash dump handler used
+by this test.
+
 ## Remaining Caveats
 
 - The installed server smoke test passes, but the packaging metadata still needs
