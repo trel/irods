@@ -1110,6 +1110,11 @@ test_resource_types.Test_Resource_ReplicationToTwoCompoundResourcesWithPreferArc
 test_resource_types.Test_Resource_ReplicationWithinReplication: rc=0
 test_resource_types.Test_Resource_Unixfilesystem: rc=0
 test_resource_types.Test_Resource_WeightedPassthru: rc=0
+test_rule_engine_plugin_framework.Test_Plugin_Instance_CppDefault: rc=0
+test_rule_engine_plugin_framework.Test_Plugin_Instance_Delay: rc=0
+test_rulebase.Test_Remote_Exec: rc=0
+test_rulebase.Test_Resource_Session_Vars__3024: rc=0
+test_rulebase.Test_Rulebase: rc=0
 ```
 
 The fixes were:
@@ -1164,6 +1169,18 @@ for the reauthenticated session still succeeded in both class and isolated runs.
 The `test_resource_types.Test_Resource_Compound` class passed in a clean run but
 required a longer timeout than the default one-module runs because the compound
 resource test matrix is slow under Fil-C.
+
+The rule engine passthrough reload paths still have a Fil-C blocker:
+
+```text
+test_rule_engine_plugin_framework.Test_Rule_Engine_Plugin_Framework.test_continuation_does_not_cause_NO_MICROSERVICE_FOUND_ERR__issue_4383 ... ERROR
+test_rule_engine_plugin_passthrough.Test_Rule_Engine_Plugin_Passthrough.test_repf_continuation_using_passthrough_rep__issues_4147_4148_4179 ... ERROR
+```
+
+Both tests modify `server_config.json` to insert the passthrough rule engine and
+then reload the server. The passthrough plugin was built and installed, but the
+server failed to become available during reload; delay-server callbacks reported
+connection refused while the main server cycled through shutdown/startup.
 
 ## Remaining Caveats
 
