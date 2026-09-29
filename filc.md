@@ -1108,6 +1108,8 @@ test_resource_types.Test_Resource_Replication: rc=0
 test_resource_types.Test_Resource_ReplicationToTwoCompound: rc=0
 test_resource_types.Test_Resource_ReplicationToTwoCompoundResourcesWithPreferArchive: rc=0
 test_resource_types.Test_Resource_ReplicationWithinReplication: rc=0
+test_resource_types.Test_Resource_Unixfilesystem: rc=0
+test_resource_types.Test_Resource_WeightedPassthru: rc=0
 ```
 
 The fixes were:
