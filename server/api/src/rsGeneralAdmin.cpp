@@ -1632,7 +1632,7 @@ int _rsGeneralAdmin(rsComm_t* rsComm, generalAdminInp_t* generalAdminInp)
             if (const auto parse_err = parseUserName(generalAdminInp->arg2, user_name.data(), zone_name.data());
                 parse_err < 0)
             {
-                const auto msg = fmt::format("Invalid user_name argument provided: Could not parse [{}].", user_name);
+                const auto msg = fmt::format("Invalid username format. Could not parse [{}].", generalAdminInp->arg2);
                 log_api::error("{}: {}", __func__, msg);
                 addRErrorMsg(&rsComm->rError, parse_err, msg.c_str());
                 return parse_err;

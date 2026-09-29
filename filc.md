@@ -1115,6 +1115,9 @@ test_rule_engine_plugin_framework.Test_Plugin_Instance_Delay: rc=0
 test_rulebase.Test_Remote_Exec: rc=0
 test_rulebase.Test_Resource_Session_Vars__3024: rc=0
 test_rulebase.Test_Rulebase: rc=0
+test_session_tokens.test_session_token_lifetime_configuration: rc=0
+test_session_tokens.test_password_authentication_returning_session_tokens: rc=0
+test_session_tokens.test_remove_session_tokens: rc=0
 ```
 
 The fixes were:
@@ -1181,6 +1184,12 @@ Both tests modify `server_config.json` to insert the passthrough rule engine and
 then reload the server. The passthrough plugin was built and installed, but the
 server failed to become available during reload; delay-server callbacks reported
 connection refused while the main server cycled through shutdown/startup.
+
+The session-token removal tests needed a narrow server-side error-path fix. The
+`remove_session_tokens` general-admin handler now reports malformed user names
+using the original input string and the expected `Invalid username format` text,
+rather than trying to format the cleared output buffer after `parseUserName()`
+fails.
 
 ## Remaining Caveats
 
