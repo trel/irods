@@ -1125,6 +1125,11 @@ test_setting_user_password.test_ipasswd_with_both_passwords_set: rc=0
 test_setting_user_password.test_ipasswd_with_only_native_password_set: rc=0
 test_setting_user_password.test_ipasswd_with_only_irods_password_set: rc=0
 test_setting_user_password.test_ipasswd_with_no_password_set: rc=0
+test_special_collections: rc=0
+test_specific_queries: rc=0
+test_ssl: rc=0
+test_symlink_operations: rc=0
+test_targeting_specific_replica_number: rc=0
 ```
 
 The fixes were:
@@ -1197,6 +1202,18 @@ The session-token removal tests needed a narrow server-side error-path fix. The
 using the original input string and the expected `Invalid username format` text,
 rather than trying to format the cleared output buffer after `parseUserName()`
 fails.
+
+The final core modules through `test_targeting_specific_replica_number` have
+been run individually. The `test_stacktrace` entry still has a Fil-C blocker:
+
+```text
+test_stacktrace.Test_Stacktrace.test_stacktraces_appear_in_log__issue_4382 ... FAIL
+```
+
+The test intentionally runs `msiSegFault()` and waits for a
+`"stacktrace_agent_pid":` marker in the server log. Under Fil-C, the command
+returned `SYS_INTERNAL_ERR`, but the expected stacktrace marker did not appear in
+the polling window.
 
 ## Remaining Caveats
 
