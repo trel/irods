@@ -1100,6 +1100,10 @@ test_resource_types.Test_Resource_CompoundWithUnivmss: rc=0
 test_resource_types.Test_Resource_Deferred: rc=0
 test_resource_types.Test_Resource_MultiLayered: rc=0
 test_resource_types.Test_Resource_NonBlocking: rc=0
+test_resource_types.Test_Resource_Passthru: rc=0
+test_resource_types.Test_Resource_Random: rc=0
+test_resource_types.Test_Resource_RandomWithinRandom: rc=0
+test_resource_types.Test_Resource_RandomWithinReplication: rc=0
 ```
 
 The fixes were:
