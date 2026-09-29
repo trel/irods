@@ -1094,6 +1094,7 @@ test_python_rule_engine_plugin: rc=0
 test_quotas: rc=0
 test_resource_configuration: rc=0
 test_resource_tree: rc=0
+test_resource_types.Test_Resource_Compound: rc=0
 ```
 
 The fixes were:
@@ -1144,6 +1145,10 @@ test_password_extend_lifetime_set_to_false_invalidates_other_authentications_on_
 The test uses a four-second PAM password lifetime and expects both sessions to
 expire after disabling `password_extend_lifetime`. Under Fil-C, the final `ils`
 for the reauthenticated session still succeeded in both class and isolated runs.
+
+The `test_resource_types.Test_Resource_Compound` class passed in a clean run but
+required a longer timeout than the default one-module runs because the compound
+resource test matrix is slow under Fil-C.
 
 ## Remaining Caveats
 
