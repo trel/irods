@@ -24,6 +24,9 @@ namespace irods
 
         ~irods_string_hash() = default;
 
+#if defined(__clang__)
+        [[clang::no_sanitize("unsigned-integer-overflow")]]
+#endif
         std::size_t operator()(const std::string& s1) const
         {
             if (s1.empty()) {

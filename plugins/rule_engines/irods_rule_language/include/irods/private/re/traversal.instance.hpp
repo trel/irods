@@ -27,7 +27,7 @@
 #define TRAVERSE_ARRAY_CYCLIC(T, size, f, tgt, key, objectMap) \
 	T *shared0; \
 	char key[KEY_SIZE]; \
-	keyBuf((unsigned char *) ptr->f, sizeof(T[size]), key); \
+	keyBuf((unsigned char *) ptr->f, sizeof(T) * (size), key); \
 	if((shared0 = (T *)lookupFromHashTable(objectMap, key)) != NULL) { \
 		tgt = shared0; \
 	} else \
@@ -148,5 +148,4 @@
 #define RE_STRUCT_END(T) \
 		TRAVERSE_END(T); \
 	}
-
 

@@ -18,6 +18,7 @@
 #include <string>
 #include <string_view>
 #include <sstream>
+#include <type_traits>
 #include <iostream>
 #include <algorithm>
 #include <vector>
@@ -30,6 +31,8 @@
 
 namespace irods
 {
+    class ms_table_entry;
+
     inline error resolve_plugin_path(const std::string& _type, std::string& _path)
     {
         namespace fs = boost::filesystem;
@@ -474,7 +477,11 @@ namespace irods
 
         // =-=-=-=-=-=-=-
         // attempt to load the plugin factory function from the shared object
-        typedef PluginType* ( *factory_type )( const std::string& , const Ts&... );
+        // A string literal deduces as a char array, but plugin factories take
+        // std::string references. Match the actual factory signature before
+        // calling through the pointer returned by dlsym.
+        using factory_type = PluginType* (*)(const std::string&,
+            const std::conditional_t<std::is_convertible_v<const Ts&, const char*>, std::string, Ts>&...);
         factory_type factory = reinterpret_cast< factory_type >( dlsym( handle, "plugin_factory" ) );
         char* err = dlerror();
         if ( 0 != err || !factory ) {
@@ -489,7 +496,14 @@ namespace irods
 
         // =-=-=-=-=-=-=-
         // using the factory pointer create the plugin
-        _plugin = factory( _instance_name, _args... );
+        if constexpr (std::is_same_v<PluginType, ms_table_entry>) {
+            // Microservice factories take no arguments, unlike the other
+            // plugin interfaces.
+            _plugin = reinterpret_cast<PluginType* (*)()>(factory)();
+        }
+        else {
+            _plugin = factory(_instance_name, _args...);
+        }
         if ( !_plugin ) {
             std::stringstream msg;
             msg << "failed to create plugin object for [" << _plugin_name << "]";

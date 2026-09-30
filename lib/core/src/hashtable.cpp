@@ -289,6 +289,9 @@ void free_const( const void *a ) {
 
 
 
+#if defined(__clang__)
+[[clang::no_sanitize("unsigned-integer-overflow")]]
+#endif
 unsigned long B_hash( unsigned char* string ) { /* Bernstein hash */
     unsigned long hash = HASH_BASE;
     while ( *string != '\0' ) {

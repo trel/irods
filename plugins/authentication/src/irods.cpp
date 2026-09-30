@@ -455,7 +455,7 @@ namespace irods::authentication
 } // namespace irods::authentication
 
 extern "C" auto plugin_factory([[maybe_unused]] const std::string& _instance_name,
-                               [[maybe_unused]] const std::string& _context) -> irods_auth::irods_authentication*
+                               [[maybe_unused]] const std::string& _context) -> irods::authentication::authentication_base*
 {
     return new irods_auth::irods_authentication{}; // NOLINT(cppcoreguidelines-owning-memory)
 } // plugin_factory

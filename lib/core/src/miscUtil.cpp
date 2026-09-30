@@ -34,6 +34,22 @@ const char NON_ROOT_COLL_CHECK_STR[] = "<>'/'";
 
 namespace
 {
+    auto call_gen_query(queryHandle_t* handle, genQueryInp_t* input, genQueryOut_t** output) -> int
+    {
+        // The handle can refer to either the client or server implementation.
+        // Cast to the matching signature before calling it: funcPtr is a
+        // variadic function pointer, which is not a valid call type for either.
+        if (handle->connType == RS_COMM) {
+            using server_query = int (*)(rsComm_t*, genQueryInp_t*, genQueryOut_t**);
+            return reinterpret_cast<server_query>(handle->genQuery)(
+                static_cast<rsComm_t*>(handle->conn), input, output);
+        }
+
+        using client_query = int (*)(rcComm_t*, genQueryInp_t*, genQueryOut_t**);
+        return reinterpret_cast<client_query>(handle->genQuery)(
+            static_cast<rcComm_t*>(handle->conn), input, output);
+    }
+
     auto copyRodsPath(rodsPath_t* to, const rodsPath_t* from) -> int
     {
         // No nullptrs allowed.
@@ -356,8 +372,7 @@ queryCollInColl( queryHandle_t *queryHandle, char *collection,
 
     genQueryInp->maxRows = MAX_SQL_ROWS;
 
-    status = ( *queryHandle->genQuery )(
-                 ( rcComm_t * ) queryHandle->conn, genQueryInp, genQueryOut );
+    status = call_gen_query(queryHandle, genQueryInp, genQueryOut);
 
     return status;
 }
@@ -397,8 +412,7 @@ queryDataObjInColl( queryHandle_t *queryHandle, char *collection,
     genQueryInp->maxRows = MAX_SQL_ROWS;
     genQueryInp->options = RETURN_TOTAL_ROW_COUNT;
 
-    status = ( *queryHandle->genQuery )(
-                 ( rcComm_t * ) queryHandle->conn, genQueryInp, genQueryOut );
+    status = call_gen_query(queryHandle, genQueryInp, genQueryOut);
 
     return status;
 
@@ -1459,8 +1473,7 @@ getNextCollMetaInfo( collHandle_t *collHandle, collEnt_t *outCollEnt ) {
             }
             else {
                 genQueryInp->continueInx = continueInx;
-                status = ( *queryHandle->genQuery )(
-                             ( rcComm_t * ) queryHandle->conn, genQueryInp, &genQueryOut );
+                status = call_gen_query(queryHandle, genQueryInp, &genQueryOut);
             }
             if ( status < 0 ) {
                 collHandle->rowInx = 0;
@@ -1619,8 +1632,7 @@ getNextDataObjMetaInfo( collHandle_t *collHandle, collEnt_t *outCollEnt ) {
             if ( dataObjInp->specColl != NULL ) {
                 if (LINKED_COLL == dataObjInp->specColl->collClass) {
                     genQueryInp->continueInx = continueInx;
-                    status =
-                        (*queryHandle->genQuery)(static_cast<rcComm_t*>(queryHandle->conn), genQueryInp, &genQueryOut);
+                    status = call_gen_query(queryHandle, genQueryInp, &genQueryOut);
                 }
                 else {
                     dataObjInp->openFlags = continueInx;
@@ -1630,8 +1642,7 @@ getNextDataObjMetaInfo( collHandle_t *collHandle, collEnt_t *outCollEnt ) {
             }
             else {
                 genQueryInp->continueInx = continueInx;
-                status = ( *queryHandle->genQuery )(
-                             ( rcComm_t * ) queryHandle->conn, genQueryInp, &genQueryOut );
+                status = call_gen_query(queryHandle, genQueryInp, &genQueryOut);
             }
             if ( status < 0 ) {
                 collHandle->rowInx = 0;

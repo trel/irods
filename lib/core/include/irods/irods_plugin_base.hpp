@@ -182,6 +182,13 @@ namespace irods
                     rei.uoip          = &_comm->proxyUser;
                 }
 
+                // The main server can invoke plugin operations before the
+                // agent factory initializes the rule engine manager. There
+                // are no PEPs to invoke in that process.
+                if (!re_plugin_globals) {
+                    return adapted_fcn(ctx, &out_param, _t...);
+                }
+
                 rule_engine_context_manager_type re_ctx_mgr(re_plugin_globals->global_re_mgr, &rei);
 
                 // Always run the finally-PEP at scope exit.

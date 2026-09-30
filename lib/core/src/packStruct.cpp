@@ -284,8 +284,8 @@ namespace
                     }
                     return SYS_PACK_INSTRUCT_FORMAT_ERR;
                 }
-                myPackItem->typeInx = ( packTypeInx_t )packTypeLookup( buf );
-                if ( myPackItem->typeInx < 0 ) {
+                const int type_index = packTypeLookup(buf);
+                if (type_index < 0) {
                     rodsLog( LOG_ERROR,
                              "parsePackInstruct: packTypeLookup failed for %s", buf );
                     if ( myPackItem != &packItemHead ) {
@@ -293,6 +293,7 @@ namespace
                     }
                     return SYS_PACK_INSTRUCT_FORMAT_ERR;
                 }
+                myPackItem->typeInx = static_cast<packTypeInx_t>(type_index);
                 gotTypeCast = 1;
                 int outLen = copyStrFromPiBuf( inptr, buf, 1 );
                 if ( outLen <= 0 ) {
@@ -378,8 +379,8 @@ namespace
                 continue;
             }
             else if ( gotTypeCast == 0 ) {  /* a typeCast */
-                myPackItem->typeInx = ( packTypeInx_t )packTypeLookup( buf );
-                if ( myPackItem->typeInx < 0 ) {
+                const int type_index = packTypeLookup(buf);
+                if (type_index < 0) {
                     rodsLog( LOG_ERROR,
                              "parsePackInstruct: packTypeLookup failed for %s in %s",
                              buf, packInstruct );
@@ -388,6 +389,7 @@ namespace
                     }
                     return SYS_PACK_INSTRUCT_FORMAT_ERR;
                 }
+                myPackItem->typeInx = static_cast<packTypeInx_t>(type_index);
                 gotTypeCast = 1;
                 continue;
             }
@@ -3485,4 +3487,3 @@ int unpack_struct(const void *inPackedStr,
 
     return 0;
 }
-
