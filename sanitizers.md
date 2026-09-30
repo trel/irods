@@ -113,6 +113,28 @@ reproducible project-code findings, and make one commit per distinct finding.
 | 0 (`test_access_time_updates`) | 5 | 1 passed | `1 0` |
 | 1 (`test_all_rules.Test_AllRules`) | 0–4 | 5 passed | `1 5` |
 | 1 (`test_all_rules.Test_AllRules`) | 5–9 | 4 passed, 1 skipped (PREP) | `1 10` |
+| 1 (`test_all_rules.Test_AllRules`) | 10–14 | 5 passed | `1 15` |
+| 1 (`test_all_rules.Test_AllRules`) | 15–19 | 5 passed | `1 20` |
+| 1 (`test_all_rules.Test_AllRules`) | 20–24 | 4 passed, 1 skipped (large file) | `1 25` |
+| 1 (`test_all_rules.Test_AllRules`) | 25–29 | 3 passed, 2 skipped (upstream) | `1 30` |
+| 1 (`test_all_rules.Test_AllRules`) | 30–34 | 5 passed | `1 35` |
+| 1 (`test_all_rules.Test_AllRules`) | 35–39 | 5 passed | `1 40` |
+| 1 (`test_all_rules.Test_AllRules`) | 40–44 | 5 passed | `1 45` |
+| 1 (`test_all_rules.Test_AllRules`) | 45–49 | 5 passed | `1 50` |
+| 1 (`test_all_rules.Test_AllRules`) | 50–54 | 5 passed | `1 55` |
+| 1 (`test_all_rules.Test_AllRules`) | 55–59 | 5 passed | `1 60` |
+| 1 (`test_all_rules.Test_AllRules`) | 60–64 | 5 passed | `1 65` |
+| 1 (`test_all_rules.Test_AllRules`) | 65–69 | 5 passed | `1 70` |
+| 1 (`test_all_rules.Test_AllRules`) | 70–74 | 5 passed | `1 75` |
+| 1 (`test_all_rules.Test_AllRules`) | 75–79 | 5 passed | `1 80` |
+| 1 (`test_all_rules.Test_AllRules`) | 80–84 | 5 passed | `1 85` |
+| 1 (`test_all_rules.Test_AllRules`) | 85–89 | 5 passed | `1 90` |
+| 1 (`test_all_rules.Test_AllRules`) | 90–94 | 5 passed | `1 95` |
+| 1 (`test_all_rules.Test_AllRules`) | 95–99 | 5 passed | `1 100` |
+| 1 (`test_all_rules.Test_AllRules`) | 100–104 | 5 passed | `1 105` |
+| 1 (`test_all_rules.Test_AllRules`) | 105–109 | 5 passed | `1 110` |
+| 1 (`test_all_rules.Test_AllRules`) | 110–114 | 5 passed | `1 115` |
+| 1 (`test_all_rules.Test_AllRules`) | 115–119 | 5 passed; UBSan finding | `1 120` |
 
 `Test_AllRules` contains 125 methods. The previously recorded
 `rsApiHandler.cpp` function-type mismatch is still emitted by normal API
@@ -128,3 +150,16 @@ and reran the same five tests: 4 passed, 1 skipped. UBSan reports for
 `restruct.templates.hpp:75` are absent from the rerun's
 `/tmp/irods_ubsan_verify_cache.*` files; the separate `rsApiHandler.cpp`
 report remains. No ASan report was generated.
+
+The batch coordinator at `/tmp/opencode/run_sanitized_batches.py` invokes the
+same five-method runner sequentially, applies a 1,200-second limit per batch,
+and stops if it sees a new project-code UBSan or ASan report. The four batches
+at offsets 35–54 passed with only the known generic API-dispatch report.
+
+The batch at offset 115 exposed `functions.cpp:2576`: `construct()` calls
+`memcpy` with null `args` for a valid zero-argument rule expression. The
+implementation now leaves `subtrees` null for zero arguments and copies only
+nonempty arrays. Rebuilt and installed the ASan/UBSan server package. Reran
+the same five rule tests: all passed; the new
+`/tmp/irods_ubsan_verify_empty_args.*` logs do not contain this report. No
+ASan report was generated. Continue at cursor `1 120`.
