@@ -15,6 +15,8 @@
 #include "irods/irods_server_properties.hpp"
 
 #include <nlohmann/json.hpp>
+#include <cstdlib>
+#include <cstring>
 
 using json = nlohmann::json;
 
@@ -133,12 +135,15 @@ int _rsIESClientHints( rsComm_t* _comm, bytesBuf_t** _bbuf )
     ies_hints["specific_queries"] = query_arr;
 
     const auto hints = ies_hints.dump(4);
-    char* tmp_buf = new char[hints.length() + 1]{};
-    std::strncpy(tmp_buf, hints.c_str(), hints.length());
+    char* tmp_buf = static_cast<char*>(std::malloc(hints.length() + 1));
+    if (!tmp_buf) {
+        return SYS_MALLOC_ERR;
+    }
+    std::memcpy(tmp_buf, hints.c_str(), hints.length() + 1);
 
     *_bbuf = (bytesBuf_t*) malloc(sizeof(bytesBuf_t));
     if (!*_bbuf) {
-        delete [] tmp_buf;
+        std::free(tmp_buf);
         rodsLog( LOG_ERROR, "_rsIESClientHints: failed to allocate _bbuf" );
         return SYS_MALLOC_ERR;
     }
@@ -148,4 +153,3 @@ int _rsIESClientHints( rsComm_t* _comm, bytesBuf_t** _bbuf )
 
     return 0;
 } // _rsIESClientHints
-

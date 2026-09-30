@@ -15,6 +15,8 @@
 #include "irods/rsIESClientHints.hpp"
 
 #include <fstream>
+#include <cstdlib>
+#include <cstring>
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/lexical_cast.hpp>
@@ -147,12 +149,14 @@ int _rsClientHints( rsComm_t*    _comm, bytesBuf_t** _bbuf )
     client_hints["rules"] = rules;
 
     const auto ch = client_hints.dump(4);
-    char* tmp_buf = new char[ch.length() + 1]{};
-    std::strncpy(tmp_buf, ch.c_str(), ch.length());
+    char* tmp_buf = static_cast<char*>(std::malloc(ch.length() + 1));
+    if (!tmp_buf) {
+        return SYS_MALLOC_ERR;
+    }
+    std::memcpy(tmp_buf, ch.c_str(), ch.length() + 1);
 
     ( *_bbuf )->buf = tmp_buf;
     ( *_bbuf )->len = ch.length();
 
     return 0;
 } // _rsClientHints
-

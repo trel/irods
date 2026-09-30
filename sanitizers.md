@@ -146,6 +146,11 @@ reproducible project-code findings, and make one commit per distinct finding.
 | 4 (`test_all_rules.test_msi_replica_truncate`) | 5–9 | 5 passed | `5 0` |
 | 5 (`test_auth.Test_Auth`) | 0–1 | 1 passed, 1 failed (PAM) | retry `5 0` |
 | 5 (`test_auth.Test_Auth`) | 0–3 | 4 passed after fix | `6 0` |
+| 6 (`test_auth.test_iinit`) | 0–4 | 5 passed | `6 5` |
+| 6 (`test_auth.test_iinit`) | 5–8 | 4 passed | `7 0` |
+| 7 (`test_catalog`) | 0–2 | 3 passed | `8 0` |
+| 8 (`test_client_hints`) | 0 | failed (server disconnect) | retry `8 0` |
+| 8 (`test_client_hints`) | 0 | 1 passed after fix | `9 0` |
 
 `Test_AllRules` contains 125 methods. The previously recorded
 `rsApiHandler.cpp` function-type mismatch is still emitted by normal API
@@ -198,3 +203,14 @@ cherry-pick and restored afterward.
 The first rerun of index 5 found an *old* ASan log using the same prefix as
 the failed attempt; the coordinator now includes its process ID in each log
 prefix to avoid treating reports from earlier attempts as new findings.
+
+Index 8 (`test_client_hints`) disconnected with `SYS_INTERNAL_ERR`. Both
+`rsIESClientHints.cpp` and `rsClientHints.cpp` allocate response buffers via
+`new[]` but their callers use `freeBBuf()`/`clearBBuf()`, which call `free()`.
+With `alloc_dealloc_mismatch=0` **for diagnosis only**, this test passes. Both
+server handlers now allocate with `malloc()` and check allocation failures.
+Rebuilt the ASan/UBSan packages and installed both `irods-server` and
+`irods-runtime` (the latter owns `libirods_server.so`, which contains these
+handlers). Retested with the allocation-mismatch check enabled: 1 passed;
+the fresh `/tmp/irods_batch_8_0_2298139*` logs contain no new sanitizer
+report. Continue at cursor `9 0`.
