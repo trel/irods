@@ -981,6 +981,11 @@ that some later jobs are already due and have started or completed before that
 assertion. The observed queued later-rule count was one in the class run and two
 when the failing method was run in isolation.
 
+A later focused rerun of `test_delay_queue_with_long_job` after cleaning stale
+test state failed earlier in the same test. It never observed the metadata value
+`Sleeping...` from the long-running delayed rule before the polling timeout.
+This remains unexplained.
+
 The next packaged Python modules passed individually after documenting the delay
 queue timing failure:
 
@@ -1170,6 +1175,11 @@ The respawn test repeatedly observed the delay server child process as
 child process names within the test's polling window. No signal handling or child
 reaping changes were attempted.
 
+A later focused rerun still observed repeated `irodsAgent` and `irodsDelayServe`
+children. During cleanup/restart, `psutil` raised `NoSuchProcess` for the server
+PID while `IrodsController.stop()` was checking process status. The test then
+failed teardown because the server was unavailable.
+
 The `test_pam_password_authentication.test_configurations` entry still has one
 Fil-C blocker:
 
@@ -1180,6 +1190,13 @@ test_password_extend_lifetime_set_to_false_invalidates_other_authentications_on_
 The test uses a four-second PAM password lifetime and expects both sessions to
 expire after disabling `password_extend_lifetime`. Under Fil-C, the final `ils`
 for the reauthenticated session still succeeded in both class and isolated runs.
+This is not yet explained. It may be timing-sensitive or may indicate different
+temporary-password expiration semantics under Fil-C.
+
+A later focused rerun reproduced the same behavior: after setting
+`password_extend_lifetime` to `0` and sleeping past the original four-second
+window, the final `ils` using the reauthenticated session still succeeded and
+printed the session collection instead of returning `CAT_INVALID_AUTHENTICATION`.
 
 The `test_resource_types.Test_Resource_Compound` class passed in a clean run but
 required a longer timeout than the default one-module runs because the compound
@@ -1196,6 +1213,10 @@ Both tests modify `server_config.json` to insert the passthrough rule engine and
 then reload the server. The passthrough plugin was built and installed, but the
 server failed to become available during reload; delay-server callbacks reported
 connection refused while the main server cycled through shutdown/startup.
+This is not yet explained. A temporary harness change which treated heartbeat
+`ConnectionResetError` as "not ready yet" did not make the passthrough reload
+tests pass, so the blocker is deeper than a single transient readiness probe
+exception.
 
 The session-token removal tests needed a narrow server-side error-path fix. The
 `remove_session_tokens` general-admin handler now reports malformed user names
