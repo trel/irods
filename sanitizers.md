@@ -151,6 +151,29 @@ reproducible project-code findings, and make one commit per distinct finding.
 | 7 (`test_catalog`) | 0–2 | 3 passed | `8 0` |
 | 8 (`test_client_hints`) | 0 | failed (server disconnect) | retry `8 0` |
 | 8 (`test_client_hints`) | 0 | 1 passed after fix | `9 0` |
+| 9 (`test_collection_mtime`) | 0–1 | 2 passed | `10 0` |
+| 10 (`test_configuration`) | 0–4 | 5 passed | `11 0` |
+| 11 (`test_delay_queue.Test_Delay_Queue`) | 0–3 | 3 passed, long-job test failed | retry `11 3` |
+| 11 (`test_delay_queue.Test_Delay_Queue`) | 3 | same timing failure; no new sanitizer report | `11 4` |
+| 11 (`test_delay_queue.Test_Delay_Queue`) | 4–8 | 5 passed | `11 9` |
+| 11 (`test_delay_queue.Test_Delay_Queue`) | 9–11 | 3 passed | `12 0` |
+| 12 (`test_delay_queue.Test_Execution_Frequency`) | 0–2 | 3 passed | `13 0` |
+| 13 (`test_dynamic_peps`) | 0–4 | 5 passed | `13 5` |
+| 13 (`test_dynamic_peps`) | 5–7 | 2 passed, `StructFileExtAndRegInp` failed | retry `13 7` |
+| 13 (`test_dynamic_peps`) | 7 | failed again; no new sanitizer report | `13 8` |
+| 13 (`test_dynamic_peps`) | 8–12 | 5 passed | `14 0` |
+| 14 (`test_genquery2_microservices`) | 0–1 | 2 passed | `15 0` |
+| 15 (`test_iadmin.Test_Iadmin`) | 0–4 | 5 passed | `15 5` |
+| 15 (`test_iadmin.Test_Iadmin`) | 5–9 | 5 passed | `15 10` |
+| 15 (`test_iadmin.Test_Iadmin`) | 10–14 | 5 passed | `15 15` |
+| 15 (`test_iadmin.Test_Iadmin`) | 15–19 | 5 passed | `15 20` |
+| 15 (`test_iadmin.Test_Iadmin`) | 20–24 | 5 passed | `15 25` |
+| 15 (`test_iadmin.Test_Iadmin`) | 25–29 | 5 passed | `15 30` |
+| 15 (`test_iadmin.Test_Iadmin`) | 30–34 | 4 passed, `parent_context` test failed | retry `15 34` |
+| 15 (`test_iadmin.Test_Iadmin`) | 34 | failed again; no new sanitizer report | `15 35` |
+| 15 (`test_iadmin.Test_Iadmin`) | 35–39 | 5 passed | `15 40` |
+| 15 (`test_iadmin.Test_Iadmin`) | 40–44 | 5 passed | `15 45` |
+| 15 (`test_iadmin.Test_Iadmin`) | 45–49 | 5 passed; UBSan finding | `15 50` |
 
 `Test_AllRules` contains 125 methods. The previously recorded
 `rsApiHandler.cpp` function-type mismatch is still emitted by normal API
@@ -214,3 +237,35 @@ Rebuilt the ASan/UBSan packages and installed both `irods-server` and
 handlers). Retested with the allocation-mismatch check enabled: 1 passed;
 the fresh `/tmp/irods_batch_8_0_2298139*` logs contain no new sanitizer
 report. Continue at cursor `9 0`.
+
+The first delay-queue batch failed only the long-running/timing-sensitive
+test (`test_delay_queue_with_long_job`); its sanitizer logs contain the known
+API-wrapper mismatch and no new ASan/UBSan report. The test intentionally
+checks short jobs while a 150-second job is running. Retry that single test
+without changing the test suite and investigate the failure separately.
+
+Retried the single long-job test: the short jobs had finished, but some jobs
+scheduled 15 seconds later were already running when the test checked that
+all five remained queued. No new sanitizer finding; keep this as a timing
+failure and continue at `11 4` without editing tests.
+
+At `13 7`, `test_if_StructFileExtAndRegInp_is_exposed__issue_7413`
+reproducibly returns `SYS_INTERNAL_ERR` from `ibun -x -f` after creating the
+tar. The isolated rerun with `alloc_dealloc_mismatch=0` still fails, so this
+is distinct from the earlier client-hints mismatch. Its scoped UBSan logs
+contain only the known API-wrapper function-type reports; no ASan log was
+created. Record this as an unresolved test failure and continue at `13 8`.
+
+At `15 34`, `test_modify_resource_changing_parent_context_string__issue__4022`
+reproducibly returns `SYS_INTERNAL_ERR` from `iadmin modresc parent_context`.
+The isolated rerun still fails with `alloc_dealloc_mismatch=0`. The scoped
+sanitizer logs contain only the known API-dispatch report and no ASan log;
+keep this as an unresolved test failure and continue at `15 35`.
+
+At `15 45`, the replication resource rebalance tests trigger UBSan at
+`irods_repl_retry.cpp:57`: the post-decrement in the retry-loop condition
+wraps an unsigned zero counter. Move the decrement inside the loop after
+checking for a positive count. Rebuilt and installed the ASan/UBSan server
+package; the five reproducing tests pass, and the scoped logs at
+`/tmp/irods_batch_15_45_2320023_ubsan.*` no longer contain this report.
+Continue at `15 50`.

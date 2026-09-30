@@ -54,7 +54,8 @@ int irods::data_obj_repl_with_retry(
 
     // Keep retrying until success or there are no more attempts left
     try {
-        while ( status < 0 && retry_attempts-- > 0 ) {
+        while ( status < 0 && retry_attempts > 0 ) {
+            --retry_attempts;
             irods::log(LOG_DEBUG, fmt::format("[{}:{}] - retries remaining:[{}]", __FUNCTION__, __LINE__, retry_attempts));
             std::this_thread::sleep_for( std::chrono::seconds( delay_in_seconds ) );
             status = rsDataObjRepl( _ctx.comm(), &dataObjInp, &trans_stat );
