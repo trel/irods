@@ -17,6 +17,15 @@ target_link_libraries(
   "${PAM_LIBRARY}"
 )
 
+# ASan's crypt_r interceptor resolves the real function at process startup.
+# PAM loads pam_unix (and therefore libcrypt) only during authentication, so
+# make libcrypt available before the interceptor is initialized.
+if (IRODS_ENABLE_ADDRESS_SANITIZER)
+  find_library(CRYPT_LIBRARY crypt REQUIRED)
+  target_link_options(irodsPamAuthCheck PRIVATE -Wl,--no-as-needed)
+  target_link_libraries(irodsPamAuthCheck PRIVATE "${CRYPT_LIBRARY}")
+endif()
+
 add_dependencies(all-server irodsPamAuthCheck)
 install(
   TARGETS

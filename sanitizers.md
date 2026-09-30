@@ -135,6 +135,17 @@ reproducible project-code findings, and make one commit per distinct finding.
 | 1 (`test_all_rules.Test_AllRules`) | 105–109 | 5 passed | `1 110` |
 | 1 (`test_all_rules.Test_AllRules`) | 110–114 | 5 passed | `1 115` |
 | 1 (`test_all_rules.Test_AllRules`) | 115–119 | 5 passed; UBSan finding | `1 120` |
+| 1 (`test_all_rules.Test_AllRules`) | 120–124 | 5 passed | `2 0` |
+| 2 (`test_all_rules.Test_JSON_microservices`) | 0–4 | 5 passed | `2 5` |
+| 2 (`test_all_rules.Test_JSON_microservices`) | 5–9 | 5 passed | `2 10` |
+| 2 (`test_all_rules.Test_JSON_microservices`) | 10–11 | 2 passed | `3 0` |
+| 3 (`test_all_rules.Test_msiDataObjRepl_checksum_keywords`) | 0–4 | 5 passed | `3 5` |
+| 3 (`test_all_rules.Test_msiDataObjRepl_checksum_keywords`) | 5–9 | 5 passed | `3 10` |
+| 3 (`test_all_rules.Test_msiDataObjRepl_checksum_keywords`) | 10–11 | 2 passed | `4 0` |
+| 4 (`test_all_rules.test_msi_replica_truncate`) | 0–4 | 5 passed | `4 5` |
+| 4 (`test_all_rules.test_msi_replica_truncate`) | 5–9 | 5 passed | `5 0` |
+| 5 (`test_auth.Test_Auth`) | 0–1 | 1 passed, 1 failed (PAM) | retry `5 0` |
+| 5 (`test_auth.Test_Auth`) | 0–3 | 4 passed after fix | `6 0` |
 
 `Test_AllRules` contains 125 methods. The previously recorded
 `rsApiHandler.cpp` function-type mismatch is still emitted by normal API
@@ -163,3 +174,27 @@ nonempty arrays. Rebuilt and installed the ASan/UBSan server package. Reran
 the same five rule tests: all passed; the new
 `/tmp/irods_ubsan_verify_empty_args.*` logs do not contain this report. No
 ASan report was generated. Continue at cursor `1 120`.
+
+Index 5 stopped at `test_authentication_PAM_with_server_params`. Running the
+installed `irodsPamAuthCheck` directly reproduces an ASan SEGV at a null PC
+in `pam_unix.so`'s `crypt_r` call. The Clang ASan runtime exports a crypt_r
+interceptor, but `libcrypt` is normally loaded only when PAM loads pam_unix,
+after the interceptor initialized its real-function pointer. For the
+sanitizer build, link the helper against libcrypt with `--no-as-needed` so it
+is present at process startup. Rebuilt and reinstalled the server package;
+the helper now authenticates successfully under ASan, and the complete
+`Test_Auth` class passes all 4 tests. The fresh rerun's scoped sanitizer logs
+(`irods_batch_5_0_2265820`) contain no new ASan report. The host also lacked
+an `/etc/pam.d/irods` service file; configured the local PAM service and its
+test account outside this checkout.
+
+PR #9093 (`cf968dee9`, `4abd24832`, `045832006`, `2bb56d6d4`) was
+cherry-picked in order, preserving its four upstream commits. Set the new
+`IRODS_GIT_SHA1_TO_REPORT` CMake cache variable to a stable value in the
+sanitizer build so future commits do not regenerate version files and
+invalidate the ccache build. The in-progress PAM fix was stashed for the
+cherry-pick and restored afterward.
+
+The first rerun of index 5 found an *old* ASan log using the same prefix as
+the failed attempt; the coordinator now includes its process ID in each log
+prefix to avoid treating reports from earlier attempts as new findings.
