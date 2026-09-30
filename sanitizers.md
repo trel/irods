@@ -86,3 +86,45 @@ headers, outside this checkout. No ASan memory-error report was observed in
 the exercised paths. Leak detection was disabled for the short-lived test
 clients because their premature exit broke the test harness; it was not an
 ASan memory-error finding.
+
+## Full core-suite follow-up (2026-09-30)
+
+Run every identifier in the installed `core_tests_list.json` in bounded slices
+of five test methods. The test-only orchestration script is outside the
+checkout at `/tmp/opencode/run_sanitized_core_batch.py`; it starts the
+installed test-mode server and invokes the unchanged installed test runner's
+`run_tests_from_names()`. Run as `irods`, passing `INDEX OFFSET 5`; the
+printed `NEXT` cursor is the next slice. Record outcomes below before moving
+the cursor. No tests in the checkout or installed tree are edited.
+
+```
+su - irods -c 'UBSAN_OPTIONS=log_path=/tmp/irods_ubsan_output:print_stacktrace=1 ASAN_OPTIONS=detect_leaks=0:log_path=/tmp/irods_asan_output python3 /tmp/opencode/run_sanitized_core_batch.py INDEX OFFSET 5'
+```
+
+The existing installed ASan/UBSan build is used. Leak detection remains
+disabled for short-lived clients because it previously caused CLI processes
+to exit early without actionable leak diagnostics; address and UB checks
+remain active. Inspect newly produced sanitizer logs between batches, fix
+reproducible project-code findings, and make one commit per distinct finding.
+
+| Identifier index | Offset | Result | Next cursor |
+| --- | --- | --- | --- |
+| 0 (`test_access_time_updates`) | 0–4 | 5 passed | `0 5` |
+| 0 (`test_access_time_updates`) | 5 | 1 passed | `1 0` |
+| 1 (`test_all_rules.Test_AllRules`) | 0–4 | 5 passed | `1 5` |
+| 1 (`test_all_rules.Test_AllRules`) | 5–9 | 4 passed, 1 skipped (PREP) | `1 10` |
+
+`Test_AllRules` contains 125 methods. The previously recorded
+`rsApiHandler.cpp` function-type mismatch is still emitted by normal API
+requests. Subsequent batches use cursor-specific sanitizer log prefixes to
+isolate additional findings.
+
+The `1 5` UBSan logs contain the existing API wrapper call-type report and
+also reproduce the generic cache-copy callback type mismatch in the
+rule-language engine (`restruct.templates.hpp:75`). Replaced the unsafe
+function-pointer cast with a typed cache-copy adapter in `cache.proto.hpp` and
+`traversal.instance.hpp`. Rebuilt the ASan/UBSan server package, installed it,
+and reran the same five tests: 4 passed, 1 skipped. UBSan reports for
+`restruct.templates.hpp:75` are absent from the rerun's
+`/tmp/irods_ubsan_verify_cache.*` files; the separate `rsApiHandler.cpp`
+report remains. No ASan report was generated.

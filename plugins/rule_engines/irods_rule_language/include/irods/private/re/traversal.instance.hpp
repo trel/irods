@@ -34,7 +34,11 @@
 
 #endif
 
+#ifdef CACHE_PROTO_HPP
+#define PARAM(T) (cache_copy_adapter<T, RE_STRUCT_FUNC(T)>)
+#else
 #define PARAM(T) (RE_STRUCT_FUNC_TYPE *)RE_STRUCT_FUNC(T)
+#endif
 
 #define TRAVERSE_NON_NULL(f) \
 	if(ptr->f != NULL)
@@ -148,4 +152,3 @@
 #define RE_STRUCT_END(T) \
 		TRAVERSE_END(T); \
 	}
-
