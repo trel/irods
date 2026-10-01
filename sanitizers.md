@@ -513,6 +513,12 @@ valid`. In `rsGeneralAdmin.cpp`, the `parent_context` branch validates the
 new value but fails to assign `args[2]` before calling `applyRuleArg()`.
 Fix this in a separate commit.
 
+`rsGeneralAdmin.cpp` now supplies `generalAdminInp->arg4` as the validated
+`parent_context` argument before invoking the rule. Rebuilt and installed
+the sanitized runtime and server packages. Five iadmin cases including the
+previously failing parent-context update pass, with no new sanitizer report
+(`irods_batch_15_34_2586654`).
+
 Index 74 initially failed when `test_iquest_resc_hier_with_like__3714`
 encountered an empty, iRODS-owned `/tmp/issue_3714` directory left from an
 earlier run. Removed that empty temporary directory (no test edit); all five
