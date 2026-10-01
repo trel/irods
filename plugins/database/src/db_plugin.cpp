@@ -16604,10 +16604,11 @@ irods::error db_calc_logical_usage_and_quota_op(irods::plugin_context& _ctx, [[m
     }
 
     getNowStr(myTime);
+    const auto path_separator = irods::get_virtual_path_separator();
 
     // clang-format off
 #ifdef MY_ICAT
-    cllBindVars[cllBindVarCount++] = PATH_SEPARATOR;
+    cllBindVars[cllBindVarCount++] = path_separator.c_str();
     cllBindVars[cllBindVarCount++] = myTime;
     status = cmlExecuteNoAnswerSql(
         // Update logical quota table
@@ -16660,7 +16661,7 @@ irods::error db_calc_logical_usage_and_quota_op(irods::plugin_context& _ctx, [[m
             "modify_ts = ?",
 #else
     cllBindVars[cllBindVarCount++] = myTime;
-    cllBindVars[cllBindVarCount++] = PATH_SEPARATOR;
+    cllBindVars[cllBindVarCount++] = path_separator.c_str();
     status = cmlExecuteNoAnswerSql(
         "UPDATE R_LOGICAL_QUOTA_MAIN "
         "SET (over_bytes, "
