@@ -469,7 +469,7 @@ irods::error tcp_read_msg_body(
     // read input buffer
     if ( 0 != _input_struct_buf ) {
         if ( _header->msgLen > 0 ) {
-            _input_struct_buf->buf = malloc( _header->msgLen + 1 );
+            _input_struct_buf->buf = malloc(static_cast<std::size_t>(_header->msgLen) + 1);
 
             ret = read_bytes_buf(
                       socket_handle,
@@ -480,6 +480,7 @@ irods::error tcp_read_msg_body(
             if ( !ret.ok() ) {
                 return PASS( ret );
             }
+            static_cast<char*>(_input_struct_buf->buf)[_input_struct_buf->len] = '\0';
 
         }
         else {

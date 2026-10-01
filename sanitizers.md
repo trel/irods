@@ -406,6 +406,15 @@ reproducible project-code findings, and make one commit per distinct finding.
 | 116 (`test_resource_types.Test_Resource_Compound`) | 40–44 | 5 passed | `116 45` |
 | 116 (`test_resource_types.Test_Resource_Compound`) | 45–49 | 5 passed | `116 50` |
 | 116 (`test_resource_types.Test_Resource_Compound`) | 50–53 | 4 run, 2 failures; ASan report | retry `116 50` |
+| 116 (`test_resource_types.Test_Resource_Compound`) | 50–54 | 5 passed after fixes | `116 55` |
+| 116 (`test_resource_types.Test_Resource_Compound`) | 55–59 | 5 passed | `116 60` |
+| 116 (`test_resource_types.Test_Resource_Compound`) | 60–64 | 5 passed | `116 65` |
+| 116 (`test_resource_types.Test_Resource_Compound`) | 65–69 | 5 passed | `116 70` |
+| 116 (`test_resource_types.Test_Resource_Compound`) | 70–74 | 5 passed | `116 75` |
+| 116 (`test_resource_types.Test_Resource_Compound`) | 75–79 | 5 passed | `116 80` |
+| 116 (`test_resource_types.Test_Resource_Compound`) | 80–84 | 5 passed | `116 85` |
+| 116 (`test_resource_types.Test_Resource_Compound`) | 85–86 | 2 failed; ASan overflow | retry `116 85` |
+| 116 (`test_resource_types.Test_Resource_Compound`) | 85–86 | 2 passed after fix | `117 0` |
 
 `Test_AllRules` contains 125 methods. The previously recorded
 `rsApiHandler.cpp` function-type mismatch is still emitted by normal API
@@ -571,6 +580,15 @@ installed sanitized runtime, icommands and server packages; all five
 reproducing `test_misc` methods pass and the scoped UBSan logs
 (`irods_batch_105_5_2590811`) no longer show the invalid enum load.
 Continue at `105 10`.
+
+At `116 85`, ASan found a heap-buffer-overflow in `getAllocLenForStr()` while
+unpacking a packed message read via TCP. The TCP and SSL readers allocate one
+extra byte for the packed input body but leave it uninitialized; a string
+scan can run off the end. Terminate the received packed body in that reserved
+byte, and use `size_t` for the allocation length. Rebuilt/installed the
+sanitized runtime, reset the catalog to remove resources left by the aborted
+test, and reran both compound-resource methods: passed with no new sanitizer
+report (`irods_batch_116_85_2709418`). Continue at `117 0`.
 
 The batch at `105 15` runs server PID/respawn lifecycle tests. The fourth
 test's teardown could not remove `otherrods` because the server reported

@@ -965,11 +965,12 @@ irods::error ssl_read_msg_body(
     // read input buffer
     if ( 0 != _input_struct_buf ) {
         if ( _header->msgLen > 0 ) {
-            _input_struct_buf->buf = malloc( _header->msgLen + 1 );
+            _input_struct_buf->buf = malloc(static_cast<std::size_t>(_header->msgLen) + 1);
             const auto ret = read_bytes_buf(socket_handle, _header->msgLen, _input_struct_buf, _protocol, _time_val, ssl_obj->ssl());
             if (!ret.ok()) {
                 return PASSMSG("Failed reading from SSL buffer.", ret);
             }
+            static_cast<char*>(_input_struct_buf->buf)[_input_struct_buf->len] = '\0';
         }
         else {
             // ensure msg len is 0 as this can cause issues in the agent
