@@ -363,6 +363,8 @@ reproducible project-code findings, and make one commit per distinct finding.
 | 104 (`test_logical_quotas`) | 5–9 | 5 passed after fix | `104 10` |
 | 104 (`test_logical_quotas`) | 10–14 | 5 passed after cleaning old test resources | `104 15` |
 | 104 (`test_logical_quotas`) | 15–19 | 5 passed | `105 0` |
+| 105 (`test_misc.Test_Misc`) | 0–4 | 5 passed | `105 5` |
+| 105 (`test_misc.Test_Misc`) | 5–9 | 5 passed; UBSan invalid enum | `105 10` |
 
 `Test_AllRules` contains 125 methods. The previously recorded
 `rsApiHandler.cpp` function-type mismatch is still emitted by normal API
@@ -518,6 +520,16 @@ Fix this in a separate commit.
 the sanitized runtime and server packages. Five iadmin cases including the
 previously failing parent-context update pass, with no new sanitizer report
 (`irods_batch_15_34_2586654`).
+
+At `105 5`, `test_invalid_client_irodsProt_handled_cleanly__issue_4130`
+intentionally sets `irodsProt=2`. `rcConnect.cpp` assigned that integer to
+an enum before validating it, and UBSan reported an invalid enum load.
+Validate the integer first, then convert only recognized protocol values;
+release the partially allocated connection on rejection. Rebuilt and
+installed sanitized runtime, icommands and server packages; all five
+reproducing `test_misc` methods pass and the scoped UBSan logs
+(`irods_batch_105_5_2590811`) no longer show the invalid enum load.
+Continue at `105 10`.
 
 Index 74 initially failed when `test_iquest_resc_hier_with_like__3714`
 encountered an empty, iRODS-owned `/tmp/issue_3714` directory left from an
