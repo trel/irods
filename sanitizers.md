@@ -491,6 +491,15 @@ for both tar-extraction failures (13 and 28), and stack-use-after-return in
 `irodsAgent` for the resource parent-context failure (15). Investigate and
 commit these as separate findings.
 
+The tar-extraction bug is `const auto& first_component =
+*relative_entry_path.begin()`: the iterator yields a temporary path component
+whose lifetime does not extend to the later `first_component.string()` call.
+Copied the component by value, rebuilt and installed the sanitized server,
+then reran both reproductions: five `test_dynamic_peps` methods including
+the formerly failing extraction and both final `test_ibun` cases pass.
+Neither scoped log prefix (`irods_batch_13_7_2581390` or
+`irods_batch_28_5_2582329`) contains a new sanitizer report.
+
 Index 74 initially failed when `test_iquest_resc_hier_with_like__3714`
 encountered an empty, iRODS-owned `/tmp/issue_3714` directory left from an
 earlier run. Removed that empty temporary directory (no test edit); all five

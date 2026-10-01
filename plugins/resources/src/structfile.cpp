@@ -458,7 +458,7 @@ irods::error extract_file( int _index ) {
         }
 
         if (!relative_entry_path.empty()) {
-            const auto& first_component = *relative_entry_path.begin();
+            const auto first_component = *relative_entry_path.begin();
             if (".." == first_component.string()) {
                 result = ERROR(
                     SYS_STRUCT_FILE_PATH_ERR,
