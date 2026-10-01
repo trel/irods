@@ -247,7 +247,7 @@ getCollSizeForProgStat( rcComm_t *conn, char *srcColl,
 int
 getDirSizeForProgStat( rodsArguments_t *rodsArgs, char *srcDir,
                        operProgress_t *operProgress );
-guiProgressCallback
+void
 iCommandProgStat( operProgress_t *operProgress );
 int
 getOpenedCollLen( collHandle_t *collHandle );

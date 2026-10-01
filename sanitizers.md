@@ -365,6 +365,41 @@ reproducible project-code findings, and make one commit per distinct finding.
 | 104 (`test_logical_quotas`) | 15–19 | 5 passed | `105 0` |
 | 105 (`test_misc.Test_Misc`) | 0–4 | 5 passed | `105 5` |
 | 105 (`test_misc.Test_Misc`) | 5–9 | 5 passed; UBSan invalid enum | `105 10` |
+| 105 (`test_misc.Test_Misc`) | 10–14 | 5 passed | `105 15` |
+| 105 (`test_misc.Test_Misc`) | 15–18 | 3 passed, teardown failure in server lifecycle test | `105 19` |
+| 105 (`test_misc.Test_Misc`) | 19 | failed: missing hostname alias | retry `105 19` |
+| 105 (`test_misc.Test_Misc`) | 19 | 1 passed after hostname alias | `105 20` |
+| 105 (`test_misc.Test_Misc`) | 20–24 | 5 passed | `105 25` |
+| 105 (`test_misc.Test_Misc`) | 25–27 | 3 passed | `106 0` |
+| 106 (`test_misc.test_server_side_libraries`) | 0 | 1 passed | `107 0` |
+| 107 (`test_native_authentication.test_configurations`) | 0–4 | 5 passed | `107 5` |
+| 107 (`test_native_authentication.test_configurations`) | 5–6 | 2 passed | `108 0` |
+| 108 (`test_native_rule_engine_plugin`) | 0–4 | 5 passed | `108 5` |
+| 108 (`test_native_rule_engine_plugin`) | 5–9 | 5 passed | `108 10` |
+| 108 (`test_native_rule_engine_plugin`) | 10–14 | 5 passed | `108 15` |
+| 108 (`test_native_rule_engine_plugin`) | 15–19 | 5 passed | `109 0` |
+| 109 (`test_negotiation`) | 0–4 | 5 passed | `109 5` |
+| 109 (`test_negotiation`) | 5–9 | 5 passed | `109 10` |
+| 109 (`test_negotiation`) | 10 | 1 passed | `110 0` |
+| 110 (`test_pam_password_authentication.test_configurations`) | 0–3 | 3 passed, expiration test failed | retry `110 3` |
+| 110 (`test_pam_password_authentication.test_configurations`) | 3 | failed again; no new sanitizer report | `110 4` |
+| 110 (`test_pam_password_authentication.test_configurations`) | 4–7 | 3 passed, reuse-expiration test failed | `110 8` |
+| 110 (`test_pam_password_authentication.test_configurations`) | 8 | 1 passed | `111 0` |
+| 111 (`test_prep_genquery_iterator`) | 0–4 | 5 passed | `111 5` |
+| 111 (`test_prep_genquery_iterator`) | 5–9 | 5 passed | `111 10` |
+| 111 (`test_prep_genquery_iterator`) | 10–14 | 5 passed | `111 15` |
+| 111 (`test_prep_genquery_iterator`) | 15–19 | 5 passed | `112 0` |
+| 112 (`test_python_rule_engine_plugin`) | 0–4 | 5 passed | `113 0` |
+| 113 (`test_quotas`) | 0–4 | 5 passed | `113 5` |
+| 113 (`test_quotas`) | 5–8 | 4 passed | `114 0` |
+| 114 (`test_resource_configuration`) | 0 | 1 passed | `115 0` |
+| 115 (`test_resource_tree`) | 0 | 1 passed; second method exceeded 1200s batch limit | `115 1` |
+| 115 (`test_resource_tree`) | 1 | 1 passed alone (692s) | `116 0` |
+| 116 (`test_resource_types.Test_Resource_Compound`) | 0–4 | 5 passed | `116 5` |
+| 116 (`test_resource_types.Test_Resource_Compound`) | 5–9 | 5 passed | `116 10` |
+| 116 (`test_resource_types.Test_Resource_Compound`) | 10–14 | 5 passed | `116 15` |
+| 116 (`test_resource_types.Test_Resource_Compound`) | 15–19 | 5 passed | `116 20` |
+| 116 (`test_resource_types.Test_Resource_Compound`) | 20–24 | 5 passed; UBSan callback mismatch | `116 25` |
 
 `Test_AllRules` contains 125 methods. The previously recorded
 `rsApiHandler.cpp` function-type mismatch is still emitted by normal API
@@ -530,6 +565,52 @@ installed sanitized runtime, icommands and server packages; all five
 reproducing `test_misc` methods pass and the scoped UBSan logs
 (`irods_batch_105_5_2590811`) no longer show the invalid enum load.
 Continue at `105 10`.
+
+The batch at `105 15` runs server PID/respawn lifecycle tests. The fourth
+test's teardown could not remove `otherrods` because the server reported
+`RE_UNABLE_TO_READ_SESSION_VAR` for `$rodsZoneProxy`; scoped logs contain no
+new sanitizer report. A separate server restart did not restore that session
+variable. Reset the test catalog/server before continuing at `105 19`.
+
+After the factory-restart test, `/dev/shm` held a stale 30 MB rule-engine
+cache in a 64 MB mount. The new factory logged `No space left on device` and
+could not initialize its rule-variable mappings. Stopping the server and
+removing stale iRODS shared-memory objects restored space (63 MB available)
+and user administration; no test source was edited. The repository test
+runner's `clear_irods_shared_memory_files()` logs these files but calls
+`os.unlink()` on bare filenames, not paths in the shared-memory directory.
+
+Index `105 19` requires the testing-environment hostname alias
+`irods-catalog-provider`; configured that alias for the local server in
+`/etc/hosts` (outside this checkout), then reran the single test: passed.
+Continue at `105 20`.
+
+Index `110 3`, a PAM-password expiration test, fails on both the batch and
+isolated rerun: it sets a four-second lifetime, reauthenticates a session,
+then expects *both* sessions to have expired. One session remains valid in
+these sanitizer runs. Scoped logs contain only the known API wrapper UBSan
+report, with no new ASan report; leave the test unchanged and continue at
+`110 4`.
+
+At `115 0`, `test_ilsresc_tree` passed but the second ASCII-output resource
+tree test exceeded the per-batch 1,200-second limit. Its logs contain only
+the existing generic API-wrapper report. Reset catalog/shared-memory state
+after interruption and ran the second method alone: passed in 692 seconds,
+with no new sanitizer report. Continue at `116 0`.
+
+At `116 20`, UBSan reports calls to `gGuiProgressCB` in get/put utilities
+through an incompatible function pointer. `iCommandProgStat()` was declared
+to *return* `guiProgressCallback`, whereas the progress callback interface
+returns `void`. Four iCommands cast away this mismatch. Match the `void`
+signature and assign the function pointer without casts. Rebuilt and
+installed sanitized runtime, icommands and server packages. The five
+reproducing tests pass with no new sanitizer report
+(`irods_batch_116_20_2674095`). Continue at `116 25`.
+
+Index `110 7`, another PAM password lifetime test, expected authentication
+within a six-second window but later observed `CAT_PASSWORD_EXPIRED` in the
+ASan/UBSan run. The other three methods in its batch passed; scoped logs
+show no new sanitizer report. Do not change the test; continue at `110 8`.
 
 Index 74 initially failed when `test_iquest_resc_hier_with_like__3714`
 encountered an empty, iRODS-owned `/tmp/issue_3714` directory left from an

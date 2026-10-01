@@ -2094,7 +2094,7 @@ getDirSizeForProgStat( rodsArguments_t *rodsArgs, char *srcDir,
 
 /* iCommandProgStat - the guiProgressCallback for icommand
  */
-guiProgressCallback
+void
 iCommandProgStat( operProgress_t *operProgress ) {
     using namespace boost::filesystem;
     char myDir[MAX_NAME_LEN], myFile[MAX_NAME_LEN];
@@ -2112,7 +2112,7 @@ iCommandProgStat( operProgress_t *operProgress ) {
         rodsLogError( LOG_NOTICE, status,
                       "iCommandProgStat: splitPathByKey for %s error, status = %d",
                       operProgress->curFileName, status );
-        return NULL;
+        return;
     }
 
     myTime = time( 0 );
@@ -2146,7 +2146,6 @@ iCommandProgStat( operProgress_t *operProgress ) {
             operProgress->flag = 2;
         }
     }
-    return NULL;
 }
 
 int
