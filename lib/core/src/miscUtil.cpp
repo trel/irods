@@ -50,6 +50,21 @@ namespace
             static_cast<rcComm_t*>(handle->conn), input, output);
     }
 
+    auto call_query_spec_coll(queryHandle_t* handle, dataObjInp_t* input, genQueryOut_t** output) -> int
+    {
+        // querySpecColl stores either an rc or rs callback as funcPtr.
+        // Use its actual signature when calling through the pointer.
+        if (handle->connType == RS_COMM) {
+            using server_query = int (*)(rsComm_t*, dataObjInp_t*, genQueryOut_t**);
+            return reinterpret_cast<server_query>(handle->querySpecColl)(
+                static_cast<rsComm_t*>(handle->conn), input, output);
+        }
+
+        using client_query = int (*)(rcComm_t*, dataObjInp_t*, genQueryOut_t**);
+        return reinterpret_cast<client_query>(handle->querySpecColl)(
+            static_cast<rcComm_t*>(handle->conn), input, output);
+    }
+
     auto copyRodsPath(rodsPath_t* to, const rodsPath_t* from) -> int
     {
         // No nullptrs allowed.
@@ -1332,9 +1347,7 @@ genCollResInColl( queryHandle_t *queryHandle, collHandle_t *collHandle ) {
             addKeyVal( &collHandle->dataObjInp.condInput,
                        SEL_OBJ_TYPE_KW, "collection" );
             collHandle->dataObjInp.openFlags = 0;    /* start over */
-            status = ( *queryHandle->querySpecColl )(
-                         ( rcComm_t * ) queryHandle->conn, &collHandle->dataObjInp,
-                         &genQueryOut );
+            status = call_query_spec_coll(queryHandle, &collHandle->dataObjInp, &genQueryOut);
         }
     }
     else {
@@ -1380,9 +1393,7 @@ genDataResInColl( queryHandle_t *queryHandle, collHandle_t *collHandle ) {
             addKeyVal( &collHandle->dataObjInp.condInput,
                        SEL_OBJ_TYPE_KW, "dataObj" );
             collHandle->dataObjInp.openFlags = 0;    /* start over */
-            status = ( *queryHandle->querySpecColl )
-                     ( ( rcComm_t * ) queryHandle->conn,
-                       &collHandle->dataObjInp, &genQueryOut );
+            status = call_query_spec_coll(queryHandle, &collHandle->dataObjInp, &genQueryOut);
         }
     }
     else {
@@ -1468,8 +1479,7 @@ getNextCollMetaInfo( collHandle_t *collHandle, collEnt_t *outCollEnt ) {
 
             if ( dataObjInp->specColl != NULL ) {
                 dataObjInp->openFlags = continueInx;
-                status = ( *queryHandle->querySpecColl )(
-                             ( rcComm_t * ) queryHandle->conn, dataObjInp, &genQueryOut );
+                status = call_query_spec_coll(queryHandle, dataObjInp, &genQueryOut);
             }
             else {
                 genQueryInp->continueInx = continueInx;
@@ -1636,8 +1646,7 @@ getNextDataObjMetaInfo( collHandle_t *collHandle, collEnt_t *outCollEnt ) {
                 }
                 else {
                     dataObjInp->openFlags = continueInx;
-                    status = (*queryHandle->querySpecColl)(
-                        static_cast<rcComm_t*>(queryHandle->conn), dataObjInp, &genQueryOut);
+                    status = call_query_spec_coll(queryHandle, dataObjInp, &genQueryOut);
                 }
             }
             else {

@@ -627,6 +627,14 @@ previously failing compound-resource methods at `116 50` now pass and
 batch uncovered a separate UBSan call-type mismatch at
 `miscUtil.cpp:1335,1383`; address it in its own commit.
 
+The special-collection query handle keeps either `rcQuerySpecColl` or
+`rsQuerySpecColl` in a variadic `funcPtr`, then invokes it through that wrong
+signature. Use a helper that selects the actual client/server signature for
+all four call sites. Rebuilt and installed sanitized runtime, icommands and
+server packages; all five compound-resource tests at offset 50 pass with no
+new UBSan call-type report (`irods_batch_116_50_2694754`). Continue at
+`116 55`.
+
 Index `110 7`, another PAM password lifetime test, expected authentication
 within a six-second window but later observed `CAT_PASSWORD_EXPIRED` in the
 ASan/UBSan run. The other three methods in its batch passed; scoped logs
