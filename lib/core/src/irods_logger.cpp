@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
@@ -34,7 +35,7 @@ namespace
     bool g_write_to_error_object;
     int g_api_number;
     bool g_log_api_number;
-    const Version* g_req_client_version;
+    std::optional<Version> g_req_client_version;
     std::string g_req_client_host;
     std::string g_req_client_username;
     std::string g_req_proxy_username;
@@ -255,12 +256,17 @@ namespace irods::experimental::log
 
     auto set_request_client_version(const Version* _client_version) noexcept -> void
     {
-        g_req_client_version = _client_version;
+        if (_client_version) {
+            g_req_client_version = *_client_version;
+        }
+        else {
+            g_req_client_version.reset();
+        }
     }
 
     auto get_request_client_version() noexcept -> const Version*
     {
-        return g_req_client_version;
+        return g_req_client_version ? &*g_req_client_version : nullptr;
     }
 
     auto set_request_client_hostname(std::string _hostname) noexcept -> void

@@ -500,6 +500,19 @@ the formerly failing extraction and both final `test_ibun` cases pass.
 Neither scoped log prefix (`irods_batch_13_7_2581390` or
 `irods_batch_28_5_2582329`) contains a new sanitizer report.
 
+The parent-context test's old ASan stack-use-after-return is in logging:
+`set_request_client_version()` saved a pointer into the request handler's
+stack-allocated `rsComm`. An exception unwound that frame, then the agent's
+outer catch logged the error and dereferenced the stale version pointer.
+Store a copy of `Version` in the logger instead. Rebuilt and installed the
+runtime and server packages and reran the reproducing iadmin case. The
+stack-use-after-return is absent from `/tmp/irods_parent_verify_ubsan.*`;
+the test still fails because the now-working outer exception logger reveals
+another, independent issue: `basic_string: construction from null is not
+valid`. In `rsGeneralAdmin.cpp`, the `parent_context` branch validates the
+new value but fails to assign `args[2]` before calling `applyRuleArg()`.
+Fix this in a separate commit.
+
 Index 74 initially failed when `test_iquest_resc_hier_with_like__3714`
 encountered an empty, iRODS-owned `/tmp/issue_3714` directory left from an
 earlier run. Removed that empty temporary directory (no test edit); all five
