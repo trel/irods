@@ -945,7 +945,7 @@ irods::error compose_cache_dir_physical_path( char*       _phy_path,
     relative_sub_path = relative_sub_path.lexically_normal();
 
     if (!relative_sub_path.empty()) {
-        const auto& first_component = *relative_sub_path.begin();
+        const auto first_component = *relative_sub_path.begin();
         if (".." == first_component.string()) {
             std::stringstream msg;
             msg << "compose_cache_dir_physical_path - collection [";

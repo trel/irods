@@ -400,6 +400,12 @@ reproducible project-code findings, and make one commit per distinct finding.
 | 116 (`test_resource_types.Test_Resource_Compound`) | 10–14 | 5 passed | `116 15` |
 | 116 (`test_resource_types.Test_Resource_Compound`) | 15–19 | 5 passed | `116 20` |
 | 116 (`test_resource_types.Test_Resource_Compound`) | 20–24 | 5 passed; UBSan callback mismatch | `116 25` |
+| 116 (`test_resource_types.Test_Resource_Compound`) | 25–29 | 5 passed | `116 30` |
+| 116 (`test_resource_types.Test_Resource_Compound`) | 30–34 | 5 passed | `116 35` |
+| 116 (`test_resource_types.Test_Resource_Compound`) | 35–39 | 5 passed | `116 40` |
+| 116 (`test_resource_types.Test_Resource_Compound`) | 40–44 | 5 passed | `116 45` |
+| 116 (`test_resource_types.Test_Resource_Compound`) | 45–49 | 5 passed | `116 50` |
+| 116 (`test_resource_types.Test_Resource_Compound`) | 50–53 | 4 run, 2 failures; ASan report | retry `116 50` |
 
 `Test_AllRules` contains 125 methods. The previously recorded
 `rsApiHandler.cpp` function-type mismatch is still emitted by normal API
@@ -606,6 +612,20 @@ signature and assign the function pointer without casts. Rebuilt and
 installed sanitized runtime, icommands and server packages. The five
 reproducing tests pass with no new sanitizer report
 (`irods_batch_116_20_2674095`). Continue at `116 25`.
+
+At `116 50`, ASan reports another stack-use-after-scope in the structfile
+resource, this time at `compose_cache_dir_physical_path()` line 948. Like
+the separate extraction finding, a reference to a temporary Boost path
+component outlives the dereference expression. Copy the component by value;
+rebuild/install and rerun the affected compound-resource batch before
+committing this finding.
+
+Rebuilt/installed the sanitized server. A prior aborted test left the
+`origResc` resource name occupied, so reset the test catalog. All five
+previously failing compound-resource methods at `116 50` now pass and
+`/tmp/irods_batch_116_50_2689759_ubsan.*` contains no ASan report. That
+batch uncovered a separate UBSan call-type mismatch at
+`miscUtil.cpp:1335,1383`; address it in its own commit.
 
 Index `110 7`, another PAM password lifetime test, expected authentication
 within a six-second window but later observed `CAT_PASSWORD_EXPIRED` in the
