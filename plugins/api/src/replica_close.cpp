@@ -548,7 +548,7 @@ auto plugin_factory(const std::string& _instance_name,
         "api_replica_close",            // Operation name
         clearBytesBuffer,               // Clear input function
         irods::clearOutStruct_noop,     // Clear output function
-        (funcPtr) CALL_REPLICA_CLOSE
+        (irods::api_call_dispatcher) CALL_REPLICA_CLOSE
     };
     // clang-format on
 
@@ -559,4 +559,3 @@ auto plugin_factory(const std::string& _instance_name,
 
     return api;
 }
-

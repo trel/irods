@@ -361,7 +361,7 @@ auto plugin_factory(const std::string& _instance_name,
         "api_get_file_descriptor_info",  // Operation name
         clearBytesBuffer,               // clear input function
         clearBytesBuffer,               // clear output function
-        (funcPtr) CALL_GET_FD_INFO
+        (irods::api_call_dispatcher) CALL_GET_FD_INFO
     };
     // clang-format on
 

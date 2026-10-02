@@ -600,7 +600,7 @@ auto plugin_factory(const std::string& _instance_name,
         "api_atomic_apply_metadata_operations",     // Operation name
         clearBytesBuffer,                           // clear input function
         clearBytesBuffer,                           // clear output function
-        (funcPtr) CALL_ATOMIC_APPLY_METADATA_OPERATIONS
+        (irods::api_call_dispatcher) CALL_ATOMIC_APPLY_METADATA_OPERATIONS
     };
     // clang-format on
 

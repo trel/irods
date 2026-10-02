@@ -223,7 +223,7 @@ auto plugin_factory(const std::string& _instance_name,
         "api_set_delay_server_migration_info",  // Operation name
         irods::clearInStruct_noop,              // Clear input function
         irods::clearOutStruct_noop,             // Clear output function
-        (funcPtr) CALL_SET_DELAY_SERVER_MIGRATION_INFO
+        (irods::api_call_dispatcher) CALL_SET_DELAY_SERVER_MIGRATION_INFO
     };
     // clang-format on
 

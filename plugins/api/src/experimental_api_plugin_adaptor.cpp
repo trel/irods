@@ -307,7 +307,7 @@ extern "C" irods::api_entry* plugin_factory(const std::string&, const std::strin
         "experimental_api_adaptor", // operation name
         clearBytesBuffer,           // clear input function
         clearBytesBuffer,           // clear output function
-        (funcPtr)CALL_ADAPTOR
+        (irods::api_call_dispatcher)CALL_ADAPTOR
     };
     // clang-format on
 

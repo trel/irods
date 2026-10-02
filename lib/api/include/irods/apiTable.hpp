@@ -302,6 +302,10 @@
 #define RS_USER_ADMIN                      NULLPTR_FOR_CLIENT_TABLE(rsUserAdmin)
 #define RS_ZONE_REPORT                     NULLPTR_FOR_CLIENT_TABLE(rsZoneReport)
 
+// Legacy table entries cast CALL_* to funcPtr. Keep each function's signature
+// instead, and confine the alias to this table after all headers are included.
+#define funcPtr irods::api_call_dispatcher
+
 #if defined(CREATE_API_TABLE_FOR_SERVER) && !defined(CREATE_API_TABLE_FOR_CLIENT)
 static irods::apidef_t server_api_table_inp[] = {
 #elif !defined(CREATE_API_TABLE_FOR_SERVER) && defined(CREATE_API_TABLE_FOR_CLIENT)
@@ -1274,5 +1278,7 @@ static irods::apidef_t client_api_table_inp[] = {
     }
     // clang-format on
 }; // (client|server)_api_table_inp
+
+#undef funcPtr
 
 #endif // IRODS_API_TABLE_HPP

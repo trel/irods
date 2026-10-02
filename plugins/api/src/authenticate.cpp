@@ -138,7 +138,7 @@ extern "C" irods::api_entry* plugin_factory(const std::string&, const std::strin
         "api_authenticate",     // operation name
         clearBytesBuffer,       // clear input function
         clearBytesBuffer,       // clear output function
-        (funcPtr)CALL_AUTHENTICATE
+        (irods::api_call_dispatcher)CALL_AUTHENTICATE
     };
     // clang-format on
 

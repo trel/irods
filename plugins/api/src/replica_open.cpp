@@ -178,7 +178,7 @@ auto plugin_factory(const std::string& _instance_name,
         "api_replica_open",     // Operation name
         clearDataObjInp,        // Clear input function
         clearBytesBuffer,       // Clear output function
-        (funcPtr) CALL_REPLICA_OPEN
+        (irods::api_call_dispatcher) CALL_REPLICA_OPEN
     };
     // clang-format on
 

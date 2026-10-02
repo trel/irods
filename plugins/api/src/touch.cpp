@@ -557,7 +557,7 @@ auto plugin_factory(const std::string& _instance_name,
         "api_touch",                // Operation name
         clearBytesBuffer,           // Clear input function
         irods::clearOutStruct_noop, // Clear output function
-        (funcPtr) CALL_TOUCH
+        (irods::api_call_dispatcher) CALL_TOUCH
     };
     // clang-format on
 

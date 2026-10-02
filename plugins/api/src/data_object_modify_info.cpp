@@ -146,7 +146,7 @@ auto plugin_factory(const std::string& _instance_name,
         "api_data_object_modify_info",   // Operation name
         clearModDataObjMetaInp,          // Null clear function
         irods::clearOutStruct_noop,
-        (funcPtr) CALL_DATA_OBJECT_MODIFY_INFO
+        (irods::api_call_dispatcher) CALL_DATA_OBJECT_MODIFY_INFO
     };
     // clang-format on
 

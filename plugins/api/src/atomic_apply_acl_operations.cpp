@@ -616,7 +616,7 @@ auto plugin_factory(const std::string& _instance_name,
         "api_atomic_apply_acl_operations",  // Operation name
         clearBytesBuffer,                   // Clear input function
         clearBytesBuffer,                   // Clear output function
-        (funcPtr) CALL_ATOMIC_APPLY_ACL_OPERATIONS
+        (irods::api_call_dispatcher) CALL_ATOMIC_APPLY_ACL_OPERATIONS
     };
     // clang-format on
 

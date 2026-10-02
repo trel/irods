@@ -19,6 +19,7 @@
 #include <boost/any.hpp>
 
 #include <typeinfo>
+#include <array>
 #include <functional>
 #include <utility>
 #include <type_traits>
@@ -28,6 +29,56 @@
 
 namespace irods
 {
+    class api_entry;
+
+    // Retain the wrapper's actual function type when registering an API. The
+    // network dispatcher only knows the positions of its packed arguments;
+    // calling a typed wrapper through funcPtr (int (*)(...)) is undefined.
+    class api_call_dispatcher
+    {
+      public:
+        api_call_dispatcher() = default;
+        api_call_dispatcher(std::nullptr_t) {}
+
+        template <typename... Args>
+        api_call_dispatcher(int (*_wrapper)(api_entry*, rsComm_t*, Args...))
+            : arity_{sizeof...(Args)}
+            , wrapper_{[_wrapper](api_entry* _entry, rsComm_t* _comm, const std::array<void*, 4>& _args) {
+                return invoke(_wrapper, _entry, _comm, _args, std::index_sequence_for<Args...>{});
+            }}
+        {
+            static_assert(sizeof...(Args) <= 4);
+            static_assert((std::is_pointer_v<Args> && ...));
+        }
+
+        template <typename... Args>
+        int operator()(api_entry* _entry, rsComm_t* _comm, Args... _args) const
+        {
+            static_assert((std::is_pointer_v<Args> && ...));
+
+            if (!wrapper_ || sizeof...(Args) != arity_) {
+                return SYS_API_INPUT_ERR;
+            }
+
+            std::array<void*, 4> arguments{const_cast<void*>(static_cast<const void*>(_args))...};
+            return wrapper_(_entry, _comm, arguments);
+        }
+
+      private:
+        template <typename... Args, std::size_t... I>
+        static int invoke(int (*_wrapper)(api_entry*, rsComm_t*, Args...),
+                          api_entry* _entry,
+                          rsComm_t* _comm,
+                          const std::array<void*, 4>& _args,
+                          std::index_sequence<I...>)
+        {
+            return _wrapper(_entry, _comm, static_cast<Args>(_args[I])...);
+        }
+
+        std::size_t arity_ = 0;
+        std::function<int(api_entry*, rsComm_t*, const std::array<void*, 4>&)> wrapper_;
+    };
+
     struct apidef_t {
         // =-=-=-=-=-=-=-
         // attributes
@@ -56,7 +107,7 @@ namespace irods
         std::function<void(void*)> clearInStruct; // free input struct function
         std::function<void(void*)> clearOutStruct; // free output struct function
 
-        int(*call_wrapper)(...);        // wraps the api call for type casting
+        api_call_dispatcher call_wrapper;
     }; // struct apidef_t
 
     template <typename Integer,
@@ -329,7 +380,7 @@ namespace irods
         int            outBsFlag;      /* output bytes stream. 0 ==> no output byte
                                     * stream. 1 ==> we have an output byte stream
                                     */
-        funcPtr        call_wrapper; // wraps the api call for type casting
+        api_call_dispatcher call_wrapper;
         std::string    in_pack_key;
         std::string    out_pack_key;
         std::string    in_pack_value;

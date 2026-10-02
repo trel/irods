@@ -1429,7 +1429,7 @@ auto plugin_factory(const std::string& _instance_name,
         "api_register_physical_path",   // Operation name
         clearDataObjInp,                // Clear input function
         clearBytesBuffer,               // Clear output function
-        (funcPtr) CALL_REGISTER_PHYSICAL_PATH
+        (irods::api_call_dispatcher) CALL_REGISTER_PHYSICAL_PATH
     };
     // clang-format on
 

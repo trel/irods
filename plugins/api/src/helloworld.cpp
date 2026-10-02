@@ -139,7 +139,7 @@ extern "C" irods::api_entry* plugin_factory(const std::string&, //_inst_name
         "api_hello_world",           // operation name
         irods::clearInStruct_noop,   // clear input function
         irods::clearOutStruct_noop,  // clear output function
-        (funcPtr)CALL_HELLOINP_HELLO_OUT
+        (irods::api_call_dispatcher)CALL_HELLOINP_HELLO_OUT
     };
     // clang-format on
 

@@ -472,7 +472,7 @@ auto plugin_factory(const std::string& _instance_name,
         "data_object_finalize",     // Operation name
         clearBytesBuffer,           // clear input function
         clearBytesBuffer,           // clear output function
-        (funcPtr) CALL_DATA_OBJECT_FINALIZE
+        (irods::api_call_dispatcher) CALL_DATA_OBJECT_FINALIZE
     };
     // clang-format on
 

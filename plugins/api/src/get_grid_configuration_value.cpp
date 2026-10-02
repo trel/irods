@@ -120,7 +120,7 @@ auto plugin_factory(const std::string& _instance_name,
         "api_get_grid_configuration_value",     // Operation name
         irods::clearInStruct_noop,              // Clear input function
         irods::clearOutStruct_noop,             // Clear output function
-        (funcPtr) CALL_GET_GRID_CONFIGURATION_VALUE
+        (irods::api_call_dispatcher) CALL_GET_GRID_CONFIGURATION_VALUE
     };
     // clang-format on
 

@@ -72,18 +72,16 @@
 
 ## Findings and verification
 
-The following UBSan findings in this tree still require a larger API-dispatch
-redesign and were not fixed in this investigation:
-
-- `server/core/src/rsApiHandler.cpp:209,215,222`: calls through the generic
-  `api_entry::call_wrapper` variadic function pointer do not match the
-  individual plugin wrapper signatures.
-- Rule-language generic traversal (`restruct.templates.hpp:75`): a
-  type-erased copy-function pointer differs from the concrete function type.
+UBSan found mismatched calls through the generic API wrapper function pointer
+at `server/core/src/rsApiHandler.cpp:209,215,222`. The typed-dispatch change
+described at the end of this document addresses that finding. The
+rule-language generic traversal finding at `restruct.templates.hpp:75` was
+also corrected and verified during the full-suite follow-up below.
 
 There are repeated inlined libstdc++ unsigned-wrap reports from GCC 14
 headers, outside this checkout. No ASan memory-error report was observed in
-the exercised paths. Leak detection was disabled for the short-lived test
+the initial targeted paths; later full-suite paths exposed ASan issues that
+were fixed below. Leak detection was disabled for the short-lived test
 clients because their premature exit broke the test harness; it was not an
 ASan memory-error finding.
 
@@ -415,6 +413,245 @@ reproducible project-code findings, and make one commit per distinct finding.
 | 116 (`test_resource_types.Test_Resource_Compound`) | 80–84 | 5 passed | `116 85` |
 | 116 (`test_resource_types.Test_Resource_Compound`) | 85–86 | 2 failed; ASan overflow | retry `116 85` |
 | 116 (`test_resource_types.Test_Resource_Compound`) | 85–86 | 2 passed after fix | `117 0` |
+| 117 (`test_resource_types.Test_Resource_CompoundWithMockarchive`) | 0–4 | 5 passed | `117 5` |
+| 117 (`test_resource_types.Test_Resource_CompoundWithMockarchive`) | 5–9 | 5 passed | `117 10` |
+| 117 (`test_resource_types.Test_Resource_CompoundWithMockarchive`) | 10–14 | 5 passed | `117 15` |
+| 117 (`test_resource_types.Test_Resource_CompoundWithMockarchive`) | 15–19 | 5 passed | `117 20` |
+| 117 (`test_resource_types.Test_Resource_CompoundWithMockarchive`) | 20–24 | 5 passed | `117 25` |
+| 117 (`test_resource_types.Test_Resource_CompoundWithMockarchive`) | 25–29 | 5 passed | `117 30` |
+| 117 (`test_resource_types.Test_Resource_CompoundWithMockarchive`) | 30–34 | 5 passed | `117 35` |
+| 117 (`test_resource_types.Test_Resource_CompoundWithMockarchive`) | 35–39 | 5 passed | `117 40` |
+| 117 (`test_resource_types.Test_Resource_CompoundWithMockarchive`) | 40–44 | 5 passed | `117 45` |
+| 117 (`test_resource_types.Test_Resource_CompoundWithMockarchive`) | 45–49 | 5 passed | `117 50` |
+| 117 (`test_resource_types.Test_Resource_CompoundWithMockarchive`) | 50–54 | 5 passed | `117 55` |
+| 117 (`test_resource_types.Test_Resource_CompoundWithMockarchive`) | 55–59 | 5 passed | `117 60` |
+| 117 (`test_resource_types.Test_Resource_CompoundWithMockarchive`) | 60–64 | 5 passed | `117 65` |
+| 117 (`test_resource_types.Test_Resource_CompoundWithMockarchive`) | 65–66 | 2 passed | `118 0` |
+| 118 (`test_resource_types.Test_Resource_CompoundWithUnivmss`) | 0–4 | 5 passed | `118 5` |
+| 118 (`test_resource_types.Test_Resource_CompoundWithUnivmss`) | 5–9 | 5 passed | `118 10` |
+| 118 (`test_resource_types.Test_Resource_CompoundWithUnivmss`) | 10–14 | 5 passed | `118 15` |
+| 118 (`test_resource_types.Test_Resource_CompoundWithUnivmss`) | 15–19 | 5 passed | `118 20` |
+| 118 (`test_resource_types.Test_Resource_CompoundWithUnivmss`) | 20–24 | 5 passed | `118 25` |
+| 118 (`test_resource_types.Test_Resource_CompoundWithUnivmss`) | 25–29 | 5 passed | `118 30` |
+| 118 (`test_resource_types.Test_Resource_CompoundWithUnivmss`) | 30–34 | 5 passed | `118 35` |
+| 118 (`test_resource_types.Test_Resource_CompoundWithUnivmss`) | 35–39 | 5 passed | `118 40` |
+| 118 (`test_resource_types.Test_Resource_CompoundWithUnivmss`) | 40–44 | 5 passed | `118 45` |
+| 118 (`test_resource_types.Test_Resource_CompoundWithUnivmss`) | 45–49 | 5 passed | `118 50` |
+| 118 (`test_resource_types.Test_Resource_CompoundWithUnivmss`) | 50–54 | 5 passed | `118 55` |
+| 118 (`test_resource_types.Test_Resource_CompoundWithUnivmss`) | 55–59 | 5 passed | `118 60` |
+| 118 (`test_resource_types.Test_Resource_CompoundWithUnivmss`) | 60–64 | 5 passed | `118 65` |
+| 118 (`test_resource_types.Test_Resource_CompoundWithUnivmss`) | 65–69 | 5 passed | `119 0` |
+| 119 (`test_resource_types.Test_Resource_Deferred`) | 0–4 | 5 passed | `119 5` |
+| 119 (`test_resource_types.Test_Resource_Deferred`) | 5–9 | 5 passed | `119 10` |
+| 119 (`test_resource_types.Test_Resource_Deferred`) | 10–14 | 5 passed | `119 15` |
+| 119 (`test_resource_types.Test_Resource_Deferred`) | 15–19 | 5 passed | `119 20` |
+| 119 (`test_resource_types.Test_Resource_Deferred`) | 20–24 | 5 passed | `119 25` |
+| 119 (`test_resource_types.Test_Resource_Deferred`) | 25–29 | 5 passed | `119 30` |
+| 119 (`test_resource_types.Test_Resource_Deferred`) | 30–34 | 5 passed | `119 35` |
+| 119 (`test_resource_types.Test_Resource_Deferred`) | 35–39 | 5 passed | `119 40` |
+| 119 (`test_resource_types.Test_Resource_Deferred`) | 40–44 | 5 passed | `119 45` |
+| 119 (`test_resource_types.Test_Resource_Deferred`) | 45–49 | 5 passed | `119 50` |
+| 119 (`test_resource_types.Test_Resource_Deferred`) | 50–54 | 5 passed | `119 55` |
+| 119 (`test_resource_types.Test_Resource_Deferred`) | 55–59 | 5 passed | `119 60` |
+| 119 (`test_resource_types.Test_Resource_Deferred`) | 60–64 | 5 passed | `120 0` |
+| 120 (`test_resource_types.Test_Resource_MultiLayered`) | 0–4 | 5 passed | `120 5` |
+| 120 (`test_resource_types.Test_Resource_MultiLayered`) | 5–9 | 5 passed | `120 10` |
+| 120 (`test_resource_types.Test_Resource_MultiLayered`) | 10–14 | 5 passed | `120 15` |
+| 120 (`test_resource_types.Test_Resource_MultiLayered`) | 15–19 | 5 passed | `120 20` |
+| 120 (`test_resource_types.Test_Resource_MultiLayered`) | 20–24 | 5 passed | `120 25` |
+| 120 (`test_resource_types.Test_Resource_MultiLayered`) | 25–29 | 5 passed | `120 30` |
+| 120 (`test_resource_types.Test_Resource_MultiLayered`) | 30–34 | 5 passed | `120 35` |
+| 120 (`test_resource_types.Test_Resource_MultiLayered`) | 35–39 | 5 passed | `120 40` |
+| 120 (`test_resource_types.Test_Resource_MultiLayered`) | 40–44 | 5 passed | `120 45` |
+| 120 (`test_resource_types.Test_Resource_MultiLayered`) | 45–49 | 5 passed | `120 50` |
+| 120 (`test_resource_types.Test_Resource_MultiLayered`) | 50–54 | 5 passed | `120 55` |
+| 120 (`test_resource_types.Test_Resource_MultiLayered`) | 55–59 | 5 passed | `120 60` |
+| 120 (`test_resource_types.Test_Resource_MultiLayered`) | 60–64 | 5 passed | `121 0` |
+| 121 (`test_resource_types.Test_Resource_NonBlocking`) | 0–4 | 5 passed | `121 5` |
+| 121 (`test_resource_types.Test_Resource_NonBlocking`) | 5–9 | 5 passed | `121 10` |
+| 121 (`test_resource_types.Test_Resource_NonBlocking`) | 10–14 | 5 passed | `121 15` |
+| 121 (`test_resource_types.Test_Resource_NonBlocking`) | 15–19 | 5 passed | `121 20` |
+| 121 (`test_resource_types.Test_Resource_NonBlocking`) | 20–24 | 5 passed | `121 25` |
+| 121 (`test_resource_types.Test_Resource_NonBlocking`) | 25–29 | 5 passed | `121 30` |
+| 121 (`test_resource_types.Test_Resource_NonBlocking`) | 30–34 | 5 passed | `121 35` |
+| 121 (`test_resource_types.Test_Resource_NonBlocking`) | 35–39 | 5 passed | `121 40` |
+| 121 (`test_resource_types.Test_Resource_NonBlocking`) | 40–44 | 5 passed | `121 45` |
+| 121 (`test_resource_types.Test_Resource_NonBlocking`) | 45–49 | 5 passed | `121 50` |
+| 121 (`test_resource_types.Test_Resource_NonBlocking`) | 50–54 | 5 passed | `121 55` |
+| 121 (`test_resource_types.Test_Resource_NonBlocking`) | 55–59 | 5 passed | `121 60` |
+| 121 (`test_resource_types.Test_Resource_NonBlocking`) | 60–64 | 5 passed | `122 0` |
+| 122 (`test_resource_types.Test_Resource_Passthru`) | 0–4 | 5 passed | `122 5` |
+| 122 (`test_resource_types.Test_Resource_Passthru`) | 5–9 | 5 passed | `122 10` |
+| 122 (`test_resource_types.Test_Resource_Passthru`) | 10–14 | 5 passed | `122 15` |
+| 122 (`test_resource_types.Test_Resource_Passthru`) | 15–19 | 5 passed | `122 20` |
+| 122 (`test_resource_types.Test_Resource_Passthru`) | 20–24 | 5 passed | `122 25` |
+| 122 (`test_resource_types.Test_Resource_Passthru`) | 25–29 | 5 passed | `122 30` |
+| 122 (`test_resource_types.Test_Resource_Passthru`) | 30–34 | 5 passed | `122 35` |
+| 122 (`test_resource_types.Test_Resource_Passthru`) | 35–39 | 5 passed | `122 40` |
+| 122 (`test_resource_types.Test_Resource_Passthru`) | 40–44 | 5 passed | `122 45` |
+| 122 (`test_resource_types.Test_Resource_Passthru`) | 45–49 | 5 passed | `122 50` |
+| 122 (`test_resource_types.Test_Resource_Passthru`) | 50–54 | 5 passed | `122 55` |
+| 122 (`test_resource_types.Test_Resource_Passthru`) | 55–59 | 5 passed | `122 60` |
+| 122 (`test_resource_types.Test_Resource_Passthru`) | 60–64 | 5 passed | `123 0` |
+| 123 (`test_resource_types.Test_Resource_Random`) | 0–4 | 5 passed | `123 5` |
+| 123 (`test_resource_types.Test_Resource_Random`) | 5–9 | 5 passed | `123 10` |
+| 123 (`test_resource_types.Test_Resource_Random`) | 10–14 | 5 passed | `123 15` |
+| 123 (`test_resource_types.Test_Resource_Random`) | 15–19 | 5 passed | `123 20` |
+| 123 (`test_resource_types.Test_Resource_Random`) | 20–24 | 5 passed | `123 25` |
+| 123 (`test_resource_types.Test_Resource_Random`) | 25–29 | 5 passed | `123 30` |
+| 123 (`test_resource_types.Test_Resource_Random`) | 30–34 | 5 passed | `123 35` |
+| 123 (`test_resource_types.Test_Resource_Random`) | 35–39 | 5 passed | `123 40` |
+| 123 (`test_resource_types.Test_Resource_Random`) | 40–44 | 5 passed | `123 45` |
+| 123 (`test_resource_types.Test_Resource_Random`) | 45–49 | 5 passed | `123 50` |
+| 123 (`test_resource_types.Test_Resource_Random`) | 50–54 | 5 passed | `123 55` |
+| 123 (`test_resource_types.Test_Resource_Random`) | 55–59 | 5 passed | `123 60` |
+| 123 (`test_resource_types.Test_Resource_Random`) | 60–64 | 5 passed | `123 65` |
+| 123 (`test_resource_types.Test_Resource_Random`) | 65 | 1 passed | `124 0` |
+| 124 (`test_resource_types.Test_Resource_RandomWithinRandom`) | 0–4 | 5 passed | `124 5` |
+| 124 (`test_resource_types.Test_Resource_RandomWithinRandom`) | 5–9 | 5 passed | `124 10` |
+| 124 (`test_resource_types.Test_Resource_RandomWithinRandom`) | 10–14 | 5 passed | `124 15` |
+| 124 (`test_resource_types.Test_Resource_RandomWithinRandom`) | 15–19 | 5 passed | `124 20` |
+| 124 (`test_resource_types.Test_Resource_RandomWithinRandom`) | 20–24 | 5 passed | `124 25` |
+| 124 (`test_resource_types.Test_Resource_RandomWithinRandom`) | 25–29 | 5 passed | `124 30` |
+| 124 (`test_resource_types.Test_Resource_RandomWithinRandom`) | 30–34 | 5 passed | `124 35` |
+| 124 (`test_resource_types.Test_Resource_RandomWithinRandom`) | 35–39 | 5 passed | `124 40` |
+| 124 (`test_resource_types.Test_Resource_RandomWithinRandom`) | 40–44 | 5 passed | `124 45` |
+| 124 (`test_resource_types.Test_Resource_RandomWithinRandom`) | 45–49 | 5 passed | `124 50` |
+| 124 (`test_resource_types.Test_Resource_RandomWithinRandom`) | 50–54 | 5 passed | `124 55` |
+| 124 (`test_resource_types.Test_Resource_RandomWithinRandom`) | 55–59 | 5 passed | `124 60` |
+| 124 (`test_resource_types.Test_Resource_RandomWithinRandom`) | 60–64 | 5 passed | `124 65` |
+| 124 (`test_resource_types.Test_Resource_RandomWithinRandom`) | 65 | 1 passed | `125 0` |
+| 125 (`test_resource_types.Test_Resource_RandomWithinReplication`) | 0–4 | 5 passed | `125 5` |
+| 125 (`test_resource_types.Test_Resource_RandomWithinReplication`) | 5–9 | 5 passed | `125 10` |
+| 125 (`test_resource_types.Test_Resource_RandomWithinReplication`) | 10–14 | 5 passed | `125 15` |
+| 125 (`test_resource_types.Test_Resource_RandomWithinReplication`) | 15–19 | 5 passed | `125 20` |
+| 125 (`test_resource_types.Test_Resource_RandomWithinReplication`) | 20–24 | 5 passed | `125 25` |
+| 125 (`test_resource_types.Test_Resource_RandomWithinReplication`) | 25–29 | 5 passed | `125 30` |
+| 125 (`test_resource_types.Test_Resource_RandomWithinReplication`) | 30–34 | 5 passed | `125 35` |
+| 125 (`test_resource_types.Test_Resource_RandomWithinReplication`) | 35–39 | 5 passed | `125 40` |
+| 125 (`test_resource_types.Test_Resource_RandomWithinReplication`) | 40–44 | 5 passed | `125 45` |
+| 125 (`test_resource_types.Test_Resource_RandomWithinReplication`) | 45–49 | 5 passed | `125 50` |
+| 125 (`test_resource_types.Test_Resource_RandomWithinReplication`) | 50–54 | 5 passed | `125 55` |
+| 125 (`test_resource_types.Test_Resource_RandomWithinReplication`) | 55–59 | 5 passed | `125 60` |
+| 125 (`test_resource_types.Test_Resource_RandomWithinReplication`) | 60–64 | 5 passed | `125 65` |
+| 125 (`test_resource_types.Test_Resource_RandomWithinReplication`) | 65–67 | 3 passed | `126 0` |
+| 126 (`test_resource_types.Test_Resource_Replication`) | 0–4 | 5 passed | `126 5` |
+| 126 (`test_resource_types.Test_Resource_Replication`) | 5–9 | 5 passed | `126 10` |
+| 126 (`test_resource_types.Test_Resource_Replication`) | 10–14 | 5 passed | `126 15` |
+| 126 (`test_resource_types.Test_Resource_Replication`) | 15–19 | 5 passed | `126 20` |
+| 126 (`test_resource_types.Test_Resource_Replication`) | 20–24 | 5 passed | `126 25` |
+| 126 (`test_resource_types.Test_Resource_Replication`) | 25–29 | 5 passed | `126 30` |
+| 126 (`test_resource_types.Test_Resource_Replication`) | 30–34 | 5 passed | `126 35` |
+| 126 (`test_resource_types.Test_Resource_Replication`) | 35–39 | 5 passed | `126 40` |
+| 126 (`test_resource_types.Test_Resource_Replication`) | 40–44 | 5 passed | `126 45` |
+| 126 (`test_resource_types.Test_Resource_Replication`) | 45–49 | 5 passed | `126 50` |
+| 126 (`test_resource_types.Test_Resource_Replication`) | 50–54 | 5 passed | `126 55` |
+| 126 (`test_resource_types.Test_Resource_Replication`) | 55–59 | 5 passed | `126 60` |
+| 126 (`test_resource_types.Test_Resource_Replication`) | 60–64 | 5 passed | `126 65` |
+| 126 (`test_resource_types.Test_Resource_Replication`) | 65–69 | 5 passed | `126 70` |
+| 126 (`test_resource_types.Test_Resource_Replication`) | 70–72 | 3 passed; fourth exceeded 1200s batch limit | `126 73` |
+| 126 (`test_resource_types.Test_Resource_Replication`) | 73 | 1 passed alone (1142s) | `126 74` |
+| 126 (`test_resource_types.Test_Resource_Replication`) | 74 | 1 passed | `126 75` |
+| 126 (`test_resource_types.Test_Resource_Replication`) | 75–79 | 5 passed | `127 0` |
+| 127 (`test_resource_types.Test_Resource_ReplicationToTwoCompound`) | 0–4 | 5 passed | `127 5` |
+| 127 (`test_resource_types.Test_Resource_ReplicationToTwoCompound`) | 5–9 | 5 passed | `127 10` |
+| 127 (`test_resource_types.Test_Resource_ReplicationToTwoCompound`) | 10–14 | 5 passed | `127 15` |
+| 127 (`test_resource_types.Test_Resource_ReplicationToTwoCompound`) | 15–19 | 5 passed | `127 20` |
+| 127 (`test_resource_types.Test_Resource_ReplicationToTwoCompound`) | 20–24 | 5 passed | `127 25` |
+| 127 (`test_resource_types.Test_Resource_ReplicationToTwoCompound`) | 25–29 | 5 passed | `127 30` |
+| 127 (`test_resource_types.Test_Resource_ReplicationToTwoCompound`) | 30–34 | 5 passed | `127 35` |
+| 127 (`test_resource_types.Test_Resource_ReplicationToTwoCompound`) | 35–39 | 5 passed | `127 40` |
+| 127 (`test_resource_types.Test_Resource_ReplicationToTwoCompound`) | 40–44 | 5 passed | `127 45` |
+| 127 (`test_resource_types.Test_Resource_ReplicationToTwoCompound`) | 45–49 | 5 passed | `127 50` |
+| 127 (`test_resource_types.Test_Resource_ReplicationToTwoCompound`) | 50–54 | 5 passed | `127 55` |
+| 127 (`test_resource_types.Test_Resource_ReplicationToTwoCompound`) | 55–59 | 5 passed | `127 60` |
+| 127 (`test_resource_types.Test_Resource_ReplicationToTwoCompound`) | 60–64 | 5 passed | `127 65` |
+| 127 (`test_resource_types.Test_Resource_ReplicationToTwoCompound`) | 65–66 | 2 passed | `128 0` |
+| 128 (`test_resource_types.Test_Resource_ReplicationToTwoCompoundResourcesWithPreferArchive`) | 0–4 | 5 passed | `128 5` |
+| 128 (`test_resource_types.Test_Resource_ReplicationToTwoCompoundResourcesWithPreferArchive`) | 5–9 | 5 passed | `128 10` |
+| 128 (`test_resource_types.Test_Resource_ReplicationToTwoCompoundResourcesWithPreferArchive`) | 10–14 | 5 passed | `128 15` |
+| 128 (`test_resource_types.Test_Resource_ReplicationToTwoCompoundResourcesWithPreferArchive`) | 15–19 | 5 passed | `128 20` |
+| 128 (`test_resource_types.Test_Resource_ReplicationToTwoCompoundResourcesWithPreferArchive`) | 20–24 | 5 passed | `128 25` |
+| 128 (`test_resource_types.Test_Resource_ReplicationToTwoCompoundResourcesWithPreferArchive`) | 25–29 | 5 passed | `128 30` |
+| 128 (`test_resource_types.Test_Resource_ReplicationToTwoCompoundResourcesWithPreferArchive`) | 30–34 | 5 passed | `128 35` |
+| 128 (`test_resource_types.Test_Resource_ReplicationToTwoCompoundResourcesWithPreferArchive`) | 35–39 | 5 passed | `128 40` |
+| 128 (`test_resource_types.Test_Resource_ReplicationToTwoCompoundResourcesWithPreferArchive`) | 40–44 | 5 passed | `128 45` |
+| 128 (`test_resource_types.Test_Resource_ReplicationToTwoCompoundResourcesWithPreferArchive`) | 45–49 | 5 passed | `128 50` |
+| 128 (`test_resource_types.Test_Resource_ReplicationToTwoCompoundResourcesWithPreferArchive`) | 50–54 | 5 passed | `128 55` |
+| 128 (`test_resource_types.Test_Resource_ReplicationToTwoCompoundResourcesWithPreferArchive`) | 55–59 | 5 passed | `128 60` |
+| 128 (`test_resource_types.Test_Resource_ReplicationToTwoCompoundResourcesWithPreferArchive`) | 60–64 | 5 passed | `128 65` |
+| 128 (`test_resource_types.Test_Resource_ReplicationToTwoCompoundResourcesWithPreferArchive`) | 65–66 | 2 passed | `129 0` |
+| 129 (`test_resource_types.Test_Resource_ReplicationWithinReplication`) | 0–4 | 5 passed | `129 5` |
+| 129 (`test_resource_types.Test_Resource_ReplicationWithinReplication`) | 5–9 | 5 passed | `129 10` |
+| 129 (`test_resource_types.Test_Resource_ReplicationWithinReplication`) | 10–14 | 5 passed | `129 15` |
+| 129 (`test_resource_types.Test_Resource_ReplicationWithinReplication`) | 15–19 | 5 passed | `129 20` |
+| 129 (`test_resource_types.Test_Resource_ReplicationWithinReplication`) | 20–24 | 5 passed | `129 25` |
+| 129 (`test_resource_types.Test_Resource_ReplicationWithinReplication`) | 25–29 | 5 passed | `129 30` |
+| 129 (`test_resource_types.Test_Resource_ReplicationWithinReplication`) | 30–34 | 5 passed | `129 35` |
+| 129 (`test_resource_types.Test_Resource_ReplicationWithinReplication`) | 35–39 | 5 passed | `129 40` |
+| 129 (`test_resource_types.Test_Resource_ReplicationWithinReplication`) | 40–44 | 5 passed | `129 45` |
+| 129 (`test_resource_types.Test_Resource_ReplicationWithinReplication`) | 45–49 | 5 passed | `129 50` |
+| 129 (`test_resource_types.Test_Resource_ReplicationWithinReplication`) | 50–54 | 5 passed | `129 55` |
+| 129 (`test_resource_types.Test_Resource_ReplicationWithinReplication`) | 55–59 | 5 passed | `129 60` |
+| 129 (`test_resource_types.Test_Resource_ReplicationWithinReplication`) | 60–64 | 5 passed | `130 0` |
+| 130 (`test_resource_types.Test_Resource_Unixfilesystem`) | 0–4 | 5 passed | `130 5` |
+| 130 (`test_resource_types.Test_Resource_Unixfilesystem`) | 5–9 | 5 passed | `130 10` |
+| 130 (`test_resource_types.Test_Resource_Unixfilesystem`) | 10–14 | 5 passed | `130 15` |
+| 130 (`test_resource_types.Test_Resource_Unixfilesystem`) | 15–19 | 5 passed | `130 20` |
+| 130 (`test_resource_types.Test_Resource_Unixfilesystem`) | 20–24 | 5 passed | `130 25` |
+| 130 (`test_resource_types.Test_Resource_Unixfilesystem`) | 25–29 | 5 passed | `130 30` |
+| 130 (`test_resource_types.Test_Resource_Unixfilesystem`) | 30–34 | 5 passed | `130 35` |
+| 130 (`test_resource_types.Test_Resource_Unixfilesystem`) | 35–39 | 5 passed | `130 40` |
+| 130 (`test_resource_types.Test_Resource_Unixfilesystem`) | 40–44 | 5 passed | `130 45` |
+| 130 (`test_resource_types.Test_Resource_Unixfilesystem`) | 45–49 | 5 passed | `130 50` |
+| 130 (`test_resource_types.Test_Resource_Unixfilesystem`) | 50–54 | 5 passed | `130 55` |
+| 130 (`test_resource_types.Test_Resource_Unixfilesystem`) | 55–59 | 5 passed | `130 60` |
+| 130 (`test_resource_types.Test_Resource_Unixfilesystem`) | 60–64 | 5 passed | `130 65` |
+| 130 (`test_resource_types.Test_Resource_Unixfilesystem`) | 65–69 | 5 passed | `130 70` |
+| 130 (`test_resource_types.Test_Resource_Unixfilesystem`) | 70–74 | 5 passed | `130 75` |
+| 130 (`test_resource_types.Test_Resource_Unixfilesystem`) | 75–79 | 5 passed | `130 80` |
+| 130 (`test_resource_types.Test_Resource_Unixfilesystem`) | 80–83 | 4 passed | `131 0` |
+| 131 (`test_resource_types.Test_Resource_WeightedPassthru`) | 0–3 | 4 passed | `132 0` |
+| 132 (`test_rule_engine_plugin_framework.Test_Plugin_Instance_CppDefault`) | 0–1 | 2 passed | `133 0` |
+| 133 (`test_rule_engine_plugin_framework.Test_Plugin_Instance_Delay`) | 0–2 | 3 passed | `134 0` |
+| 134 (`test_rule_engine_plugin_framework.Test_Rule_Engine_Plugin_Framework`) | 0–4 | 5 passed | `134 5` |
+| 134 (`test_rule_engine_plugin_framework.Test_Rule_Engine_Plugin_Framework`) | 5–9 | 5 passed | `134 10` |
+| 134 (`test_rule_engine_plugin_framework.Test_Rule_Engine_Plugin_Framework`) | 10 | 1 passed | `135 0` |
+| 135 (`test_rule_engine_plugin_passthrough`) | 0 | 1 passed | `136 0` |
+| 136 (`test_rulebase.Test_Remote_Exec`) | 0–4 | 5 passed | `136 5` |
+| 136 (`test_rulebase.Test_Remote_Exec`) | 5 | 1 passed | `137 0` |
+| 137 (`test_rulebase.Test_Resource_Session_Vars__3024`) | 0–4 | 5 passed | `137 5` |
+| 137 (`test_rulebase.Test_Resource_Session_Vars__3024`) | 5–9 | 5 passed | `137 10` |
+| 137 (`test_rulebase.Test_Resource_Session_Vars__3024`) | 10 | 1 passed | `138 0` |
+| 138 (`test_rulebase.Test_Rulebase`) | 0–4 | 5 passed | `138 5` |
+| 138 (`test_rulebase.Test_Rulebase`) | 5–9 | 5 passed | `138 10` |
+| 138 (`test_rulebase.Test_Rulebase`) | 10–14 | 5 passed | `139 0` |
+| 139 (`test_session_tokens.test_session_token_lifetime_configuration`) | 0 | 1 passed | `140 0` |
+| 140 (`test_session_tokens.test_password_authentication_returning_session_tokens`) | 0–4 | 5 passed | `140 5` |
+| 140 (`test_session_tokens.test_password_authentication_returning_session_tokens`) | 5–8 | 4 passed | `141 0` |
+| 141 (`test_session_tokens.test_remove_session_tokens`) | 0–4 | 5 passed | `141 5` |
+| 141 (`test_session_tokens.test_remove_session_tokens`) | 5–8 | 4 passed | `142 0` |
+| 142 (`test_setting_user_password.test_modifying_user_password`) | 0–4 | 5 passed | `142 5` |
+| 142 (`test_setting_user_password.test_modifying_user_password`) | 5 | 1 passed | `143 0` |
+| 143 (`test_setting_user_password.test_igroupadmin_mkuser`) | 0–2 | 3 passed | `144 0` |
+| 144 (`test_setting_user_password.test_invalid_configurations_and_options`) | 0 | 1 passed | `145 0` |
+| 145 (`test_setting_user_password.test_ipasswd_with_both_passwords_set`) | 0–4 | 5 passed | `145 5` |
+| 145 (`test_setting_user_password.test_ipasswd_with_both_passwords_set`) | 5 | 1 passed | `146 0` |
+| 146 (`test_setting_user_password.test_ipasswd_with_only_native_password_set`) | 0–4 | 5 passed | `146 5` |
+| 146 (`test_setting_user_password.test_ipasswd_with_only_native_password_set`) | 5 | 1 passed | `147 0` |
+| 147 (`test_setting_user_password.test_ipasswd_with_only_irods_password_set`) | 0–4 | 5 passed | `147 5` |
+| 147 (`test_setting_user_password.test_ipasswd_with_only_irods_password_set`) | 5–6 | 2 passed | `148 0` |
+| 148 (`test_setting_user_password.test_ipasswd_with_no_password_set`) | 0–4 | 5 passed | `148 5` |
+| 148 (`test_setting_user_password.test_ipasswd_with_no_password_set`) | 5 | 1 passed | `149 0` |
+| 149 (`test_special_collections`) | 0 | 1 passed | `150 0` |
+| 150 (`test_specific_queries`) | 0 | 1 passed | `151 0` |
+| 151 (`test_ssl`) | 0 | 1 passed | `152 0` |
+| 152 (`test_stacktrace`) | 0 | 1 passed | `153 0` |
+| 153 (`test_symlink_operations`) | 0–4 | 5 passed | `153 5` |
+| 153 (`test_symlink_operations`) | 5–8 | 4 passed | `154 0` |
+| 154 (`test_targeting_specific_replica_number`) | 0–4 | 5 passed | `154 5` |
+| 154 (`test_targeting_specific_replica_number`) | 5–9 | 5 passed | `154 10` |
+| 154 (`test_targeting_specific_replica_number`) | 10–12 | 3 passed | `155 0` |
 
 `Test_AllRules` contains 125 methods. The previously recorded
 `rsApiHandler.cpp` function-type mismatch is still emitted by normal API
@@ -622,6 +859,12 @@ the existing generic API-wrapper report. Reset catalog/shared-memory state
 after interruption and ran the second method alone: passed in 692 seconds,
 with no new sanitizer report. Continue at `116 0`.
 
+At `126 70`, the first three replication-resource cases passed but the
+rebalance-update case exceeded the per-batch limit. Scoped logs contained
+only the known API-wrapper report. Reset catalog state left by interruption
+and ran methods 73 and 74 individually. Both passed (1142 and 32 seconds),
+with no new sanitizer findings. Continue at `126 75`.
+
 At `116 20`, UBSan reports calls to `gGuiProgressCB` in get/put utilities
 through an incompatible function pointer. `iCommandProgStat()` was declared
 to *return* `guiProgressCallback`, whereas the progress callback interface
@@ -681,3 +924,34 @@ checking for a positive count. Rebuilt and installed the ASan/UBSan server
 package; the five reproducing tests pass, and the scoped logs at
 `/tmp/irods_batch_15_45_2320023_ubsan.*` no longer contain this report.
 Continue at `15 50`.
+
+## Core-suite completion and typed API dispatch
+
+All 155 identifiers in the installed Python core test list were exercised in
+batches, ending at cursor `155 0`. Every corrected sanitizer finding was
+retested under an installed ASan/UBSan build. Three timing-sensitive tests
+still failed without a new sanitizer report: the long delay-job test at
+`11 3` and the short PAM-password-expiration cases at `110 3` and `110 7`.
+The server-factory-respawn test at `105 18` also failed its teardown in this
+64 MB `/dev/shm` environment; the old factory's 30 MB shared-memory cache
+prevented the replacement factory from initializing. Stopping the server and
+clearing stale iRODS shared memory restored subsequent tests.
+
+The remaining `rsApiHandler.cpp` UBSan function-type report came from calling
+typed API wrappers through `funcPtr`, an incompatible variadic function
+pointer. Preserve each wrapper's concrete signature in `api_call_dispatcher`
+when constructing built-in and plugin API entries. Its type-erased invocation
+casts the packed argument pointers back to that signature before the call and
+rejects an incorrect number of arguments. Rebuilt all sanitized targets,
+regenerated the Debian packages, installed runtime, server, iCommands,
+PostgreSQL plugin and development packages, then ran the installed upgrade
+script to restore `version.json` after the package upgrade.
+
+Under the new installed build, all nine `test_imkdir` cases passed, as did
+five `test_iput` cases, five `test_itouch` cases and the SSL test. The
+`irods_get_delay_rule_info` unit test passed 31 assertions, and the
+`rc_switch_user` basic-usage unit test passed 10 assertions. Scoped ASan and
+UBSan logs contained no API function-type report or new ASan finding; only
+the already documented inlined libstdc++ unsigned-wrap reports remain.
+Isolated reruns of `110 3` and `110 7` still failed their timing-dependent
+authentication assertions without any new sanitizer report.

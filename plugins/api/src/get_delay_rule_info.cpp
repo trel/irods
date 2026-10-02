@@ -153,7 +153,7 @@ namespace
 
     using operation = std::function<int(RsComm*, const char*, BytesBuf**)>;
     const operation op = rs_get_delay_rule_info_impl;
-    auto fn_ptr = reinterpret_cast<funcPtr>(call_get_delay_rule_info);
+    auto fn_ptr = irods::api_call_dispatcher{call_get_delay_rule_info};
 } // anonymous namespace
 
 #else // RODS_SERVER
@@ -166,7 +166,7 @@ namespace
 {
     using operation = std::function<int(RsComm*, const char*, BytesBuf**)>;
     const operation op{};
-    funcPtr fn_ptr = nullptr;
+    irods::api_call_dispatcher fn_ptr;
 } // anonymous namespace
 
 #endif // RODS_SERVER

@@ -306,7 +306,7 @@ namespace
 
     using operation = std::function<int(RsComm*, const SwitchUserInput*)>;
     const operation op = rs_switch_user;
-    auto fn_ptr = reinterpret_cast<funcPtr>(call_switch_user);
+    auto fn_ptr = irods::api_call_dispatcher{call_switch_user};
 } // anonymous namespace
 
 #else // RODS_SERVER
@@ -319,7 +319,7 @@ namespace
 {
     using operation = std::function<int(RsComm*, const SwitchUserInput*)>;
     const operation op{};
-    funcPtr fn_ptr = nullptr; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+    irods::api_call_dispatcher fn_ptr; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 } // anonymous namespace
 
 #endif // RODS_SERVER
