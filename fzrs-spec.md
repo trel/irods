@@ -19,10 +19,13 @@ FZRS alive as a child process. Nothing in this design assumes either mode.
 
 ## 2. Deliverables
 
-Both files live at the top level of the repository.
+All files live at the top level of the repository.
 
 - `fzrs.py` — the whole service in one Python file.
-- `fzrs-spec.md` — this document.
+- `fzrs-spec.md` — this document, the authoritative specification.
+- `fzrs-openapi.yaml` — an OpenAPI 3.0.3 description of the HTTP surface
+  (section 15). A companion to this document, not a replacement for it.
+- `test_fzrs.py` — the automated tests (section 14).
 
 ## 3. Runtime requirements
 
@@ -313,6 +316,10 @@ Wrong method → `405`. Bodies larger than `max_request_body_bytes` → `413`.
 Malformed JSON or validation failures → `400`.
 
 Before handling any request, FZRS runs the lazy expiration sweep (section 8).
+
+The same surface is described machine-readably in `fzrs-openapi.yaml`
+(section 15). Where the two disagree, this document wins and the OpenAPI file
+is the one to fix.
 
 ### 7.0 `GET /info` — unauthenticated
 
@@ -694,6 +701,9 @@ against a real zone only when `FZRS_LIVE_IRODS_ENV_FILE` and
 `FZRS_LIVE_RODSUSER_PASSWORD` for the 403 case); they must run as the iRODS
 service account so python-irodsclient can find `.irodsA`.
 
+The suite also needs PyYAML and jsonschema (Ubuntu packages `python3-yaml`
+and `python3-jsonschema`) for the contract checks of section 15.
+
 ```
 PYTHONPATH=/src/python-irodsclient python3 -m pytest -q test_fzrs.py
 PYTHONPATH=/src/python-irodsclient python3 -m coverage run --branch --include=fzrs.py -m pytest -q test_fzrs.py
@@ -703,3 +713,35 @@ python3 -m coverage report -m
 Only `main()`'s serve loop (exercised in a subprocess), the broken-pipe
 branch, and the temp-file cleanup branch of `atomic_write_json` are outside
 line coverage.
+
+## 15. OpenAPI description
+
+`fzrs-openapi.yaml` describes sections 6 and 7 as an OpenAPI 3.0.3 document:
+every path, method, request body, response body, status code, and header,
+the HTTP Basic security scheme on `list` and `judge`, and named schemas for
+each object that crosses the wire. The plaintexts that travel only inside a
+JWE (`ApplySecrets`, `ApprovedApplicantPayload`, `EncryptedApplyPlaintext`)
+are also named schemas, so a client can validate what it decrypts or is
+about to encrypt. 3.0.3 was chosen over 3.1.0 for the widest tooling
+support; the only 3.0 idiom used is `nullable: true`.
+
+The file is validated with `openapi-spec-validator` and is enforced by the
+test suite rather than merely shipped beside it. Every request the suite
+sends through its fixture and every response it receives is checked against
+the document: the method and path must be declared (an undeclared path must
+answer `404`, an undeclared method `405` with the declared `Allow` header),
+the status code must be declared for that operation, declared headers must
+be present, the JSON body must validate against the declared schema, and
+for a 2xx response the request body and query parameters must validate
+against the declared request. Separate tests check that every `$ref`
+resolves, that every example in the document validates against its own
+schema, that every declared operation reaches a handler, and that decrypted
+payloads match the three plaintext schemas. A new status code or field in
+`fzrs.py` therefore fails the suite until the OpenAPI file describes it.
+
+The YAML file is the single source. A JSON rendering, when a tool wants one,
+is a lossless one-liner:
+
+```
+python3 -c 'import json, sys, yaml; json.dump(yaml.safe_load(sys.stdin), sys.stdout, indent=2)' < fzrs-openapi.yaml > fzrs-openapi.json
+```

@@ -9,6 +9,9 @@ PYTHONPATH at a checkout of it:
 
     export PYTHONPATH=/src/python-irodsclient
 
+The suite also needs PyYAML and jsonschema (python3-yaml, python3-jsonschema)
+to check every request and response against fzrs-openapi.yaml.
+
 Run the suite with either unittest or pytest:
 
     python3 -m unittest -v test_fzrs
@@ -23,6 +26,13 @@ The HTTP tests start the real fzrs server in-process on an ephemeral port and
 drive it with http.client. iRODS is replaced by a fake, so no live zone is
 needed. Reload is exercised against a real child process that records the
 SIGHUP it receives.
+
+Every request the suite sends through the fixture and every response it gets
+back is checked against fzrs-openapi.yaml: the method and path must be
+declared, the status code must be declared for that operation, declared
+headers must be present, and the JSON body must validate against the declared
+schema. A response the contract does not describe fails the test that
+produced it, so fzrs.py and fzrs-openapi.yaml cannot drift apart silently.
 
 Live tests against a running zone are skipped unless both of these are set:
 
@@ -43,6 +53,7 @@ home directory. For example:
 """
 
 import base64
+import copy
 import http.client
 import json
 import os
@@ -54,7 +65,10 @@ import tempfile
 import threading
 import time
 import unittest
+from urllib.parse import parse_qs, urlsplit
 
+import jsonschema
+import yaml
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -224,6 +238,124 @@ def raw_http(port, request_bytes):
     return b"".join(chunks).decode()
 
 
+OPENAPI_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fzrs-openapi.yaml")
+HTTP_METHODS = ("get", "put", "post", "delete", "options", "head", "patch", "trace")
+
+
+class OpenAPIContract:
+    """Checks live traffic against fzrs-openapi.yaml (spec section 15).
+
+    OpenAPI 3.0 schemas are JSON Schema draft 4 plus `nullable`, so the
+    document is translated once: `nullable: true` becomes a `null` member
+    of `type` (and of `enum` when present). Everything else validates
+    unchanged with jsonschema's Draft4Validator.
+    """
+
+    def __init__(self, path=OPENAPI_FILE):
+        with open(path) as f:
+            self.doc = yaml.safe_load(f)
+        self.root = self._to_draft4(copy.deepcopy(self.doc))
+        self.resolver = jsonschema.RefResolver.from_schema(self.root)
+
+    @classmethod
+    def _to_draft4(cls, node):
+        if isinstance(node, dict):
+            if node.pop("nullable", False) and "type" in node:
+                node["type"] = [node["type"], "null"]
+                if "enum" in node:
+                    node["enum"] = list(node["enum"]) + [None]
+            for value in node.values():
+                cls._to_draft4(value)
+        elif isinstance(node, list):
+            for value in node:
+                cls._to_draft4(value)
+        return node
+
+    def deref(self, obj):
+        while isinstance(obj, dict) and "$ref" in obj:
+            obj = self.resolver.resolve(obj["$ref"])[1]
+        return obj
+
+    def validate(self, instance, schema, what):
+        validator = jsonschema.Draft4Validator(schema, resolver=self.resolver)
+        errors = sorted(validator.iter_errors(instance), key=lambda e: list(e.path))
+        if errors:
+            raise AssertionError("{} does not match fzrs-openapi.yaml:\n  {}\n  instance: {}".format(
+                what, "\n  ".join(e.message for e in errors[:3]), json.dumps(instance)[:400]))
+
+    def operation(self, method, path):
+        """Return (path item, operation) for a request, either of which may be None."""
+        path = urlsplit(path).path.rstrip("/") or "/"
+        item = self.root["paths"].get(path)
+        return item, (item or {}).get(method.lower())
+
+    def check(self, method, path, status, body, headers, request_body=None):
+        """Assert that one exchange is described by the contract."""
+        what = "{} {} -> {}".format(method, path, status)
+        headers = {k.lower(): v for k, v in headers.items()}
+        error = self.root["components"]["schemas"]["Error"]
+        item, op = self.operation(method, path)
+        if item is None:
+            assert status == 404, "{}: undeclared paths must answer 404".format(what)
+            return self.validate(body, error, what)
+        if op is None:
+            assert status == 405, "{}: undeclared methods must answer 405".format(what)
+            allowed = ", ".join(m.upper() for m in item if m in HTTP_METHODS)
+            assert headers.get("allow") == allowed, "{}: Allow header is {!r}, expected {!r}".format(
+                what, headers.get("allow"), allowed)
+            return self.validate(body, error, what)
+
+        response = op["responses"].get(str(status))
+        assert response is not None, "{}: fzrs-openapi.yaml does not declare {} for this operation".format(
+            what, status)
+        response = self.deref(response)
+        for name, header in response.get("headers", {}).items():
+            assert name.lower() in headers, "{}: declared header {} is missing".format(what, name)
+            self.validate(headers[name.lower()], header["schema"], "{} header {}".format(what, name))
+        assert headers.get("content-type") == "application/json", what
+        self.validate(body, response["content"]["application/json"]["schema"], what + " body")
+
+        if 200 <= status < 300:
+            # a request the service accepted must itself be what the contract describes
+            if request_body is not None and "requestBody" in op:
+                schema = op["requestBody"]["content"]["application/json"]["schema"]
+                self.validate(request_body, schema, what + " request body")
+            query = parse_qs(urlsplit(path).query, keep_blank_values=True)
+            for param in op.get("parameters", []):
+                values = query.get(param["name"], [])
+                if param.get("required"):
+                    assert len(values) == 1, "{}: query parameter {} is required".format(what, param["name"])
+                for value in values:
+                    self.validate(value, param["schema"], "{} query parameter {}".format(what, param["name"]))
+
+    def examples(self):
+        """Yield (description, example value, schema) for every example in the document."""
+        for name, schema in self.root["components"]["schemas"].items():
+            if "example" in schema:
+                yield "components.schemas.{}".format(name), schema["example"], schema
+        containers = [("components.responses.{}".format(n), r)
+                      for n, r in self.root["components"]["responses"].items()]
+        for path, item in self.root["paths"].items():
+            for method, op in item.items():
+                if method not in HTTP_METHODS:
+                    continue
+                where = "{} {}".format(method.upper(), path)
+                if "requestBody" in op:
+                    containers.append((where + " request", op["requestBody"]))
+                for code, response in op["responses"].items():
+                    if "$ref" not in response:
+                        containers.append(("{} -> {}".format(where, code), response))
+        for where, container in containers:
+            media = container["content"]["application/json"]
+            if "example" in media:
+                yield where + " example", media["example"], media["schema"]
+            for name, example in media.get("examples", {}).items():
+                yield "{} example {}".format(where, name), example["value"], media["schema"]
+
+
+CONTRACT = OpenAPIContract()
+
+
 class Fixture:
     """Temp directory with config, env, server_config, HUP child, and running server."""
 
@@ -309,7 +441,9 @@ class Fixture:
             decoded = json.loads(payload.decode()) if payload else None
         except ValueError:
             decoded = payload
-        return resp.status, decoded, dict(resp.getheaders())
+        hdrs_out = dict(resp.getheaders())
+        CONTRACT.check(method, path, resp.status, decoded, hdrs_out, request_body=body)
+        return resp.status, decoded, hdrs_out
 
     def apply(self, zone_name="otherZone", hosts=("localhost",), port=1247, zone_key=None, **extra):
         body = {"zone_name": zone_name, "zone_port": port, "catalog_provider_hosts": list(hosts)}
@@ -1366,6 +1500,97 @@ class ClientDisconnectTests(ServerTestCase):
         s.close()  # server answers 413 into a closed socket
         time.sleep(0.2)
         self.assertEqual(self.fx.request("GET", "/status?application_id=x")[0], 404)
+
+
+# ---------------------------------------------------------------------------
+# OpenAPI contract (fzrs-openapi.yaml)
+# ---------------------------------------------------------------------------
+
+class OpenAPIContractTests(ServerTestCase):
+    """The checks below complement the per-request validation every ServerTestCase performs."""
+
+    def test_document_basics(self):
+        doc = CONTRACT.doc
+        self.assertTrue(doc["openapi"].startswith("3.0."), doc["openapi"])
+        self.assertEqual(doc["info"]["version"], fzrs.VERSION)
+        self.assertEqual(set(doc["paths"]), {"/info", "/apply", "/status", "/list", "/judge"})
+        self.assertEqual(sorted(m for m in doc["paths"]["/apply"] if m in HTTP_METHODS), ["post"])
+        self.assertEqual(sorted(m for m in doc["paths"]["/judge"] if m in HTTP_METHODS), ["post"])
+        for path in ("/info", "/status", "/list"):
+            self.assertEqual(sorted(m for m in doc["paths"][path] if m in HTTP_METHODS), ["get"])
+        for path in ("/list", "/judge"):
+            op = doc["paths"][path][list(doc["paths"][path])[-1]]
+            self.assertEqual(op["security"], [{"rodsadminBasic": []}], path)
+        for path in ("/info", "/apply", "/status"):
+            self.assertNotIn("security", list(doc["paths"][path].values())[-1], path)
+        self.assertEqual(doc["components"]["securitySchemes"]["rodsadminBasic"],
+                         {"type": "http", "scheme": "basic",
+                          "description": doc["components"]["securitySchemes"]["rodsadminBasic"]["description"]})
+
+    def test_every_ref_resolves(self):
+        refs = []
+
+        def walk(node):
+            if isinstance(node, dict):
+                if "$ref" in node:
+                    refs.append(node["$ref"])
+                for v in node.values():
+                    walk(v)
+            elif isinstance(node, list):
+                for v in node:
+                    walk(v)
+        walk(CONTRACT.doc)
+        self.assertGreater(len(refs), 50)
+        for ref in refs:
+            self.assertTrue(ref.startswith("#/"), ref)
+            self.assertIsInstance(CONTRACT.resolver.resolve(ref)[1], dict, ref)
+
+    def test_every_example_matches_its_schema(self):
+        seen = 0
+        for where, example, schema in CONTRACT.examples():
+            CONTRACT.validate(example, schema, where)
+            seen += 1
+        self.assertGreater(seen, 40)
+
+    def test_every_operation_is_served(self):
+        # a declared operation must reach a handler: never 404 (unknown path) or 405 (wrong method)
+        for path, item in CONTRACT.doc["paths"].items():
+            for method in (m for m in item if m in HTTP_METHODS):
+                body = {} if method == "post" else None
+                status, _, _ = self.fx.request(method.upper(), path, body, auth=("rods", "rods"))
+                self.assertNotIn(status, (404, 405), "{} {}".format(method.upper(), path))
+                for other in ("GET", "POST", "PUT", "DELETE"):
+                    if other.lower() in item:
+                        continue
+                    raw = b"" if other in ("PUT", "DELETE", "POST") else None
+                    self.assertEqual(self.fx.request(other, path, raw_body=raw)[0], 405,
+                                     "{} {}".format(other, path))
+
+    def test_undeclared_path_and_status_code_fail_the_check(self):
+        with self.assertRaises(AssertionError):
+            CONTRACT.check("GET", "/info", 418, {"error": "x"}, {"Content-Type": "application/json"})
+        with self.assertRaises(AssertionError):
+            CONTRACT.check("GET", "/nowhere", 200, {}, {"Content-Type": "application/json"})
+        with self.assertRaises(AssertionError):
+            CONTRACT.check("GET", "/info", 200, {"service": "fzrs"}, {"Content-Type": "application/json"})
+        with self.assertRaises(AssertionError):
+            CONTRACT.check("POST", "/info", 405, {"error": "x"}, {"Content-Type": "application/json"})
+
+    def test_encrypted_plaintexts_match_their_schemas(self):
+        schemas = CONTRACT.root["components"]["schemas"]
+        application = {"zone_name": "otherZone", "zone_port": 1247, "catalog_provider_hosts": ["localhost"],
+                       "public_key": RSA_PUB_PEM, "iat": int(time.time())}
+        CONTRACT.validate(application, schemas["EncryptedApplyPlaintext"], "EncryptedApplyPlaintext")
+        (status, body, _), _ = self.fx.apply_encrypted(application, iat=None)
+        self.assertEqual(status, 201)
+        CONTRACT.validate(decrypt_payload(body["encrypted_payload"]), schemas["ApplySecrets"], "ApplySecrets")
+
+        status, judged, _ = self.fx.judge(body["application_id"], "approve")
+        self.assertEqual(status, 200)
+        _, shown, _ = self.fx.request("GET", body["status_url"])
+        payload = decrypt_payload(shown["encrypted_payload"])
+        CONTRACT.validate(payload, schemas["ApprovedApplicantPayload"], "ApprovedApplicantPayload")
+        self.assertEqual(payload["applicant_federation_entry"], judged["applicant_federation_entry"])
 
 
 # ---------------------------------------------------------------------------

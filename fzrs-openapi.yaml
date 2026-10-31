@@ -1,0 +1,1266 @@
+openapi: 3.0.3
+
+# OpenAPI description of the iRODS Federation Zone Registrar Service (FZRS).
+#
+# This file is a companion to fzrs-spec.md, which is the authoritative
+# specification. It describes only the HTTP surface: paths, methods, bodies,
+# status codes, headers, and authentication. Configuration, the approve
+# sequence, expiration, concurrency, and the JWE recipes live in the markdown
+# spec and are referenced by section number below.
+#
+# test_fzrs.py loads this file and validates every request the suite sends
+# and every response it receives against it, so the document and fzrs.py
+# cannot drift apart silently.
+
+info:
+  title: iRODS Federation Zone Registrar Service
+  version: 0.1.0
+  description: |
+    FZRS lets an applicant zone ask a home zone for federation without a
+    human exchanging keys by hand. An applicant submits its zone details,
+    a rodsadmin of the home zone reviews the queue and approves or rejects,
+    and the applicant retrieves the federation stanza it must install.
+
+    All request and response bodies are JSON. Every error response is the
+    `Error` object. Unknown paths answer `404`, a known path with the wrong
+    method answers `405` with an `Allow` header listing the methods that
+    path accepts, and a request body larger than `max_request_body_bytes`
+    answers `413`. Any unhandled failure answers `500`. A trailing slash on
+    a path is ignored.
+
+    Before handling any request the service runs the lazy expiration sweep
+    of spec section 8, so a `pending` application whose `expires_at` has
+    passed is `expired` by the time any endpoint reports on it.
+
+    The service speaks plain HTTP and is meant to run behind a
+    TLS-terminating proxy. Secrets can nevertheless be protected end to end
+    on both directions: an applicant may supply an RSA public key so every
+    secret the service returns is a JWE encrypted to it (spec 5.5), and may
+    encrypt its whole application to the service's ephemeral key published
+    by `/info` (spec 5.6).
+  contact:
+    name: iRODS Consortium
+    url: https://irods.org
+  license:
+    name: BSD-3-Clause
+    url: https://github.com/irods/irods/blob/main/LICENSE
+
+externalDocs:
+  description: fzrs-spec.md, the authoritative specification
+  url: ./fzrs-spec.md
+
+servers:
+  - url: /
+    description: |
+      Wherever this FZRS instance, or the TLS-terminating proxy in front of
+      it, is reachable. The listening port comes from the `port` key of the
+      service configuration file.
+
+tags:
+  - name: applicant
+    description: Unauthenticated endpoints used by the zone applying for federation.
+  - name: admin
+    description: Endpoints restricted to rodsadmin users of the home zone.
+
+paths:
+  /info:
+    get:
+      tags: [applicant]
+      operationId: getInfo
+      summary: Describe this registrar and publish its ephemeral public key
+      description: |
+        Spec section 7.0. Publishes what an applicant needs in order to talk
+        to this registrar: the service's ephemeral RSA public key, its
+        fingerprint, the fixed JWE algorithms, the two policy flags, the
+        clock-skew window for encrypted applications, and the application
+        expiration. No iRODS connection is made.
+
+        The key belongs to the current process only and changes at every
+        restart. An applicant must fetch it immediately before each `apply`
+        and must not cache it. The home zone's name is deliberately not
+        published.
+      responses:
+        "200":
+          description: Registrar description.
+          headers:
+            Cache-Control:
+              description: Always `no-store`, because the key is ephemeral.
+              schema:
+                type: string
+                enum: [no-store]
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InfoResponse"
+              example:
+                service: fzrs
+                version: 0.1.0
+                service_public_key: |
+                  -----BEGIN PUBLIC KEY-----
+                  MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAvcrC1sJpHOVFcKCGnyLv
+                  Z7iE+ZLEeIjM5ZRTM6AXVFOWc5VAITA4qb0Qyebnun+QWKNs92IihYK8HT6j3b8k
+                  UTczgZvdpsCHUtQtpu2bc/nh4fr1/2EOXyY7Lti8sxuzjnh/iGuPLlBsb1KWv+j6
+                  JP6NYQlKb0nRdjTQ7jWBdLX7x6Sm4et7jveHy6ZJn7frVMDR/PwN7xjQL9/poWjM
+                  1sWj92OYRVIj39r3LCpJAnB3iRbg3UyhUInGjHJN+ktdrED8q7vHR91azDxkag/o
+                  Y260jgOEGOevY/qeUy5fR2fXuqeIBjsEvbE9bk393+9qU7cVbW1jW/2O2+aMinup
+                  jjn1KLaQmO5nAnPmc4lzdgJAhdbEQ66+iQVjCxJJWRrr4FhFLCdacxJP3MggJCSd
+                  B34hOhzmrfp459QG9ccXHM1oAqIlhkN5D3wTNOokgMsZEVldZ6jfq/jALoX3duez
+                  n/DIgx1ylhwK170HUogW/6oit4GgP/mI6f0RNpun3rqBAgMBAAE=
+                  -----END PUBLIC KEY-----
+                service_public_key_fingerprint: SHA256:zINWTqSL/4khQtF09iOOIVSVJTlgLyGqaw7vsVCudUs
+                encryption:
+                  alg: RSA-OAEP-256
+                  enc: A256GCM
+                require_public_key: false
+                require_encrypted_apply: false
+                allowed_encryption_clock_skew_in_seconds: 300
+                application_expiration_in_seconds: 604800
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /apply:
+    post:
+      tags: [applicant]
+      operationId: apply
+      summary: Submit an application to federate with the home zone
+      description: |
+        Spec section 7.1. The body is either the plaintext `ApplyRequest`
+        or the `EncryptedApplyRequest`, a JSON object whose only key is
+        `encrypted_payload` holding a JWE compact serialization (spec 5.6)
+        whose plaintext is an `EncryptedApplyPlaintext`.
+
+        Processing order, each step answering as shown when it fails:
+
+        0. An encrypted body is opened with the service key (`400` telling
+           the applicant to fetch `/info` again when it does not open), its
+           `iat` is checked against the clock-skew window (`400`, naming
+           the server's current epoch time), and its ciphertext digest is
+           checked against the replay memory (`409`). A plaintext body is
+           refused with `400` when `require_encrypted_apply` is set.
+        1. The application is validated (spec 5.3). Unknown fields and an
+           unparseable, non-RSA, or too-short `public_key` answer `400`.
+        2. `require_public_key` without a `public_key` answers `400`.
+        3. A full queue (`max_pending_applications` pending records)
+           answers `503`.
+        4. A `pending` application for the same `zone_name` answers `409`.
+           Approved, rejected, and expired records do not block.
+        5. The service generates `negotiation_key`, and `zone_key` when the
+           applicant did not supply one, persists the record, and answers
+           `201`.
+
+        Without a `public_key` the `201` body carries both keys in
+        plaintext. With one, the keys are replaced by `public_key_fingerprint`
+        and one `encrypted_payload` whose plaintext is an `ApplySecrets`
+        object. The two encryption directions are independent.
+
+        `apply` performs no iRODS operations. `name` and `email` are shown
+        to the reviewing admin only and are never used for anything else.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/ApplyRequest"
+                - $ref: "#/components/schemas/EncryptedApplyRequest"
+            examples:
+              plaintext:
+                summary: Plaintext application with an applicant public key
+                value:
+                  zone_name: otherZone
+                  zone_port: 1247
+                  catalog_provider_hosts: [icat.other.example.org]
+                  zone_key: OPTIONAL_EXISTING_ZONE_KEY
+                  name: Optional Human Name
+                  email: optional@example.org
+                  public_key: |
+                    -----BEGIN PUBLIC KEY-----
+                    MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkJv4C2kUfrhBq9FzE3uI
+                    wgqTwjrAQp+fsHFxSKwMluCPfXUQzOb+5gsVXorBfgjgb4Qyb4njyy2N3jI+3X6t
+                    bJpKluXCwNIuGrF6lTolBB1P2Q8TTRC1QNyaE2633GAietjP9DBeU8X9F+FDTUg2
+                    AZTFrZFhHqRk2AI0rFBczM+xJG9OWjFO/dCX75JVE6mKIUFPNd8mfvHwoWydMTfg
+                    YclY6cnl4h+u/H8LForzbx4NXlkni8iFOFpZL+EKMlQ17Xtl1AyJkNLz7RFsb8yk
+                    wJFbQ4N7kFqEl6+Ngcx9sZMQ75MC92ViljoaNRlm6Z40WkOH9K4FsjByezE1X0DH
+                    dQIDAQAB
+                    -----END PUBLIC KEY-----
+              minimal:
+                summary: Smallest valid plaintext application
+                value:
+                  zone_name: otherZone
+                  zone_port: 1247
+                  catalog_provider_hosts: [icat.other.example.org]
+              encrypted:
+                summary: Application encrypted to the service key from /info
+                value:
+                  encrypted_payload: eyJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMjU2R0NNIn0.UGF5bG9hZA.SXYxMjM0NTY3ODkw.Q2lwaGVydGV4dA.VGFnMTIzNDU2Nzg5MDEy
+      responses:
+        "201":
+          description: Application accepted and queued as `pending`.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ApplyResponse"
+                  - $ref: "#/components/schemas/EncryptedApplyResponse"
+              examples:
+                plaintext:
+                  summary: No applicant public key, keys in plaintext
+                  value:
+                    application_id: 6f1c2a8e-4b1d-4c0e-9a7f-2d3e4f5a6b7c
+                    status: pending
+                    expires_at: "2026-11-07T15:04:05Z"
+                    negotiation_key: a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6
+                    zone_key: OPTIONAL_EXISTING_ZONE_KEY
+                    status_url: /status?application_id=6f1c2a8e-4b1d-4c0e-9a7f-2d3e4f5a6b7c
+                encrypted:
+                  summary: Applicant public key supplied, keys encrypted to it
+                  value:
+                    application_id: 6f1c2a8e-4b1d-4c0e-9a7f-2d3e4f5a6b7c
+                    status: pending
+                    expires_at: "2026-11-07T15:04:05Z"
+                    public_key_fingerprint: SHA256:+17pjAXo9K+BHktv6cbsTbtAWe0Tv31CivV5iA6CHis
+                    encrypted_payload: eyJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMjU2R0NNIn0.UGF5bG9hZA.SXYxMjM0NTY3ODkw.Q2lwaGVydGV4dA.VGFnMTIzNDU2Nzg5MDEy
+                    status_url: /status?application_id=6f1c2a8e-4b1d-4c0e-9a7f-2d3e4f5a6b7c
+        "400":
+          description: |
+            Malformed JSON, a validation failure (spec 5.3), unknown fields,
+            `zone_name` equal to the home zone's name, an `encrypted_payload`
+            that does not open with the current service key, a missing,
+            non-integer, or out-of-window `iat`, a plaintext body when
+            `require_encrypted_apply` is set, or no `public_key` when
+            `require_public_key` is set.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                validation:
+                  value:
+                    error: "zone_port must be an integer in [0, 65535]"
+                stale_key:
+                  value:
+                    error: "encrypted_payload could not be opened with the current service key: fetch /info again and re-encrypt"
+                skew:
+                  value:
+                    error: "iat 1761900000 is more than 300 seconds from server time 1761903600"
+        "409":
+          description: |
+            A `pending` application for the same `zone_name` already exists,
+            or this exact encrypted application was already submitted
+            (replay).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: an application for zone otherZone is already pending
+        "413":
+          $ref: "#/components/responses/BodyTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          description: The queue already holds `max_pending_applications` pending records.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: application queue is full
+
+  /status:
+    get:
+      tags: [applicant]
+      operationId: getStatus
+      summary: Retrieve the state of one application
+      description: |
+        Spec section 7.2. The `application_id` is unguessable and acts as
+        the bearer token; no other authentication is required.
+
+        While the application is `pending`, `rejected`, or `expired` the
+        response carries only the bookkeeping fields. Once it is `approved`
+        the response also carries `applicant_federation_entry`, the object
+        to append to the `federation` array of the applicant's
+        `server_config.json`, and `applicant_mkzone_command`, the
+        `iadmin mkzone` command the applicant must run. When the
+        application carried a `public_key` those two fields are replaced by
+        `public_key_fingerprint` and one `encrypted_payload` whose plaintext
+        is an `ApprovedApplicantPayload`.
+
+        The home zone's own top-level `negotiation_key` is never disclosed;
+        the pair-specific key from the record is used. `name`, `email`, and
+        the public key itself are never returned here.
+      parameters:
+        - name: application_id
+          in: query
+          required: true
+          description: The id returned by `apply`. Must be given exactly once.
+          schema:
+            $ref: "#/components/schemas/ApplicationId"
+      responses:
+        "200":
+          description: Current state of the application.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/StatusResponse"
+                  - $ref: "#/components/schemas/ApprovedStatusResponse"
+                  - $ref: "#/components/schemas/EncryptedApprovedStatusResponse"
+              examples:
+                pending:
+                  value:
+                    application_id: 6f1c2a8e-4b1d-4c0e-9a7f-2d3e4f5a6b7c
+                    status: pending
+                    submitted_at: "2026-10-31T15:04:05Z"
+                    expires_at: "2026-11-07T15:04:05Z"
+                    judged_at: null
+                    decision_note: null
+                approved:
+                  value:
+                    application_id: 6f1c2a8e-4b1d-4c0e-9a7f-2d3e4f5a6b7c
+                    status: approved
+                    submitted_at: "2026-10-31T15:04:05Z"
+                    expires_at: "2026-11-07T15:04:05Z"
+                    judged_at: "2026-11-01T09:00:00Z"
+                    decision_note: looks good
+                    applicant_federation_entry:
+                      catalog_provider_hosts: [icat.home.example.org]
+                      negotiation_key: a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6
+                      zone_key: HOME_ZONE_KEY
+                      zone_key_signing_hash_scheme: sha256
+                      zone_name: homeZone
+                      zone_port: 1247
+                    applicant_mkzone_command: iadmin mkzone homeZone remote icat.home.example.org:1247
+                approved_encrypted:
+                  value:
+                    application_id: 6f1c2a8e-4b1d-4c0e-9a7f-2d3e4f5a6b7c
+                    status: approved
+                    submitted_at: "2026-10-31T15:04:05Z"
+                    expires_at: "2026-11-07T15:04:05Z"
+                    judged_at: "2026-11-01T09:00:00Z"
+                    decision_note: null
+                    public_key_fingerprint: SHA256:+17pjAXo9K+BHktv6cbsTbtAWe0Tv31CivV5iA6CHis
+                    encrypted_payload: eyJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMjU2R0NNIn0.UGF5bG9hZA.SXYxMjM0NTY3ODkw.Q2lwaGVydGV4dA.VGFnMTIzNDU2Nzg5MDEy
+        "400":
+          description: "`application_id` missing, empty, or given more than once."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: application_id query parameter is required
+        "404":
+          $ref: "#/components/responses/NoSuchApplication"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /list:
+    get:
+      tags: [admin]
+      operationId: listApplications
+      summary: List applications in the queue
+      description: |
+        Spec section 7.3. Returns full application records, including keys,
+        `name`, `email`, `public_key`, `public_key_fingerprint`, and
+        `encrypted_application`, ordered by `submitted_at` ascending. The
+        caller is a rodsadmin, so nothing is redacted. The response also
+        carries the fingerprint of the current service key so the admin can
+        confirm it with an applicant over another channel.
+      security:
+        - rodsadminBasic: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Which records to return. Defaults to `pending`. Must be given at most once.
+          schema:
+            type: string
+            enum: [pending, approved, rejected, expired, all]
+            default: pending
+      responses:
+        "200":
+          description: Matching records.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListResponse"
+              example:
+                service_public_key_fingerprint: SHA256:zINWTqSL/4khQtF09iOOIVSVJTlgLyGqaw7vsVCudUs
+                applications:
+                  - application_id: 6f1c2a8e-4b1d-4c0e-9a7f-2d3e4f5a6b7c
+                    status: pending
+                    submitted_at: "2026-10-31T15:04:05Z"
+                    expires_at: "2026-11-07T15:04:05Z"
+                    remote_address: 203.0.113.9
+                    zone_name: otherZone
+                    zone_port: 1247
+                    catalog_provider_hosts: [icat.other.example.org]
+                    zone_key: OPTIONAL_EXISTING_ZONE_KEY
+                    zone_key_generated: false
+                    negotiation_key: a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6
+                    name: Optional Human Name
+                    email: optional@example.org
+                    public_key: |
+                      -----BEGIN PUBLIC KEY-----
+                      MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkJv4C2kUfrhBq9FzE3uI
+                      wgqTwjrAQp+fsHFxSKwMluCPfXUQzOb+5gsVXorBfgjgb4Qyb4njyy2N3jI+3X6t
+                      bJpKluXCwNIuGrF6lTolBB1P2Q8TTRC1QNyaE2633GAietjP9DBeU8X9F+FDTUg2
+                      AZTFrZFhHqRk2AI0rFBczM+xJG9OWjFO/dCX75JVE6mKIUFPNd8mfvHwoWydMTfg
+                      YclY6cnl4h+u/H8LForzbx4NXlkni8iFOFpZL+EKMlQ17Xtl1AyJkNLz7RFsb8yk
+                      wJFbQ4N7kFqEl6+Ngcx9sZMQ75MC92ViljoaNRlm6Z40WkOH9K4FsjByezE1X0DH
+                      dQIDAQAB
+                      -----END PUBLIC KEY-----
+                    public_key_fingerprint: SHA256:+17pjAXo9K+BHktv6cbsTbtAWe0Tv31CivV5iA6CHis
+                    encrypted_application: true
+                    judged_at: null
+                    judged_by: null
+                    decision_note: null
+        "400":
+          description: "`status` is not one of the accepted values or was given more than once."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: status must be one of pending, approved, rejected, expired, all
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "502":
+          $ref: "#/components/responses/IRODSUnreachable"
+
+  /judge:
+    post:
+      tags: [admin]
+      operationId: judgeApplication
+      summary: Approve or reject an application
+      description: |
+        Spec section 7.4. The request body is read and parsed before the
+        credentials are checked, so a malformed or oversized body answers
+        `400` or `413` even without valid credentials.
+
+        **Reject** marks the record `rejected` with `judged_at`,
+        `judged_by`, and `decision_note`, persists it, and answers `200`
+        with a `RejectResponse`. No iRODS actions are performed.
+
+        **Approve** runs the home-zone side of federation under the global
+        lock, in order: verify every applicant host resolves (`400`), verify
+        no zone of that name exists in the home catalog (`409`), create the
+        remote zone with the admin's own session, append the federation
+        entry to the home `server_config.json` with a backup copy, send
+        `SIGHUP` to the iRODS server, then mark the record `approved` and
+        answer `200` with an `ApproveResponse`. A failing step answers
+        `500` naming the step; earlier steps are rolled back where possible
+        and the record stays `pending` so the admin can retry. A failed
+        reload is the one case not rolled back: the catalog zone and the
+        federation entry are correct and only the reload is outstanding, so
+        judging again re-sends only the `SIGHUP`.
+
+        The judge response is always plaintext, whether or not the
+        applicant supplied a public key.
+      security:
+        - rodsadminBasic: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JudgeRequest"
+            examples:
+              approve:
+                value:
+                  application_id: 6f1c2a8e-4b1d-4c0e-9a7f-2d3e4f5a6b7c
+                  decision: approve
+                  decision_note: fingerprint confirmed by phone
+              reject:
+                value:
+                  application_id: 6f1c2a8e-4b1d-4c0e-9a7f-2d3e4f5a6b7c
+                  decision: reject
+                  decision_note: unknown applicant
+      responses:
+        "200":
+          description: The decision was applied and persisted.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ApproveResponse"
+                  - $ref: "#/components/schemas/RejectResponse"
+              examples:
+                approved:
+                  value:
+                    application:
+                      application_id: 6f1c2a8e-4b1d-4c0e-9a7f-2d3e4f5a6b7c
+                      status: approved
+                      submitted_at: "2026-10-31T15:04:05Z"
+                      expires_at: "2026-11-07T15:04:05Z"
+                      remote_address: 203.0.113.9
+                      zone_name: otherZone
+                      zone_port: 1247
+                      catalog_provider_hosts: [icat.other.example.org]
+                      zone_key: OPTIONAL_EXISTING_ZONE_KEY
+                      zone_key_generated: false
+                      negotiation_key: a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6
+                      name: null
+                      email: null
+                      public_key: null
+                      public_key_fingerprint: null
+                      encrypted_application: false
+                      judged_at: "2026-11-01T09:00:00Z"
+                      judged_by: rods
+                      decision_note: fingerprint confirmed by phone
+                    home_federation_entry:
+                      catalog_provider_hosts: [icat.other.example.org]
+                      negotiation_key: a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6
+                      zone_key: OPTIONAL_EXISTING_ZONE_KEY
+                      zone_key_signing_hash_scheme: sha256
+                      zone_name: otherZone
+                      zone_port: 1247
+                    applicant_federation_entry:
+                      catalog_provider_hosts: [icat.home.example.org]
+                      negotiation_key: a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6
+                      zone_key: HOME_ZONE_KEY
+                      zone_key_signing_hash_scheme: sha256
+                      zone_name: homeZone
+                      zone_port: 1247
+                    applicant_mkzone_command: iadmin mkzone homeZone remote icat.home.example.org:1247
+                rejected:
+                  value:
+                    application:
+                      application_id: 6f1c2a8e-4b1d-4c0e-9a7f-2d3e4f5a6b7c
+                      status: rejected
+                      submitted_at: "2026-10-31T15:04:05Z"
+                      expires_at: "2026-11-07T15:04:05Z"
+                      remote_address: 203.0.113.9
+                      zone_name: otherZone
+                      zone_port: 1247
+                      catalog_provider_hosts: [icat.other.example.org]
+                      zone_key: a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P7
+                      zone_key_generated: true
+                      negotiation_key: a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6
+                      name: null
+                      email: null
+                      public_key: null
+                      public_key_fingerprint: null
+                      encrypted_application: false
+                      judged_at: "2026-11-01T09:00:00Z"
+                      judged_by: rods
+                      decision_note: unknown applicant
+        "400":
+          description: |
+            Malformed JSON, unknown fields, missing `application_id`,
+            `decision` other than `approve` or `reject`, a `decision_note`
+            that is not a string of at most 1024 characters, or, on
+            approve, an applicant host that does not resolve.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                decision:
+                  value:
+                    error: decision must be "approve" or "reject"
+                unresolvable:
+                  value:
+                    error: "catalog_provider_hosts entry 'icat.other.example.invalid' does not resolve: [Errno -2] Name or service not known; refusing to federate with an unresolvable host"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NoSuchApplication"
+        "409":
+          description: |
+            The application was already `approved` or `rejected`, or, on
+            approve, a zone of that name already exists in the home catalog
+            with different keys.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                judged:
+                  value:
+                    error: application has already been approved
+                zone_exists:
+                  value:
+                    error: zone otherZone already exists in the home catalog
+        "410":
+          description: The application has expired.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: application has expired
+        "413":
+          $ref: "#/components/responses/BodyTooLarge"
+        "500":
+          description: |
+            An approve step failed (`mkzone`, editing `server_config.json`,
+            or the reload) and the error names the step and what was rolled
+            back, or an unhandled internal error occurred. The record stays
+            `pending`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "step reload failed: cannot read server pid file /var/run/irods/irods-server.pid: [Errno 2] No such file or directory. The catalog zone and the federation entry are in place; fix the cause and judge again to retry the reload."
+        "502":
+          $ref: "#/components/responses/IRODSUnreachable"
+
+components:
+  securitySchemes:
+    rodsadminBasic:
+      type: http
+      scheme: basic
+      description: |
+        Spec section 6. The username is a plain home-zone username; a
+        `user#zone` form is refused with `401`. The password is verified by
+        opening a real python-irodsclient session to the home zone, and the
+        user must be of type `rodsadmin` or the answer is `403`. The session
+        is used for any catalog changes the request performs, so they are
+        attributed to the judging admin, not the service account. Nothing is
+        cached between requests. The `401` challenge is
+        `WWW-Authenticate: Basic realm="fzrs"`.
+
+  responses:
+    Unauthorized:
+      description: |
+        Missing or malformed `Authorization` header, a `user#zone` username,
+        or credentials the home zone refused.
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+            enum: ['Basic realm="fzrs"']
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: authentication required
+    Forbidden:
+      description: The credentials are valid but the user is not a rodsadmin.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: user alice is not a rodsadmin
+    IRODSUnreachable:
+      description: The home zone's iRODS server could not be reached to verify the credentials.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: "cannot reach iRODS at icat.home.example.org:1247: [Errno 111] Connection refused"
+    NoSuchApplication:
+      description: No application with that `application_id` exists.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: no such application
+    BodyTooLarge:
+      description: The request body exceeds `max_request_body_bytes` (default 65536).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: request body too large
+    InternalError:
+      description: An unhandled error occurred while serving the request.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: "internal error: kaboom"
+
+  schemas:
+    Error:
+      type: object
+      description: Every non-2xx response carries exactly this object.
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: string
+          description: Human readable explanation.
+
+    ApplicationId:
+      type: string
+      description: A `uuid4` string generated by the service. It is unguessable and acts as the bearer for `status`.
+      pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      example: 6f1c2a8e-4b1d-4c0e-9a7f-2d3e4f5a6b7c
+
+    Timestamp:
+      type: string
+      description: ISO 8601 in UTC with a `Z` suffix and whole seconds.
+      pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+      example: "2026-10-31T15:04:05Z"
+
+    ApplicationStatus:
+      type: string
+      enum: [pending, approved, rejected, expired]
+
+    ZoneName:
+      type: string
+      description: Spec 5.3. Must not equal the home zone's name.
+      pattern: "^[A-Za-z0-9_.]{1,63}$"
+      example: otherZone
+
+    ZonePort:
+      type: integer
+      minimum: 0
+      maximum: 65535
+      example: 1247
+
+    CatalogProviderHosts:
+      type: array
+      description: |
+        Spec 5.3. Each entry is an RFC 1123 hostname or an IPv4/IPv6
+        literal. Approval refuses hosts that do not resolve from the FZRS
+        host.
+      minItems: 1
+      uniqueItems: true
+      items:
+        type: string
+        minLength: 1
+        maxLength: 253
+      example: [icat.other.example.org]
+
+    ZoneKey:
+      type: string
+      description: Spec 5.3, 5.4.
+      pattern: "^[A-Za-z0-9_]{1,49}$"
+      example: OPTIONAL_EXISTING_ZONE_KEY
+
+    NegotiationKey:
+      type: string
+      description: Spec 5.3, 5.4. Exactly 32 characters from `A-Za-z0-9_`.
+      pattern: "^[A-Za-z0-9_]{32}$"
+      example: a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6
+
+    PublicKey:
+      type: string
+      description: |
+        Spec 5.3. An RSA public key of at least 2048 bits as PEM
+        SubjectPublicKeyInfo (`-----BEGIN PUBLIC KEY-----`) or a single
+        OpenSSH line (`ssh-rsa AAAA...`, trailing comment ignored).
+      minLength: 1
+      maxLength: 16384
+      example: |
+        -----BEGIN PUBLIC KEY-----
+        MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkJv4C2kUfrhBq9FzE3uI
+        wgqTwjrAQp+fsHFxSKwMluCPfXUQzOb+5gsVXorBfgjgb4Qyb4njyy2N3jI+3X6t
+        bJpKluXCwNIuGrF6lTolBB1P2Q8TTRC1QNyaE2633GAietjP9DBeU8X9F+FDTUg2
+        AZTFrZFhHqRk2AI0rFBczM+xJG9OWjFO/dCX75JVE6mKIUFPNd8mfvHwoWydMTfg
+        YclY6cnl4h+u/H8LForzbx4NXlkni8iFOFpZL+EKMlQ17Xtl1AyJkNLz7RFsb8yk
+        wJFbQ4N7kFqEl6+Ngcx9sZMQ75MC92ViljoaNRlm6Z40WkOH9K4FsjByezE1X0DH
+        dQIDAQAB
+        -----END PUBLIC KEY-----
+
+    PublicKeyFingerprint:
+      type: string
+      description: |
+        Spec 5.5. `SHA256:` followed by the SHA-256 of the key's DER
+        SubjectPublicKeyInfo in the standard base64 alphabet without
+        padding.
+      pattern: "^SHA256:[A-Za-z0-9+/]{43}$"
+      example: SHA256:+17pjAXo9K+BHktv6cbsTbtAWe0Tv31CivV5iA6CHis
+
+    JWE:
+      type: string
+      description: |
+        Spec 5.5. A JWE compact serialization: five unpadded base64url
+        segments joined by `.`, protected header
+        `{"alg":"RSA-OAEP-256","enc":"A256GCM"}`.
+      pattern: "^[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+){4}$"
+      example: eyJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMjU2R0NNIn0.UGF5bG9hZA.SXYxMjM0NTY3ODkw.Q2lwaGVydGV4dA.VGFnMTIzNDU2Nzg5MDEy
+
+    FederationEntry:
+      type: object
+      description: |
+        One element of the `federation` array of an iRODS
+        `server_config.json`. As `applicant_federation_entry` it describes
+        the home zone for the applicant's file; as `home_federation_entry`
+        it is what was appended to the home zone's file.
+      required:
+        - catalog_provider_hosts
+        - negotiation_key
+        - zone_key
+        - zone_key_signing_hash_scheme
+        - zone_name
+        - zone_port
+      additionalProperties: false
+      properties:
+        catalog_provider_hosts:
+          $ref: "#/components/schemas/CatalogProviderHosts"
+        negotiation_key:
+          $ref: "#/components/schemas/NegotiationKey"
+        zone_key:
+          $ref: "#/components/schemas/ZoneKey"
+        zone_key_signing_hash_scheme:
+          type: string
+          enum: [sha256]
+        zone_name:
+          $ref: "#/components/schemas/ZoneName"
+        zone_port:
+          $ref: "#/components/schemas/ZonePort"
+
+    InfoResponse:
+      type: object
+      required:
+        - service
+        - version
+        - service_public_key
+        - service_public_key_fingerprint
+        - encryption
+        - require_public_key
+        - require_encrypted_apply
+        - allowed_encryption_clock_skew_in_seconds
+        - application_expiration_in_seconds
+      additionalProperties: false
+      properties:
+        service:
+          type: string
+          enum: [fzrs]
+        version:
+          type: string
+          description: Version of the running service.
+          example: 0.1.0
+        service_public_key:
+          type: string
+          description: PEM SubjectPublicKeyInfo of the ephemeral RSA 3072-bit process key.
+          pattern: "^-----BEGIN PUBLIC KEY-----\n[A-Za-z0-9+/=\n]+-----END PUBLIC KEY-----\n$"
+        service_public_key_fingerprint:
+          $ref: "#/components/schemas/PublicKeyFingerprint"
+        encryption:
+          type: object
+          description: The fixed JWE algorithms used in both directions.
+          required: [alg, enc]
+          additionalProperties: false
+          properties:
+            alg:
+              type: string
+              enum: [RSA-OAEP-256]
+            enc:
+              type: string
+              enum: [A256GCM]
+        require_public_key:
+          type: boolean
+          description: When true, `apply` refuses applications without a `public_key`.
+        require_encrypted_apply:
+          type: boolean
+          description: When true, `apply` refuses plaintext applications.
+        allowed_encryption_clock_skew_in_seconds:
+          type: integer
+          minimum: 1
+          description: How far an encrypted application's `iat` may differ from the server clock, in either direction.
+        application_expiration_in_seconds:
+          type: integer
+          minimum: 1
+          description: How long a `pending` application lives before it is `expired`.
+
+    ApplyRequest:
+      type: object
+      description: Plaintext application, spec 7.1.
+      required: [zone_name, zone_port, catalog_provider_hosts]
+      additionalProperties: false
+      properties:
+        zone_name:
+          $ref: "#/components/schemas/ZoneName"
+        zone_port:
+          $ref: "#/components/schemas/ZonePort"
+        catalog_provider_hosts:
+          $ref: "#/components/schemas/CatalogProviderHosts"
+        zone_key:
+          $ref: "#/components/schemas/ZoneKey"
+        name:
+          type: string
+          description: Shown to the reviewing admin only. Never used for anything else.
+          minLength: 1
+          maxLength: 256
+        email:
+          type: string
+          description: |
+            Shown to the reviewing admin only. Exactly one `@` with at least
+            one character on each side. Never verified, never used to send
+            mail.
+          minLength: 3
+          maxLength: 254
+        public_key:
+          $ref: "#/components/schemas/PublicKey"
+
+    EncryptedApplyRequest:
+      type: object
+      description: |
+        Encrypted application, spec 5.6. The JWE is encrypted to the
+        service key from `/info`; its plaintext is an
+        `EncryptedApplyPlaintext`. No other key may be present.
+      required: [encrypted_payload]
+      additionalProperties: false
+      properties:
+        encrypted_payload:
+          $ref: "#/components/schemas/JWE"
+
+    EncryptedApplyPlaintext:
+      type: object
+      description: |
+        The JSON document an applicant encrypts into
+        `EncryptedApplyRequest.encrypted_payload`. It is the `ApplyRequest`
+        plus the required `iat`. This object never travels in the clear.
+      required: [zone_name, zone_port, catalog_provider_hosts, iat]
+      additionalProperties: false
+      properties:
+        zone_name:
+          $ref: "#/components/schemas/ZoneName"
+        zone_port:
+          $ref: "#/components/schemas/ZonePort"
+        catalog_provider_hosts:
+          $ref: "#/components/schemas/CatalogProviderHosts"
+        zone_key:
+          $ref: "#/components/schemas/ZoneKey"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 256
+        email:
+          type: string
+          minLength: 3
+          maxLength: 254
+        public_key:
+          $ref: "#/components/schemas/PublicKey"
+        iat:
+          type: integer
+          description: |
+            Seconds since 1970-01-01T00:00:00Z as RFC 7519 NumericDate.
+            Rejected when it differs from the server clock by more than
+            `allowed_encryption_clock_skew_in_seconds`. Not allowed in a
+            plaintext `ApplyRequest`.
+          example: 1761903600
+
+    ApplyResponse:
+      type: object
+      description: "`201` body when the application carried no `public_key`."
+      required: [application_id, status, expires_at, negotiation_key, zone_key, status_url]
+      additionalProperties: false
+      properties:
+        application_id:
+          $ref: "#/components/schemas/ApplicationId"
+        status:
+          type: string
+          enum: [pending]
+        expires_at:
+          $ref: "#/components/schemas/Timestamp"
+        negotiation_key:
+          $ref: "#/components/schemas/NegotiationKey"
+        zone_key:
+          $ref: "#/components/schemas/ZoneKey"
+        status_url:
+          $ref: "#/components/schemas/StatusUrl"
+
+    EncryptedApplyResponse:
+      type: object
+      description: |
+        `201` body when the application carried a `public_key`. The
+        plaintext of `encrypted_payload` is an `ApplySecrets` object.
+      required: [application_id, status, expires_at, public_key_fingerprint, encrypted_payload, status_url]
+      additionalProperties: false
+      properties:
+        application_id:
+          $ref: "#/components/schemas/ApplicationId"
+        status:
+          type: string
+          enum: [pending]
+        expires_at:
+          $ref: "#/components/schemas/Timestamp"
+        public_key_fingerprint:
+          $ref: "#/components/schemas/PublicKeyFingerprint"
+        encrypted_payload:
+          $ref: "#/components/schemas/JWE"
+        status_url:
+          $ref: "#/components/schemas/StatusUrl"
+
+    StatusUrl:
+      type: string
+      description: Relative URL of this application's `status` endpoint.
+      pattern: "^/status\\?application_id=[0-9a-f-]{36}$"
+      example: /status?application_id=6f1c2a8e-4b1d-4c0e-9a7f-2d3e4f5a6b7c
+
+    ApplySecrets:
+      type: object
+      description: Plaintext of `EncryptedApplyResponse.encrypted_payload`. Never travels in the clear.
+      required: [negotiation_key, zone_key]
+      additionalProperties: false
+      properties:
+        negotiation_key:
+          $ref: "#/components/schemas/NegotiationKey"
+        zone_key:
+          $ref: "#/components/schemas/ZoneKey"
+
+    StatusResponse:
+      type: object
+      description: "`status` body while the application is not approved."
+      required: [application_id, status, submitted_at, expires_at, judged_at, decision_note]
+      additionalProperties: false
+      properties:
+        application_id:
+          $ref: "#/components/schemas/ApplicationId"
+        status:
+          type: string
+          enum: [pending, rejected, expired]
+        submitted_at:
+          $ref: "#/components/schemas/Timestamp"
+        expires_at:
+          $ref: "#/components/schemas/Timestamp"
+        judged_at:
+          type: string
+          nullable: true
+          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+          description: Null until judged.
+        decision_note:
+          type: string
+          nullable: true
+          maxLength: 1024
+          description: The admin's note, null when none was given or the application is unjudged.
+
+    ApprovedStatusResponse:
+      type: object
+      description: "`status` body for an approved application that carried no `public_key`."
+      required:
+        - application_id
+        - status
+        - submitted_at
+        - expires_at
+        - judged_at
+        - decision_note
+        - applicant_federation_entry
+        - applicant_mkzone_command
+      additionalProperties: false
+      properties:
+        application_id:
+          $ref: "#/components/schemas/ApplicationId"
+        status:
+          type: string
+          enum: [approved]
+        submitted_at:
+          $ref: "#/components/schemas/Timestamp"
+        expires_at:
+          $ref: "#/components/schemas/Timestamp"
+        judged_at:
+          $ref: "#/components/schemas/Timestamp"
+        decision_note:
+          type: string
+          nullable: true
+          maxLength: 1024
+        applicant_federation_entry:
+          $ref: "#/components/schemas/FederationEntry"
+        applicant_mkzone_command:
+          $ref: "#/components/schemas/MkzoneCommand"
+
+    EncryptedApprovedStatusResponse:
+      type: object
+      description: |
+        `status` body for an approved application that carried a
+        `public_key`. The plaintext of `encrypted_payload` is an
+        `ApprovedApplicantPayload`.
+      required:
+        - application_id
+        - status
+        - submitted_at
+        - expires_at
+        - judged_at
+        - decision_note
+        - public_key_fingerprint
+        - encrypted_payload
+      additionalProperties: false
+      properties:
+        application_id:
+          $ref: "#/components/schemas/ApplicationId"
+        status:
+          type: string
+          enum: [approved]
+        submitted_at:
+          $ref: "#/components/schemas/Timestamp"
+        expires_at:
+          $ref: "#/components/schemas/Timestamp"
+        judged_at:
+          $ref: "#/components/schemas/Timestamp"
+        decision_note:
+          type: string
+          nullable: true
+          maxLength: 1024
+        public_key_fingerprint:
+          $ref: "#/components/schemas/PublicKeyFingerprint"
+        encrypted_payload:
+          $ref: "#/components/schemas/JWE"
+
+    MkzoneCommand:
+      type: string
+      description: The `iadmin mkzone` command the applicant runs to add the home zone to its own catalog.
+      pattern: "^iadmin mkzone [A-Za-z0-9_.]{1,63} remote [^ ]+:[0-9]{1,5}$"
+      example: iadmin mkzone homeZone remote icat.home.example.org:1247
+
+    ApprovedApplicantPayload:
+      type: object
+      description: Plaintext of `EncryptedApprovedStatusResponse.encrypted_payload`. Never travels in the clear.
+      required: [applicant_federation_entry, applicant_mkzone_command]
+      additionalProperties: false
+      properties:
+        applicant_federation_entry:
+          $ref: "#/components/schemas/FederationEntry"
+        applicant_mkzone_command:
+          $ref: "#/components/schemas/MkzoneCommand"
+
+    ApplicationRecord:
+      type: object
+      description: The full stored record, spec 5.1. Returned only to rodsadmins.
+      required:
+        - application_id
+        - status
+        - submitted_at
+        - expires_at
+        - remote_address
+        - zone_name
+        - zone_port
+        - catalog_provider_hosts
+        - zone_key
+        - zone_key_generated
+        - negotiation_key
+        - name
+        - email
+        - public_key
+        - public_key_fingerprint
+        - encrypted_application
+        - judged_at
+        - judged_by
+        - decision_note
+      additionalProperties: false
+      properties:
+        application_id:
+          $ref: "#/components/schemas/ApplicationId"
+        status:
+          $ref: "#/components/schemas/ApplicationStatus"
+        submitted_at:
+          $ref: "#/components/schemas/Timestamp"
+        expires_at:
+          $ref: "#/components/schemas/Timestamp"
+        remote_address:
+          type: string
+          description: Peer IP of the `apply` request; the first `X-Forwarded-For` value when a proxy supplied one.
+          example: 203.0.113.9
+        zone_name:
+          $ref: "#/components/schemas/ZoneName"
+        zone_port:
+          $ref: "#/components/schemas/ZonePort"
+        catalog_provider_hosts:
+          $ref: "#/components/schemas/CatalogProviderHosts"
+        zone_key:
+          $ref: "#/components/schemas/ZoneKey"
+        zone_key_generated:
+          type: boolean
+          description: True when the service generated `zone_key` because the applicant supplied none.
+        negotiation_key:
+          $ref: "#/components/schemas/NegotiationKey"
+        name:
+          type: string
+          nullable: true
+          minLength: 1
+          maxLength: 256
+        email:
+          type: string
+          nullable: true
+          minLength: 3
+          maxLength: 254
+        public_key:
+          type: string
+          nullable: true
+          minLength: 1
+          maxLength: 16384
+          description: Stored verbatim as supplied.
+        public_key_fingerprint:
+          type: string
+          nullable: true
+          pattern: "^SHA256:[A-Za-z0-9+/]{43}$"
+        encrypted_application:
+          type: boolean
+          description: True when the application arrived in the encrypted form of spec 5.6.
+        judged_at:
+          type: string
+          nullable: true
+          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+        judged_by:
+          type: string
+          nullable: true
+          description: iRODS username of the judging admin, null until judged.
+          pattern: "^[A-Za-z0-9_.@-]{1,63}$"
+        decision_note:
+          type: string
+          nullable: true
+          maxLength: 1024
+
+    ListResponse:
+      type: object
+      required: [service_public_key_fingerprint, applications]
+      additionalProperties: false
+      properties:
+        service_public_key_fingerprint:
+          $ref: "#/components/schemas/PublicKeyFingerprint"
+        applications:
+          type: array
+          description: Ordered by `submitted_at` ascending.
+          items:
+            $ref: "#/components/schemas/ApplicationRecord"
+
+    JudgeRequest:
+      type: object
+      required: [application_id, decision]
+      additionalProperties: false
+      properties:
+        application_id:
+          type: string
+          minLength: 1
+          description: The id of the application to judge.
+        decision:
+          type: string
+          enum: [approve, reject]
+        decision_note:
+          type: string
+          maxLength: 1024
+          description: Free text stored on the record and shown to the applicant by `status`.
+
+    RejectResponse:
+      type: object
+      required: [application]
+      additionalProperties: false
+      properties:
+        application:
+          $ref: "#/components/schemas/ApplicationRecord"
+
+    ApproveResponse:
+      type: object
+      description: |
+        `home_federation_entry` is what was appended to the home zone's
+        `server_config.json`; `applicant_federation_entry` is the same
+        object `status` returns to the applicant.
+      required: [application, home_federation_entry, applicant_federation_entry, applicant_mkzone_command]
+      additionalProperties: false
+      properties:
+        application:
+          $ref: "#/components/schemas/ApplicationRecord"
+        home_federation_entry:
+          $ref: "#/components/schemas/FederationEntry"
+        applicant_federation_entry:
+          $ref: "#/components/schemas/FederationEntry"
+        applicant_mkzone_command:
+          $ref: "#/components/schemas/MkzoneCommand"
