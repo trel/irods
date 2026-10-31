@@ -1,7 +1,8 @@
 # iRODS Federation Zone Registrar Service (FZRS) — Specification
 
 Status: draft, agreed 2026-10-31; applicant identity and public-key
-encryption added 2026-10-31.
+encryption added 2026-10-31; service keypair, `/info`, and encrypted
+`apply` added 2026-10-31.
 
 ## 1. Purpose
 
@@ -28,7 +29,8 @@ Both files live at the top level of the repository.
 - Python 3.9 or newer.
 - Third-party dependencies are `python-irodsclient` and `cryptography`
   (packaged as `python3-cryptography`). `cryptography` is used only to parse
-  applicant public keys and to build the JWE envelope of section 5.5.
+  applicant public keys, to generate the service's own keypair, and to build
+  and open the JWE envelopes of section 5.5.
   Everything else is the standard library (`http.server`, `ssl` is not used,
   `json`, `secrets`, `uuid`, `threading`, `base64`, `re`, `logging`,
   `signal`, `os`, `hashlib`).
@@ -37,8 +39,10 @@ Both files live at the top level of the repository.
   server.
 - Speaks plain HTTP only. It should be deployed behind a TLS-terminating
   reverse proxy; admin credentials travel in HTTP Basic headers. Applicants
-  who supply a public key receive their secrets encrypted end to end
-  (section 5.5), so the applicant side does not depend on TLS.
+  who supply a public key receive their secrets encrypted end to end, and
+  applicants who encrypt their application to the service's key (section
+  5.6) send their secrets the same way, so the applicant side does not
+  depend on TLS.
 
 ## 4. Invocation and configuration
 
@@ -64,6 +68,8 @@ validation, or if the iRODS client environment cannot be loaded.
 | `server_config_file` | string | `/etc/irods/server_config.json` | Home zone server configuration to edit on approval |
 | `server_pid_file` | string | `/var/run/irods/irods-server.pid` | Used to send SIGHUP after editing the server config |
 | `require_public_key` | boolean | `false` | When true, `apply` without a `public_key` is rejected, so secrets are never delivered in plaintext |
+| `require_encrypted_apply` | boolean | `false` | When true, a plaintext `apply` body is rejected; applications must be encrypted to the service key (section 5.6) |
+| `allowed_encryption_clock_skew_in_seconds` | integer > 0 | `300` | Maximum accepted difference between an encrypted application's `iat` and the server clock, in either direction. Also the replay memory window |
 
 Unknown keys are rejected so typos are caught. Relative paths resolve against
 the configuration file's directory.
@@ -108,6 +114,7 @@ Stored as a JSON object. All timestamps are ISO 8601 in UTC with a `Z` suffix.
 | `email` | applicant | optional, informational only, never used to send mail, null when absent |
 | `public_key` | applicant | optional, stored verbatim as supplied, null when absent |
 | `public_key_fingerprint` | FZRS | `SHA256:<base64>` of the DER SubjectPublicKeyInfo, null when no key |
+| `encrypted_application` | FZRS | boolean, true when the application arrived in the encrypted form of 5.6 |
 | `judged_at` | FZRS | null until judged |
 | `judged_by` | FZRS | iRODS username of the admin, null until judged |
 | `decision_note` | admin | free text, optional, max 1024 chars |
@@ -186,6 +193,28 @@ plaintext = AESGCM(cek).decrypt(b64d(iv), b64d(ciphertext) + b64d(tag), header.e
 print(json.dumps(json.loads(plaintext), indent=2))
 ```
 
+#### Service keypair
+
+At startup, before the listening socket opens, FZRS generates an RSA 3072-bit
+keypair with `cryptography` and keeps it only in process memory. It is never
+written to disk, never logged, and is discarded when the process exits. Every
+restart therefore produces a new key. The public half is published by `/info`
+(section 7.0), and its fingerprint is logged once at startup and included in
+every `list` response so an admin can confirm it with an applicant over
+another channel.
+
+Consequences, stated so clients are written correctly:
+
+- The key is valid only for the life of the current process. An applicant
+  must fetch `/info` immediately before each `apply` and must not cache the
+  key.
+- A payload encrypted to a retired key fails to open and gets `400` with a
+  message telling the applicant to fetch `/info` again and retry.
+- Several FZRS processes would each hold a different key; this design
+  assumes one process per home zone.
+- Captured encrypted applications cannot be decrypted after a restart, by
+  anyone.
+
 Fingerprints are `SHA256:` followed by the SHA-256 of the key's DER-encoded
 SubjectPublicKeyInfo in the standard base64 alphabet (`+` and `/`, not
 base64url) with `=` padding removed. A key supplied in PEM or OpenSSH form
@@ -194,6 +223,65 @@ registrar holds with:
 
 ```
 openssl pkey -pubin -in key.pem -outform DER | openssl dgst -sha256 -binary | base64 | tr -d '='
+```
+
+### 5.6 Encrypted applications
+
+An applicant may encrypt its entire `apply` body to the service key from
+`/info`, using exactly the envelope of 5.5 in the other direction: JWE
+compact serialization, `RSA-OAEP-256` wrapping a fresh `A256GCM` content key,
+the protected header as additional authenticated data. The HTTP body is then:
+
+```json
+{ "encrypted_payload": "eyJhbGciOi..." }
+```
+
+and nothing else. The plaintext is the ordinary `apply` JSON of 7.1 with one
+extra required field:
+
+| Field | Rule |
+|---|---|
+| `iat` | integer seconds since 1970-01-01T00:00:00Z, as RFC 7519 NumericDate; required in an encrypted application; rejected as an unknown field in a plaintext one |
+
+The service rejects the application with `400` when `iat` is missing, not an
+integer, or differs from the server clock by more than
+`allowed_encryption_clock_skew_in_seconds` in either direction. The error names
+the server's current epoch time so a client with a wrong clock can see why.
+
+To defeat replay inside that window, the service keeps an in-memory set of
+SHA-256 digests of every encrypted application it has accepted, each
+remembered for `allowed_encryption_clock_skew_in_seconds` seconds past its `iat`
+and pruned lazily. A repeated ciphertext gets `409` with an error saying it
+was already submitted. The set is empty after a restart, which is safe
+because the key is new too and old ciphertexts no longer open.
+
+Encrypting the application hides the applicant's own `zone_key`, `name`,
+`email`, and response `public_key` from a passive observer of a plain-HTTP
+path. The response to an encrypted application is encrypted to the
+applicant's `public_key` when the plaintext carries one and is plaintext
+otherwise; the two directions are independent, and `require_public_key` and
+`require_encrypted_apply` govern them separately.
+
+The applicant-side encrypt, the mirror of the 5.5 decrypt snippet:
+
+```python
+import base64, json, secrets, sys, time
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+def b64e(b):
+    return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+
+service_key = serialization.load_pem_public_key(open(sys.argv[1], "rb").read())  # from /info
+application = json.load(open(sys.argv[2]))
+application["iat"] = int(time.time())
+header = b64e(b'{"alg":"RSA-OAEP-256","enc":"A256GCM"}')
+cek, iv = secrets.token_bytes(32), secrets.token_bytes(12)
+wrapped = service_key.encrypt(cek, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
+sealed = AESGCM(cek).encrypt(iv, json.dumps(application).encode(), header.encode())
+jwe = ".".join([header, b64e(wrapped), b64e(iv), b64e(sealed[:-16]), b64e(sealed[-16:])])
+print(json.dumps({"encrypted_payload": jwe}))
 ```
 
 ## 6. Authentication
@@ -226,6 +314,29 @@ Malformed JSON or validation failures → `400`.
 
 Before handling any request, FZRS runs the lazy expiration sweep (section 8).
 
+### 7.0 `GET /info` — unauthenticated
+
+Publishes what an applicant needs to talk to this registrar. No iRODS
+connection is made. Response `200`:
+
+```json
+{
+  "service": "fzrs",
+  "version": "0.1.0",
+  "service_public_key": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----\n",
+  "service_public_key_fingerprint": "SHA256:...",
+  "encryption": {"alg": "RSA-OAEP-256", "enc": "A256GCM"},
+  "require_public_key": false,
+  "require_encrypted_apply": false,
+  "allowed_encryption_clock_skew_in_seconds": 300,
+  "application_expiration_in_seconds": 604800
+}
+```
+
+The key is the ephemeral process key of 5.5 and may change at any time. The
+home zone's name is deliberately not included. The response carries
+`Cache-Control: no-store`.
+
 ### 7.1 `POST /apply` — unauthenticated
 
 Request:
@@ -247,8 +358,18 @@ for anything and never sends mail. `public_key` is the applicant's RSA
 public key; when present, every secret FZRS returns to the applicant is
 encrypted to it (section 5.5).
 
+The body may instead be the encrypted form of section 5.6, a JSON object
+whose only key is `encrypted_payload`. A body that has `encrypted_payload`
+together with any other key → `400`.
+
 Behavior:
 
+0. If the body is the encrypted form: open it with the service key (failure
+   → `400` telling the applicant to fetch `/info` again), check `iat`
+   against the clock-skew window (→ `400`), check the ciphertext digest
+   against the replay memory (→ `409`), then continue with the plaintext.
+   If the body is plaintext and `require_encrypted_apply` is true → `400`
+   saying this registrar requires encrypted applications.
 1. Validate per 5.3. Extra keys → `400`. An unparseable, non-RSA, or
    too-short `public_key` → `400`.
 2. If `require_public_key` is true and no `public_key` was supplied → `400`
@@ -256,7 +377,8 @@ Behavior:
 3. If `max_pending_applications` pending records exist → `503`.
 4. If a `pending` record with the same `zone_name` exists → `409`. Approved,
    rejected, and expired records do not block a new application.
-5. Generate `negotiation_key`; generate `zone_key` if not supplied.
+5. Generate `negotiation_key`; generate `zone_key` if not supplied. Record
+   whether the application arrived encrypted.
 6. Persist, then respond `201`. Without a public key:
 
 ```json
@@ -346,9 +468,16 @@ JSON document `{"applicant_federation_entry": {...}, "applicant_mkzone_command":
 ```
 
 Ordered by `submitted_at` ascending. Records are returned in full, including
-keys, `name`, `email`, `public_key`, and `public_key_fingerprint`, because the
-caller is a rodsadmin. The fingerprint lets the admin confirm the key with the
-applicant out of band before approving.
+keys, `name`, `email`, `public_key`, `public_key_fingerprint`, and
+`encrypted_application`, because the caller is a rodsadmin. The fingerprint
+lets the admin confirm the key with the applicant out of band before
+approving. The response also carries `service_public_key_fingerprint`, the
+fingerprint of the current process key, so the admin can confirm it with an
+applicant who asks:
+
+```json
+{ "service_public_key_fingerprint": "SHA256:...", "applications": [ ... ] }
+```
 
 ### 7.4 `POST /judge` — rodsadmin
 
@@ -446,14 +575,18 @@ indefinitely.
 `http.server.ThreadingHTTPServer` serves requests concurrently. One
 process-wide `threading.Lock` guards every read-modify-write of the in-memory
 queue and the queue file, and the whole of the approve sequence (7.4) holds it
-so two admins cannot approve conflicting applications at once. iRODS
-connections are per request and are not shared across threads.
+so two admins cannot approve conflicting applications at once. The replay
+memory of 5.6 is guarded by the same lock. iRODS connections are per request
+and are not shared across threads. The service private key is read-only after
+startup and shared freely.
 
 ## 10. Logging and signals
 
 - One line per request to stdout: timestamp, remote address, method, path,
   status code, and the admin username for authenticated calls. Passwords and
   keys are never logged.
+- The service public key fingerprint is logged once at startup, and apply
+  log lines say whether the application arrived encrypted.
 - Approve/reject decisions and every step of the approve sequence are logged
   at INFO; failures at ERROR with the exception text.
 - `SIGTERM` and `SIGINT` stop the server cleanly after in-flight requests
@@ -479,6 +612,21 @@ connections are per request and are not shared across threads.
   `require_public_key` lets a deployment forbid that.
 - `name` and `email` are stored and shown to admins as supplied. They are
   not verified, not used to contact anyone, and not returned to applicants.
+- An applicant who encrypts its application to the service key (5.6) keeps
+  its own `zone_key`, identity, and response key off a plaintext path.
+  `require_encrypted_apply` lets a deployment forbid plaintext applications.
+- The service key is ephemeral and in memory only. There is no key file to
+  protect, and nothing captured in one process lifetime can be opened in the
+  next.
+- Without TLS, an active attacker who can rewrite traffic can substitute its
+  own key in `/info` and read what the applicant encrypts. The service does
+  not sign or pin its key. The mitigation is out of band: the admin reads
+  the current fingerprint from the startup log or the `list` response and
+  confirms it with the applicant before the applicant applies.
+- Replay of a captured encrypted application is limited by the `iat` window
+  and refused outright within it by the ciphertext digest memory. Outside
+  the window the ciphertext is stale by `iat`, and after a restart it no
+  longer opens.
 - The home zone's own top-level `negotiation_key` is never read or returned.
 - Admin passwords are verified against iRODS on every call and never stored.
 - TLS is the reverse proxy's job. Binding to `0.0.0.0` on plain HTTP without
@@ -495,6 +643,9 @@ connections are per request and are not shared across threads.
   field is informational only.
 - Non-RSA applicant keys (Ed25519, X25519, ECDSA) and signed or
   authenticated applications.
+- Signing or pinning the service key, persistent service keys, and key
+  rotation with overlap.
+- More than one FZRS process per home zone.
 - Removing a federation (`unfederate`).
 - Supervision by the iRODS server as a child process.
 
@@ -508,22 +659,28 @@ connections are per request and are not shared across threads.
    expect `201` with `encrypted_payload` and no plaintext keys, and decrypt
    it with the snippet in 5.5. Repeat with a 1024-bit key and with garbage;
    expect `400`.
-3. `GET /list` without auth → `401`; with a rodsuser → `403`; with `rods` →
-   `200` showing the pending record.
-4. `GET /status` → `pending`.
-5. `POST /judge` approve as `rods`; expect `200`, `iadmin lz` shows the new
+3. `GET /info` → `200` with the service key; confirm the fingerprint matches
+   the startup log line. Encrypt an application to it with the 5.6 snippet
+   and `POST /apply`; expect `201`, and `GET /list` shows
+   `encrypted_application: true`. Submit the same ciphertext again → `409`.
+   Edit `iat` to an hour ago, re-encrypt, submit → `400`. Restart FZRS and
+   submit a ciphertext made for the old key → `400` mentioning `/info`.
+4. `GET /list` without auth → `401`; with a rodsuser → `403`; with `rods` →
+   `200` showing the pending record and `service_public_key_fingerprint`.
+5. `GET /status` → `pending`.
+6. `POST /judge` approve as `rods`; expect `200`, `iadmin lz` shows the new
    zone, `/etc/irods/server_config.json` has the new federation entry, and the
    server log shows the reload. Use a resolvable applicant hostname
    (`localhost` or an IP literal); the reload briefly refuses connections
    while the agent factory restarts.
-6. `GET /status` → `approved` with `applicant_federation_entry`; for the
+7. `GET /status` → `approved` with `applicant_federation_entry`; for the
    keyed application, `encrypted_payload` instead, decrypting to the same
    entry. `GET /list` shows name, email, and the fingerprint matching
    `openssl` output.
-7. `POST /judge` again on the same id → `409`.
-8. `POST /apply` with a 1-second expiration config, wait, `GET /list?status=expired`
+8. `POST /judge` again on the same id → `409`.
+9. `POST /apply` with a 1-second expiration config, wait, `GET /list?status=expired`
    shows it, `POST /judge` → `410`.
-9. Clean up: `iadmin rmzone`, restore `server_config.json` from the backup,
+10. Clean up: `iadmin rmzone`, restore `server_config.json` from the backup,
    `kill -HUP` the server.
 
 ## 14. Automated tests

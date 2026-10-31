@@ -16,9 +16,11 @@ Run this as the iRODS service account on a catalog provider of the home zone.
 The service speaks plain HTTP only and should be deployed behind a
 TLS-terminating reverse proxy: admin credentials travel in HTTP Basic headers.
 An applicant that supplies an RSA public key receives its secrets as a JWE
-(RSA-OAEP-256 + A256GCM) encrypted to that key, so the applicant side does
-not depend on TLS. Set "require_public_key": true to refuse plaintext
-delivery altogether.
+(RSA-OAEP-256 + A256GCM) encrypted to that key, and an applicant may encrypt
+its whole application to the service's own ephemeral key published by /info,
+so the applicant side does not depend on TLS. Set "require_public_key" and
+"require_encrypted_apply" to true to refuse plaintext in either direction.
+The service key lives only in memory and changes at every restart.
 
 Dependencies: python-irodsclient and cryptography.
 
@@ -26,6 +28,7 @@ Endpoints:
 
     POST /apply                       unauthenticated  submit an application
     GET  /status?application_id=<id>  unauthenticated  poll an application
+    GET  /info                        unauthenticated  service key and policy
     GET  /list?status=<filter>        rodsadmin        list applications
     POST /judge                       rodsadmin        approve or reject
 
@@ -90,6 +93,7 @@ PUBLIC_KEY_MAX_LENGTH = 16384
 RSA_MIN_BITS = 2048
 
 JWE_PROTECTED_HEADER = {"alg": "RSA-OAEP-256", "enc": "A256GCM"}
+SERVICE_KEY_BITS = 3072
 
 QUEUE_SCHEMA_VERSION = 1
 
@@ -103,6 +107,8 @@ CONFIG_DEFAULTS = {
     "server_config_file": "/etc/irods/server_config.json",
     "server_pid_file": "/var/run/irods/irods-server.pid",
     "require_public_key": False,
+    "require_encrypted_apply": False,
+    "allowed_encryption_clock_skew_in_seconds": 300,
 }
 CONFIG_REQUIRED = ("port",)
 CONFIG_KNOWN_KEYS = set(CONFIG_DEFAULTS) | set(CONFIG_REQUIRED)
@@ -213,11 +219,13 @@ def load_config(path):
     positive_int("application_expiration_in_seconds")
     positive_int("max_pending_applications")
     positive_int("max_request_body_bytes")
+    positive_int("allowed_encryption_clock_skew_in_seconds")
 
     if not isinstance(cfg["bind_address"], str) or not cfg["bind_address"]:
         raise ConfigError("bind_address must be a non-empty string")
-    if not isinstance(cfg["require_public_key"], bool):
-        raise ConfigError("require_public_key must be true or false")
+    for key in ("require_public_key", "require_encrypted_apply"):
+        if not isinstance(cfg[key], bool):
+            raise ConfigError("{} must be true or false".format(key))
 
     def resolve_path(key, default):
         v = cfg[key]
@@ -290,6 +298,46 @@ def public_key_fingerprint(key):
     """SHA256:<standard base64, unpadded> of the DER SubjectPublicKeyInfo."""
     der = key.public_bytes(serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo)
     return "SHA256:" + base64.b64encode(hashlib.sha256(der).digest()).rstrip(b"=").decode("ascii")
+
+
+def b64url_decode(text):
+    if not isinstance(text, str) or not re.match(r"^[A-Za-z0-9_-]*$", text):
+        raise ValueError("not base64url")
+    return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
+
+
+def decrypt_payload(private_key, jwe):
+    """Open a JWE compact serialization made for private_key. Returns the parsed JSON.
+
+    Raises HTTPError(400) for anything that does not open, with a hint to
+    fetch /info again, since the usual cause is a key from a previous process.
+    """
+    hint = "cannot open encrypted_payload: it must be a JWE compact serialization encrypted to the " \
+           "current service key from /info; fetch /info again and retry"
+    try:
+        if not isinstance(jwe, str):
+            raise ValueError("not a string")
+        parts = jwe.split(".")
+        if len(parts) != 5:
+            raise ValueError("expected five segments")
+        protected, encrypted_key, iv, ciphertext, tag = parts
+        if json.loads(b64url_decode(protected)) != JWE_PROTECTED_HEADER:
+            raise ValueError("unsupported protected header")
+        cek = private_key.decrypt(b64url_decode(encrypted_key),
+                                  padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
+        plaintext = AESGCM(cek).decrypt(b64url_decode(iv), b64url_decode(ciphertext) + b64url_decode(tag),
+                                        protected.encode("ascii"))
+        return json.loads(plaintext.decode("utf-8"))
+    except Exception as e:  # cryptography raises several types; none carry secrets
+        raise HTTPError(400, "{} ({})".format(hint, e.__class__.__name__))
+
+
+def generate_service_key():
+    return rsa.generate_private_key(public_exponent=65537, key_size=SERVICE_KEY_BITS)
+
+
+def public_key_pem(key):
+    return key.public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo).decode("ascii")
 
 
 def encrypt_payload(public_key_text, obj):
@@ -580,8 +628,22 @@ class App:
         env = load_irods_environment(config["irods_environment_file"])
         self.irods = IRODS(config["irods_environment_file"], env)
         self.home = HomeZoneConfig(config["server_config_file"], config["server_pid_file"])
+        self.service_private_key = None  # generated in start(); tests may preset it
+        self.replay_memory = {}  # sha256 hex of accepted encrypted applications -> forget-after epoch
+
+    @property
+    def service_public_key(self):
+        return self.service_private_key.public_key()
+
+    @property
+    def service_public_key_fingerprint(self):
+        return public_key_fingerprint(self.service_public_key)
 
     def start(self):
+        if self.service_private_key is None:
+            self.service_private_key = generate_service_key()
+        log.info("service public key fingerprint %s (ephemeral, %d-bit RSA, new at every start)",
+                 self.service_public_key_fingerprint, self.service_private_key.key_size)
         self.queue.load()
         # Fail fast if the home zone facts are unreadable.
         facts = self.home.facts()
@@ -633,7 +695,35 @@ class App:
 
     # -- endpoints ----------------------------------------------------------
 
+    def open_encrypted_application(self, body):
+        """Return (plaintext application, ciphertext digest) for the encrypted form of spec 5.6."""
+        if len(body) != 1:
+            raise HTTPError(400, "an encrypted application must contain encrypted_payload and nothing else")
+        jwe = body["encrypted_payload"]
+        plaintext = decrypt_payload(self.service_private_key, jwe)
+        if not isinstance(plaintext, dict):
+            raise HTTPError(400, "encrypted_payload must decrypt to a JSON object")
+        skew = self.config["allowed_encryption_clock_skew_in_seconds"]
+        now = int(utc_now().timestamp())
+        iat = plaintext.pop("iat", None)
+        if not is_int(iat):
+            raise HTTPError(400, "an encrypted application must carry iat, integer seconds since the epoch "
+                                 "(server time is {})".format(now))
+        if abs(now - iat) > skew:
+            raise HTTPError(400, "iat {} is more than {} seconds from server time {}".format(iat, skew, now))
+        digest = hashlib.sha256(jwe.encode("ascii")).hexdigest()
+        return plaintext, digest, iat + skew
+
     def apply(self, body, remote_address):
+        if not isinstance(body, dict):
+            raise HTTPError(400, "request body must be a JSON object")
+        encrypted = "encrypted_payload" in body
+        digest = forget_after = None
+        if encrypted:
+            body, digest, forget_after = self.open_encrypted_application(body)
+        elif self.config["require_encrypted_apply"]:
+            raise HTTPError(400, "this registrar requires encrypted applications: encrypt the application "
+                                 "to the service key from /info and send it as encrypted_payload")
         req = validate_apply_request(body)
         if req["zone_name"] == self.irods.zone:
             raise HTTPError(400, "zone_name must not be the home zone's name")
@@ -641,6 +731,10 @@ class App:
             raise HTTPError(400, "this registrar requires a public_key so that secrets are never sent in plaintext")
         now = utc_now()
         with self.queue.lock:
+            if encrypted:
+                self.prune_replay_memory(int(now.timestamp()))
+                if digest in self.replay_memory:
+                    raise HTTPError(409, "this encrypted application was already submitted")
             if self.queue.count_pending() >= self.config["max_pending_applications"]:
                 raise HTTPError(503, "application queue is full")
             if self.queue.find_pending_by_zone_name(req["zone_name"]) is not None:
@@ -662,14 +756,18 @@ class App:
                 "email": req["email"],
                 "public_key": req["public_key"],
                 "public_key_fingerprint": req["public_key_fingerprint"],
+                "encrypted_application": encrypted,
                 "judged_at": None,
                 "judged_by": None,
                 "decision_note": None,
             }
             self.queue.applications[record["application_id"]] = record
             self.queue.save()
-        log.info("application %s submitted for zone %s from %s%s", record["application_id"],
+            if encrypted:
+                self.replay_memory[digest] = forget_after
+        log.info("application %s submitted for zone %s from %s%s%s", record["application_id"],
                  record["zone_name"], remote_address,
+                 " (encrypted application)" if encrypted else " (plaintext application)",
                  " (public key {})".format(record["public_key_fingerprint"]) if record["public_key"] else "")
         response = {
             "application_id": record["application_id"],
@@ -684,6 +782,24 @@ class App:
         else:
             response.update(secrets_for_applicant)
         return 201, response
+
+    def prune_replay_memory(self, now_epoch):
+        """Caller holds the queue lock."""
+        for digest in [d for d, until in self.replay_memory.items() if until < now_epoch]:
+            del self.replay_memory[digest]
+
+    def info(self):
+        return 200, {
+            "service": "fzrs",
+            "version": VERSION,
+            "service_public_key": public_key_pem(self.service_public_key),
+            "service_public_key_fingerprint": self.service_public_key_fingerprint,
+            "encryption": dict(JWE_PROTECTED_HEADER),
+            "require_public_key": self.config["require_public_key"],
+            "require_encrypted_apply": self.config["require_encrypted_apply"],
+            "allowed_encryption_clock_skew_in_seconds": self.config["allowed_encryption_clock_skew_in_seconds"],
+            "application_expiration_in_seconds": self.config["application_expiration_in_seconds"],
+        }
 
     def status(self, query):
         ids = query.get("application_id", [])
@@ -718,7 +834,8 @@ class App:
                        if wanted == "all" or r["status"] == wanted]
         records.sort(key=lambda r: r["submitted_at"])
         log.info("%s listed %d application(s) with status=%s", admin, len(records), wanted)
-        return 200, {"applications": records}
+        return 200, {"service_public_key_fingerprint": self.service_public_key_fingerprint,
+                     "applications": records}
 
     def judge(self, body, admin, session):
         if not isinstance(body, dict):
@@ -942,6 +1059,7 @@ class Handler(BaseHTTPRequestHandler):
         routes = {
             ("POST", "/apply"): self.handle_apply,
             ("GET", "/status"): self.handle_status,
+            ("GET", "/info"): self.handle_info,
             ("GET", "/list"): self.handle_list,
             ("POST", "/judge"): self.handle_judge,
         }
@@ -958,6 +1076,10 @@ class Handler(BaseHTTPRequestHandler):
         body = self.read_json_body()
         status, response = self.app.apply(body, self.remote_address())
         return status, response, None
+
+    def handle_info(self, query):
+        status, response = self.app.info()
+        return status, response, {"Cache-Control": "no-store"}
 
     def handle_status(self, query):
         status, response = self.app.status(query)

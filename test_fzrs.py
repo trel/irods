@@ -93,6 +93,35 @@ RSA_PUB_SSH = RSA_KEY.public_key().public_bytes(
 RSA_SMALL_PUB_PEM = _pem_public(rsa.generate_private_key(public_exponent=65537, key_size=1024))
 EC_PUB_PEM = _pem_public(ec.generate_private_key(ec.SECP256R1()))
 
+# One service key shared by every fixture; generating 3072-bit keys per test
+# would triple the suite's run time. Per-process uniqueness is tested
+# separately with a fixture that lets the service generate its own.
+SERVICE_KEY = fzrs.generate_service_key()
+
+
+def b64e(b):
+    return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+
+
+def encrypt_application(service_pem, application, iat="now", private_key=None):
+    """The applicant-side encrypt from fzrs-spec.md section 5.6, with iat controllable."""
+    service_key = serialization.load_pem_public_key(service_pem.encode())
+    if isinstance(application, dict):
+        application = dict(application)
+        if iat == "now":
+            application["iat"] = int(time.time())
+        elif iat is not None:
+            application["iat"] = iat
+    header = b64e(b'{"alg":"RSA-OAEP-256","enc":"A256GCM"}')
+    cek, iv = secrets_token(32), secrets_token(12)
+    wrapped = service_key.encrypt(cek, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
+    sealed = AESGCM(cek).encrypt(iv, json.dumps(application).encode(), header.encode())
+    return ".".join([header, b64e(wrapped), b64e(iv), b64e(sealed[:-16]), b64e(sealed[-16:])])
+
+
+def secrets_token(n):
+    return os.urandom(n)
+
 
 def b64d(s):
     return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
@@ -198,7 +227,7 @@ def raw_http(port, request_bytes):
 class Fixture:
     """Temp directory with config, env, server_config, HUP child, and running server."""
 
-    def __init__(self, config_overrides=None, start_server=True):
+    def __init__(self, config_overrides=None, start_server=True, own_service_key=False):
         self.tmp = tempfile.TemporaryDirectory(prefix="fzrs-test-")
         d = self.tmp.name
         self.server_config_file = os.path.join(d, "server_config.json")
@@ -234,6 +263,8 @@ class Fixture:
         self.app = fzrs.App(self.config)
         self.irods = FakeIRODS()
         self.app.irods = self.irods
+        if not own_service_key:
+            self.app.service_private_key = SERVICE_KEY
         self.app.start()
 
         self.server = None
@@ -286,6 +317,16 @@ class Fixture:
             body["zone_key"] = zone_key
         body.update(extra)
         return self.request("POST", "/apply", body)
+
+    def service_pem(self):
+        return self.request("GET", "/info")[1]["service_public_key"]
+
+    def apply_encrypted(self, application=None, iat="now", service_pem=None, **extra):
+        application = dict(application or {"zone_name": "otherZone", "zone_port": 1247,
+                                           "catalog_provider_hosts": ["localhost"]})
+        application.update(extra)
+        jwe = encrypt_application(service_pem or self.service_pem(), application, iat=iat)
+        return self.request("POST", "/apply", {"encrypted_payload": jwe}), jwe
 
     def judge(self, application_id, decision, note=None, auth=("rods", "rods")):
         body = {"application_id": application_id, "decision": decision}
@@ -366,6 +407,8 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(cfg["max_pending_applications"], 100)
         self.assertEqual(cfg["max_request_body_bytes"], 65536)
         self.assertIs(cfg["require_public_key"], False)
+        self.assertIs(cfg["require_encrypted_apply"], False)
+        self.assertEqual(cfg["allowed_encryption_clock_skew_in_seconds"], 300)
         self.assertEqual(cfg["queue_file"], os.path.join(self.tmp.name, "q.json"))
         self.assertEqual(cfg["server_config_file"], "/etc/irods/server_config.json")
         self.assertEqual(cfg["server_pid_file"], "/var/run/irods/irods-server.pid")
@@ -395,6 +438,8 @@ class ConfigTests(unittest.TestCase):
             ({"port": 1, "bind_address": ""}, "bind_address"),
             ({"port": 1, "queue_file": 7}, "queue_file"),
             ({"port": 1, "require_public_key": "yes"}, "require_public_key"),
+            ({"port": 1, "require_encrypted_apply": 1}, "require_encrypted_apply"),
+            ({"port": 1, "allowed_encryption_clock_skew_in_seconds": 0}, "allowed_encryption_clock_skew"),
             ([1, 2], "JSON object"),
             ("not json", "not valid JSON"),
         ]
@@ -565,6 +610,21 @@ class EncryptedPayloadTests(unittest.TestCase):
         parts[3] = fzrs.b64url(bytes(ct))
         with self.assertRaises(Exception):
             decrypt_payload(".".join(parts))
+
+    def test_decrypt_payload_roundtrip_and_errors(self):
+        pem = fzrs.public_key_pem(SERVICE_KEY.public_key())
+        jwe = encrypt_application(pem, {"x": 1}, iat=None)
+        self.assertEqual(fzrs.decrypt_payload(SERVICE_KEY, jwe), {"x": 1})
+        parts = jwe.split(".")
+        bad_header = ".".join([b64e(b'{"alg":"RSA1_5","enc":"A256GCM"}')] + parts[1:])
+        other_key = fzrs.public_key_pem(RSA_KEY.public_key())
+        for bad in (5, "", "a.b", "a.b.c.d.e", "!.!.!.!.!", bad_header,
+                    encrypt_application(other_key, {"x": 1}, iat=None),
+                    ".".join(parts[:3] + [b64e(b"tampered"), parts[4]])):
+            with self.assertRaises(fzrs.HTTPError, msg=repr(bad)[:40]) as cm:
+                fzrs.decrypt_payload(SERVICE_KEY, bad)
+            self.assertEqual(cm.exception.status, 400)
+            self.assertIn("/info", cm.exception.message)
 
     def test_fingerprint_matches_openssl(self):
         key = fzrs.parse_public_key(RSA_PUB_PEM)
@@ -751,6 +811,167 @@ class PublicKeyApplyTests(ServerTestCase):
         _, body, _ = self.fx.request("GET", "/status?application_id=" + a["application_id"])
         self.assertEqual(body["status"], "rejected")
         self.assertNotIn("encrypted_payload", body)
+
+
+class InfoTests(ServerTestCase):
+    def test_info_contents(self):
+        status, body, headers = self.fx.request("GET", "/info")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["Cache-Control"], "no-store")
+        self.assertEqual(set(body), {"service", "version", "service_public_key", "service_public_key_fingerprint",
+                                     "encryption", "require_public_key", "require_encrypted_apply",
+                                     "allowed_encryption_clock_skew_in_seconds",
+                                     "application_expiration_in_seconds"})
+        self.assertEqual((body["service"], body["version"]), ("fzrs", fzrs.VERSION))
+        self.assertEqual(body["encryption"], {"alg": "RSA-OAEP-256", "enc": "A256GCM"})
+        self.assertEqual((body["require_public_key"], body["require_encrypted_apply"]), (False, False))
+        self.assertEqual(body["allowed_encryption_clock_skew_in_seconds"], 300)
+        self.assertEqual(body["application_expiration_in_seconds"], 7 * 24 * 3600)
+        self.assertNotIn("zone_name", json.dumps(body))
+        self.assertNotIn(HOME_ZONE, json.dumps(body))
+        key = serialization.load_pem_public_key(body["service_public_key"].encode())
+        self.assertIsInstance(key, rsa.RSAPublicKey)
+        self.assertEqual(key.key_size, fzrs.SERVICE_KEY_BITS)
+        self.assertEqual(body["service_public_key_fingerprint"], openssl_fingerprint(body["service_public_key"]))
+        self.assertEqual(self.fx.request("POST", "/info", raw_body=b"")[0], 405)
+
+    def test_list_carries_service_fingerprint(self):
+        _, info, _ = self.fx.request("GET", "/info")
+        _, listing, _ = self.fx.request("GET", "/list", auth=("rods", "rods"))
+        self.assertEqual(listing["service_public_key_fingerprint"], info["service_public_key_fingerprint"])
+
+    def test_key_is_per_process(self):
+        own = Fixture(own_service_key=True)
+        try:
+            _, a, _ = self.fx.request("GET", "/info")
+            _, b, _ = own.request("GET", "/info")
+            self.assertNotEqual(a["service_public_key"], b["service_public_key"])
+            self.assertNotEqual(a["service_public_key_fingerprint"], b["service_public_key_fingerprint"])
+            # a payload for one service does not open at the other
+            (status, body, _), _ = own.apply_encrypted(service_pem=a["service_public_key"])
+            self.assertEqual(status, 400)
+            self.assertIn("/info", body["error"])
+        finally:
+            own.close()
+
+
+class EncryptedApplyTests(ServerTestCase):
+    def test_encrypted_apply_happy_path(self):
+        (status, body, _), jwe = self.fx.apply_encrypted(zone_key="MY_SECRET_ZONE_KEY", name="Ada",
+                                                         email="ada@example.org")
+        self.assertEqual(status, 201)
+        self.assertEqual(body["zone_key"], "MY_SECRET_ZONE_KEY")  # no applicant key: plaintext response
+        self.assertNotIn("MY_SECRET_ZONE_KEY", jwe)
+        _, listing, _ = self.fx.request("GET", "/list", auth=("rods", "rods"))
+        rec = listing["applications"][0]
+        self.assertTrue(rec["encrypted_application"])
+        self.assertEqual((rec["zone_key"], rec["name"], rec["email"]), ("MY_SECRET_ZONE_KEY", "Ada", "ada@example.org"))
+        self.assertNotIn("iat", rec)
+        queue = json.load(open(self.fx.config["queue_file"]))
+        self.assertTrue(queue["applications"][0]["encrypted_application"])
+
+    def test_plaintext_apply_records_false(self):
+        self.fx.apply()
+        _, listing, _ = self.fx.request("GET", "/list", auth=("rods", "rods"))
+        self.assertFalse(listing["applications"][0]["encrypted_application"])
+
+    def test_both_directions_encrypted(self):
+        (status, body, _), _ = self.fx.apply_encrypted(public_key=RSA_PUB_PEM, zone_key="BOTH_WAYS")
+        self.assertEqual(status, 201)
+        self.assertNotIn("zone_key", body)
+        self.assertEqual(decrypt_payload(body["encrypted_payload"])["zone_key"], "BOTH_WAYS")
+        self.assertNotIn("BOTH_WAYS", json.dumps(body))
+
+    def test_replay_is_409(self):
+        (status, _, _), jwe = self.fx.apply_encrypted()
+        self.assertEqual(status, 201)
+        status, body, _ = self.fx.request("POST", "/apply", {"encrypted_payload": jwe})
+        self.assertEqual(status, 409)
+        self.assertIn("already submitted", body["error"])
+        # also after the first application is rejected, so a replay cannot re-queue it
+        _, listing, _ = self.fx.request("GET", "/list", auth=("rods", "rods"))
+        self.fx.judge(listing["applications"][0]["application_id"], "reject")
+        self.assertEqual(self.fx.request("POST", "/apply", {"encrypted_payload": jwe})[0], 409)
+        _, listing, _ = self.fx.request("GET", "/list", auth=("rods", "rods"))
+        self.assertEqual(listing["applications"], [])
+
+    def test_rejected_application_is_not_remembered(self):
+        # an encrypted application that fails validation does not burn its digest
+        (status, _, _), jwe = self.fx.apply_encrypted(zone_name="bad zone")
+        self.assertEqual(status, 400)
+        self.assertEqual(self.fx.app.replay_memory, {})
+
+    def test_iat_rules(self):
+        now = int(time.time())
+        for iat, fragment in ((None, "must carry iat"), ("123", "must carry iat"), (True, "must carry iat"),
+                              (now - 301, "from server time"), (now + 301, "from server time")):
+            (status, body, _), _ = self.fx.apply_encrypted(iat=iat)
+            self.assertEqual(status, 400, repr(iat))
+            self.assertIn(fragment, body["error"])
+            self.assertIn(str(now)[:-2], body["error"])  # server time is reported
+        for iat in (now - 290, now + 290):
+            (status, _, _), _ = self.fx.apply_encrypted(zone_name="z{}".format(abs(iat)), iat=iat)
+            self.assertEqual(status, 201, iat)
+        # iat is not accepted in a plaintext application
+        status, body, _ = self.fx.apply(iat=now)
+        self.assertEqual(status, 400)
+        self.assertIn("unknown field(s): iat", body["error"])
+
+    def test_malformed_encrypted_bodies(self):
+        pem = self.fx.service_pem()
+        good = encrypt_application(pem, {"zone_name": "z", "zone_port": 1, "catalog_provider_hosts": ["localhost"]})
+        cases = [
+            ({"encrypted_payload": good, "zone_name": "z"}, 400, "nothing else"),
+            ({"encrypted_payload": 5}, 400, "/info"),
+            ({"encrypted_payload": "not.a.jwe"}, 400, "/info"),
+            ({"encrypted_payload": encrypt_application(fzrs.public_key_pem(RSA_KEY.public_key()),
+                                                       {"zone_name": "z"})}, 400, "/info"),
+            ({"encrypted_payload": encrypt_application(pem, [1, 2], iat=None)}, 400, "JSON object"),
+            ({"encrypted_payload": encrypt_application(pem, {"zone_name": "z"})}, 400, "missing required field"),
+        ]
+        for body, expected, fragment in cases:
+            status, resp, _ = self.fx.request("POST", "/apply", body)
+            self.assertEqual(status, expected, body)
+            self.assertIn(fragment, resp["error"])
+        self.assertEqual(self.fx.request("POST", "/apply", [1])[0], 400)
+
+    def test_duplicate_zone_rule_applies_to_encrypted_too(self):
+        self.assertEqual(self.fx.apply()[0], 201)
+        (status, body, _), _ = self.fx.apply_encrypted()
+        self.assertEqual(status, 409)
+        self.assertIn("already pending", body["error"])
+
+
+class ReplayMemoryPruningTests(ServerTestCase):
+    config_overrides = {"allowed_encryption_clock_skew_in_seconds": 1}
+
+    def test_memory_is_pruned_and_old_iat_rejected(self):
+        _, info, _ = self.fx.request("GET", "/info")
+        self.assertEqual(info["allowed_encryption_clock_skew_in_seconds"], 1)
+        (status, _, _), jwe = self.fx.apply_encrypted()
+        self.assertEqual(status, 201)
+        self.assertEqual(len(self.fx.app.replay_memory), 1)
+        time.sleep(2.5)
+        status, body, _ = self.fx.request("POST", "/apply", {"encrypted_payload": jwe})
+        self.assertEqual(status, 400)  # stale iat, not 409: the digest is no longer needed
+        self.assertIn("from server time", body["error"])
+        # a fresh encrypted application triggers pruning of the stale digest
+        (status, _, _), _ = self.fx.apply_encrypted(zone_name="another")
+        self.assertEqual(status, 201)
+        self.assertEqual(len(self.fx.app.replay_memory), 1)
+
+
+class RequireEncryptedApplyTests(ServerTestCase):
+    config_overrides = {"require_encrypted_apply": True}
+
+    def test_plaintext_refused(self):
+        status, body, _ = self.fx.apply()
+        self.assertEqual(status, 400)
+        self.assertIn("requires encrypted applications", body["error"])
+        _, info, _ = self.fx.request("GET", "/info")
+        self.assertTrue(info["require_encrypted_apply"])
+        (status, _, _), _ = self.fx.apply_encrypted()
+        self.assertEqual(status, 201)
 
 
 class RequirePublicKeyTests(ServerTestCase):
@@ -1259,6 +1480,7 @@ class MainTests(unittest.TestCase):
                 out, _ = proc.communicate(timeout=20)
             self.assertEqual(proc.returncode, 0, out)
             self.assertIn("serving plain HTTP", out)
+            self.assertIn("service public key fingerprint SHA256:", out)
             self.assertIn("received signal", out)
             self.assertIn("stopped", out)
         finally:
