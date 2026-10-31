@@ -55,6 +55,10 @@ import threading
 import time
 import unittest
 
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
 import fzrs
 
 HOME_ZONE = "tempZone"
@@ -71,6 +75,44 @@ HUP_CHILD = (
     "while True:\n"
     "    time.sleep(0.05)\n"
 )
+
+
+# ---------------------------------------------------------------------------
+# Applicant keys (generated once per run)
+# ---------------------------------------------------------------------------
+
+def _pem_public(key):
+    return key.public_key().public_bytes(
+        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo).decode()
+
+
+RSA_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+RSA_PUB_PEM = _pem_public(RSA_KEY)
+RSA_PUB_SSH = RSA_KEY.public_key().public_bytes(
+    serialization.Encoding.OpenSSH, serialization.PublicFormat.OpenSSH).decode() + " applicant@example.org"
+RSA_SMALL_PUB_PEM = _pem_public(rsa.generate_private_key(public_exponent=65537, key_size=1024))
+EC_PUB_PEM = _pem_public(ec.generate_private_key(ec.SECP256R1()))
+
+
+def b64d(s):
+    return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
+
+
+def decrypt_payload(jwe, private_key=RSA_KEY):
+    """The applicant-side decrypt from fzrs-spec.md section 5.5."""
+    header, enc_key, iv, ciphertext, tag = jwe.split(".")
+    cek = private_key.decrypt(b64d(enc_key), padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
+    plaintext = AESGCM(cek).decrypt(b64d(iv), b64d(ciphertext) + b64d(tag), header.encode())
+    return json.loads(plaintext)
+
+
+def openssl_fingerprint(pem):
+    """The applicant-side fingerprint recipe from fzrs-spec.md section 5.5."""
+    der = subprocess.run(["openssl", "pkey", "-pubin", "-outform", "DER"], input=pem.encode(),
+                         capture_output=True, check=True).stdout
+    digest = subprocess.run(["openssl", "dgst", "-sha256", "-binary"], input=der,
+                            capture_output=True, check=True).stdout
+    return "SHA256:" + base64.b64encode(digest).decode().rstrip("=")
 
 
 # ---------------------------------------------------------------------------
@@ -238,10 +280,11 @@ class Fixture:
             decoded = payload
         return resp.status, decoded, dict(resp.getheaders())
 
-    def apply(self, zone_name="otherZone", hosts=("localhost",), port=1247, zone_key=None):
+    def apply(self, zone_name="otherZone", hosts=("localhost",), port=1247, zone_key=None, **extra):
         body = {"zone_name": zone_name, "zone_port": port, "catalog_provider_hosts": list(hosts)}
         if zone_key is not None:
             body["zone_key"] = zone_key
+        body.update(extra)
         return self.request("POST", "/apply", body)
 
     def judge(self, application_id, decision, note=None, auth=("rods", "rods")):
@@ -322,6 +365,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(cfg["application_expiration_in_seconds"], 7 * 24 * 60 * 60)
         self.assertEqual(cfg["max_pending_applications"], 100)
         self.assertEqual(cfg["max_request_body_bytes"], 65536)
+        self.assertIs(cfg["require_public_key"], False)
         self.assertEqual(cfg["queue_file"], os.path.join(self.tmp.name, "q.json"))
         self.assertEqual(cfg["server_config_file"], "/etc/irods/server_config.json")
         self.assertEqual(cfg["server_pid_file"], "/var/run/irods/irods-server.pid")
@@ -350,6 +394,7 @@ class ConfigTests(unittest.TestCase):
             ({"port": 1, "max_pending_applications": True}, "max_pending"),
             ({"port": 1, "bind_address": ""}, "bind_address"),
             ({"port": 1, "queue_file": 7}, "queue_file"),
+            ({"port": 1, "require_public_key": "yes"}, "require_public_key"),
             ([1, 2], "JSON object"),
             ("not json", "not valid JSON"),
         ]
@@ -452,10 +497,80 @@ class ValidateApplyRequestTests(unittest.TestCase):
         out = fzrs.validate_apply_request(
             {"zone_name": "a.b_c", "zone_port": 0, "catalog_provider_hosts": ["h", "10.0.0.1"]})
         self.assertEqual(out, {"zone_name": "a.b_c", "zone_port": 0,
-                               "catalog_provider_hosts": ["h", "10.0.0.1"], "zone_key": None})
+                               "catalog_provider_hosts": ["h", "10.0.0.1"], "zone_key": None,
+                               "name": None, "email": None, "public_key": None,
+                               "public_key_fingerprint": None})
         out = fzrs.validate_apply_request(
-            {"zone_name": "a", "zone_port": 65535, "catalog_provider_hosts": ["h"], "zone_key": "K_1"})
+            {"zone_name": "a", "zone_port": 65535, "catalog_provider_hosts": ["h"], "zone_key": "K_1",
+             "name": "Ada", "email": "ada@example.org", "public_key": RSA_PUB_PEM})
         self.assertEqual(out["zone_key"], "K_1")
+        self.assertEqual((out["name"], out["email"], out["public_key"]), ("Ada", "ada@example.org", RSA_PUB_PEM))
+        self.assertEqual(out["public_key_fingerprint"], openssl_fingerprint(RSA_PUB_PEM))
+
+    def test_name_and_email_rules(self):
+        base = {"zone_name": "z", "zone_port": 1247, "catalog_provider_hosts": ["h"]}
+        self.check(dict(base, name=""), "name must be")
+        self.check(dict(base, name=5), "name must be")
+        self.check(dict(base, name="x" * 257), "name must be")
+        for bad in ("", "a", "@", "a@", "@b", "no-at-sign", "a@@b", "a@b@c", 7, "x" * 250 + "@abcd"):
+            self.check(dict(base, email=bad), "email must be")
+        out = fzrs.validate_apply_request(dict(base, name="x" * 256, email="a@b"))
+        self.assertEqual((len(out["name"]), out["email"]), (256, "a@b"))
+
+    def test_public_key_rules(self):
+        base = {"zone_name": "z", "zone_port": 1247, "catalog_provider_hosts": ["h"]}
+        self.check(dict(base, public_key=""), "non-empty string")
+        self.check(dict(base, public_key=5), "non-empty string")
+        self.check(dict(base, public_key="x" * 16385), "at most 16384")
+        self.check(dict(base, public_key="not a key"), "PEM (BEGIN PUBLIC KEY) or OpenSSH")
+        self.check(dict(base, public_key="-----BEGIN PUBLIC KEY-----\ngarbage\n-----END PUBLIC KEY-----"),
+                   "PEM (BEGIN PUBLIC KEY) or OpenSSH")
+        self.check(dict(base, public_key=EC_PUB_PEM), "must be an RSA key")
+        self.check(dict(base, public_key=RSA_SMALL_PUB_PEM), "at least 2048 bits")
+        pem = fzrs.validate_apply_request(dict(base, public_key=RSA_PUB_PEM))
+        ssh = fzrs.validate_apply_request(dict(base, public_key=RSA_PUB_SSH))
+        self.assertEqual(pem["public_key_fingerprint"], ssh["public_key_fingerprint"])
+        self.assertEqual(ssh["public_key"], RSA_PUB_SSH)
+
+
+class EncryptedPayloadTests(unittest.TestCase):
+    def test_jwe_structure_and_roundtrip(self):
+        jwe = fzrs.encrypt_payload(RSA_PUB_PEM, {"zone_key": "z", "negotiation_key": "n"})
+        parts = jwe.split(".")
+        self.assertEqual(len(parts), 5)
+        self.assertNotIn("=", jwe)
+        self.assertEqual(json.loads(b64d(parts[0])), {"alg": "RSA-OAEP-256", "enc": "A256GCM"})
+        self.assertEqual(len(b64d(parts[1])), 256)  # 2048-bit RSA
+        self.assertEqual(len(b64d(parts[2])), 12)
+        self.assertEqual(len(b64d(parts[4])), 16)
+        self.assertEqual(decrypt_payload(jwe), {"zone_key": "z", "negotiation_key": "n"})
+        self.assertEqual(decrypt_payload(fzrs.encrypt_payload(RSA_PUB_SSH, {"a": 1})), {"a": 1})
+
+    def test_fresh_key_and_iv_each_time(self):
+        a = fzrs.encrypt_payload(RSA_PUB_PEM, {"x": 1})
+        b = fzrs.encrypt_payload(RSA_PUB_PEM, {"x": 1})
+        self.assertNotEqual(a, b)
+        self.assertNotEqual(a.split(".")[2], b.split(".")[2])
+
+    def test_wrong_private_key_cannot_decrypt(self):
+        other = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        jwe = fzrs.encrypt_payload(RSA_PUB_PEM, {"x": 1})
+        with self.assertRaises(ValueError):
+            decrypt_payload(jwe, other)
+
+    def test_tampered_ciphertext_is_rejected(self):
+        parts = fzrs.encrypt_payload(RSA_PUB_PEM, {"x": 1}).split(".")
+        ct = bytearray(b64d(parts[3]))
+        ct[0] ^= 0xFF
+        parts[3] = fzrs.b64url(bytes(ct))
+        with self.assertRaises(Exception):
+            decrypt_payload(".".join(parts))
+
+    def test_fingerprint_matches_openssl(self):
+        key = fzrs.parse_public_key(RSA_PUB_PEM)
+        fp = fzrs.public_key_fingerprint(key)
+        self.assertRegex(fp, r"^SHA256:[A-Za-z0-9+/]{43}$")
+        self.assertEqual(fp, openssl_fingerprint(RSA_PUB_PEM))
 
 
 # ---------------------------------------------------------------------------
@@ -540,6 +655,116 @@ class ApplyTests(ServerTestCase):
         self.assertEqual(headers["Allow"], "GET")
         self.assertEqual(self.fx.request("DELETE", "/judge", raw_body=b"")[0], 405)
         self.assertEqual(self.fx.request("GET", "/list/", auth=("rods", "rods"))[0], 200)
+
+
+class PublicKeyApplyTests(ServerTestCase):
+    def test_apply_with_key_encrypts_secrets(self):
+        status, body, _ = self.fx.apply(name="Ada Lovelace", email="ada@example.org", public_key=RSA_PUB_PEM)
+        self.assertEqual(status, 201)
+        self.assertNotIn("negotiation_key", body)
+        self.assertNotIn("zone_key", body)
+        self.assertNotIn("name", body)
+        self.assertNotIn("email", body)
+        self.assertEqual(body["public_key_fingerprint"], openssl_fingerprint(RSA_PUB_PEM))
+        secrets_ = decrypt_payload(body["encrypted_payload"])
+        self.assertEqual(set(secrets_), {"negotiation_key", "zone_key"})
+        self.assertRegex(secrets_["negotiation_key"], r"^[A-Za-z0-9_]{32}$")
+
+        # the admin sees everything in plaintext
+        _, listing, _ = self.fx.request("GET", "/list", auth=("rods", "rods"))
+        rec = listing["applications"][0]
+        self.assertEqual(rec["negotiation_key"], secrets_["negotiation_key"])
+        self.assertEqual(rec["zone_key"], secrets_["zone_key"])
+        self.assertEqual(rec["name"], "Ada Lovelace")
+        self.assertEqual(rec["email"], "ada@example.org")
+        self.assertEqual(rec["public_key"], RSA_PUB_PEM)
+        self.assertEqual(rec["public_key_fingerprint"], body["public_key_fingerprint"])
+
+        # the raw response never carried the secrets
+        self.assertNotIn(secrets_["negotiation_key"], json.dumps(body))
+        self.assertNotIn(secrets_["zone_key"], json.dumps(body))
+
+    def test_apply_with_openssh_key_and_supplied_zone_key(self):
+        status, body, _ = self.fx.apply(public_key=RSA_PUB_SSH, zone_key="MY_KEY")
+        self.assertEqual(status, 201)
+        self.assertEqual(decrypt_payload(body["encrypted_payload"])["zone_key"], "MY_KEY")
+        self.assertNotIn("MY_KEY", json.dumps(body))
+
+    def test_apply_without_key_is_plaintext_and_records_nulls(self):
+        status, body, _ = self.fx.apply()
+        self.assertEqual(status, 201)
+        self.assertIn("zone_key", body)
+        self.assertNotIn("encrypted_payload", body)
+        _, listing, _ = self.fx.request("GET", "/list", auth=("rods", "rods"))
+        rec = listing["applications"][0]
+        self.assertEqual((rec["name"], rec["email"], rec["public_key"], rec["public_key_fingerprint"]),
+                         (None, None, None, None))
+
+    def test_bad_keys_are_400(self):
+        for key, fragment in ((RSA_SMALL_PUB_PEM, "2048"), (EC_PUB_PEM, "RSA"), ("garbage", "PEM")):
+            status, body, _ = self.fx.apply(public_key=key)
+            self.assertEqual(status, 400, key[:20])
+            self.assertIn(fragment, body["error"])
+        self.assertEqual(self.fx.apply(email="nope")[0], 400)
+        self.assertEqual(self.fx.apply(name="")[0], 400)
+        _, listing, _ = self.fx.request("GET", "/list", auth=("rods", "rods"))
+        self.assertEqual(listing["applications"], [])
+
+    def test_status_after_approval_is_encrypted(self):
+        _, a, _ = self.fx.apply(name="Ada", email="ada@example.org", public_key=RSA_PUB_PEM,
+                                hosts=["localhost"], port=1248)
+        aid = a["application_id"]
+        _, pending, _ = self.fx.request("GET", "/status?application_id=" + aid)
+        self.assertNotIn("encrypted_payload", pending)
+        self.assertNotIn("public_key_fingerprint", pending)
+
+        status, judged, _ = self.fx.judge(aid, "approve")
+        self.assertEqual(status, 200)
+        # judge response stays plaintext and carries the identity fields
+        self.assertEqual(judged["applicant_federation_entry"]["zone_key"], HOME_ZONE_KEY)
+        self.assertEqual(judged["application"]["name"], "Ada")
+        self.assertEqual(judged["application"]["email"], "ada@example.org")
+        self.assertNotIn("encrypted_payload", judged)
+
+        status, body, _ = self.fx.request("GET", "/status?application_id=" + aid)
+        self.assertEqual(status, 200)
+        self.assertEqual(body["status"], "approved")
+        self.assertNotIn("applicant_federation_entry", body)
+        self.assertNotIn("applicant_mkzone_command", body)
+        self.assertNotIn("name", body)
+        self.assertNotIn("email", body)
+        self.assertNotIn(HOME_ZONE_KEY, json.dumps(body))
+        self.assertEqual(body["public_key_fingerprint"], a["public_key_fingerprint"])
+        payload = decrypt_payload(body["encrypted_payload"])
+        self.assertEqual(set(payload), {"applicant_federation_entry", "applicant_mkzone_command"})
+        self.assertEqual(payload["applicant_federation_entry"], judged["applicant_federation_entry"])
+        self.assertEqual(payload["applicant_mkzone_command"], judged["applicant_mkzone_command"])
+
+        # a second poll is encrypted afresh but decrypts to the same thing
+        _, again, _ = self.fx.request("GET", "/status?application_id=" + aid)
+        self.assertNotEqual(again["encrypted_payload"], body["encrypted_payload"])
+        self.assertEqual(decrypt_payload(again["encrypted_payload"]), payload)
+
+    def test_rejected_keyed_application_has_no_payload(self):
+        _, a, _ = self.fx.apply(public_key=RSA_PUB_PEM)
+        self.fx.judge(a["application_id"], "reject")
+        _, body, _ = self.fx.request("GET", "/status?application_id=" + a["application_id"])
+        self.assertEqual(body["status"], "rejected")
+        self.assertNotIn("encrypted_payload", body)
+
+
+class RequirePublicKeyTests(ServerTestCase):
+    config_overrides = {"require_public_key": True}
+
+    def test_key_required(self):
+        status, body, _ = self.fx.apply()
+        self.assertEqual(status, 400)
+        self.assertIn("requires a public_key", body["error"])
+        _, listing, _ = self.fx.request("GET", "/list", auth=("rods", "rods"))
+        self.assertEqual(listing["applications"], [])
+        status, body, _ = self.fx.apply(public_key=RSA_PUB_PEM)
+        self.assertEqual(status, 201)
+        self.assertIn("encrypted_payload", body)
 
 
 class QueueFullTests(ServerTestCase):

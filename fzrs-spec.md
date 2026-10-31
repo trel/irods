@@ -1,6 +1,7 @@
 # iRODS Federation Zone Registrar Service (FZRS) — Specification
 
-Status: draft, agreed 2026-10-31.
+Status: draft, agreed 2026-10-31; applicant identity and public-key
+encryption added 2026-10-31.
 
 ## 1. Purpose
 
@@ -25,14 +26,19 @@ Both files live at the top level of the repository.
 ## 3. Runtime requirements
 
 - Python 3.9 or newer.
-- `python-irodsclient` is the only third-party dependency. Everything else is
-  the standard library (`http.server`, `ssl` is not used, `json`, `secrets`,
-  `uuid`, `threading`, `base64`, `re`, `logging`, `signal`, `os`).
+- Third-party dependencies are `python-irodsclient` and `cryptography`
+  (packaged as `python3-cryptography`). `cryptography` is used only to parse
+  applicant public keys and to build the JWE envelope of section 5.5.
+  Everything else is the standard library (`http.server`, `ssl` is not used,
+  `json`, `secrets`, `uuid`, `threading`, `base64`, `re`, `logging`,
+  `signal`, `os`, `hashlib`).
 - Runs as the iRODS service account on a catalog provider of the home zone,
   because approval edits `/etc/irods/server_config.json` and signals the iRODS
   server.
-- Speaks plain HTTP only. It must be deployed behind a TLS-terminating reverse
-  proxy; admin credentials travel in HTTP Basic headers.
+- Speaks plain HTTP only. It should be deployed behind a TLS-terminating
+  reverse proxy; admin credentials travel in HTTP Basic headers. Applicants
+  who supply a public key receive their secrets encrypted end to end
+  (section 5.5), so the applicant side does not depend on TLS.
 
 ## 4. Invocation and configuration
 
@@ -57,6 +63,7 @@ validation, or if the iRODS client environment cannot be loaded.
 | `irods_environment_file` | string | `$IRODS_ENVIRONMENT_FILE`, else `~/.irods/irods_environment.json` | Service account client environment |
 | `server_config_file` | string | `/etc/irods/server_config.json` | Home zone server configuration to edit on approval |
 | `server_pid_file` | string | `/var/run/irods/irods-server.pid` | Used to send SIGHUP after editing the server config |
+| `require_public_key` | boolean | `false` | When true, `apply` without a `public_key` is rejected, so secrets are never delivered in plaintext |
 
 Unknown keys are rejected so typos are caught. Relative paths resolve against
 the configuration file's directory.
@@ -97,6 +104,10 @@ Stored as a JSON object. All timestamps are ISO 8601 in UTC with a `Z` suffix.
 | `zone_key` | applicant or FZRS | applicant-supplied value when present, else generated |
 | `zone_key_generated` | FZRS | boolean |
 | `negotiation_key` | FZRS | shared key for this federation pair |
+| `name` | applicant | optional, informational only, null when absent |
+| `email` | applicant | optional, informational only, never used to send mail, null when absent |
+| `public_key` | applicant | optional, stored verbatim as supplied, null when absent |
+| `public_key_fingerprint` | FZRS | `SHA256:<base64>` of the DER SubjectPublicKeyInfo, null when no key |
 | `judged_at` | FZRS | null until judged |
 | `judged_by` | FZRS | iRODS username of the admin, null until judged |
 | `decision_note` | admin | free text, optional, max 1024 chars |
@@ -129,11 +140,61 @@ Derived from `schemas/configuration/v5/server_config.json.in`.
 | `zone_key` | `^[A-Za-z0-9_]+$`, 1–49 chars |
 | `negotiation_key` | `^[A-Za-z0-9_]{32}$` |
 | `decision_note` | string ≤ 1024 chars |
+| `name` | string, 1–256 chars, no other rule |
+| `email` | string, 3–254 chars, exactly one `@` with at least one character on each side, no other rule, never verified |
+| `public_key` | string ≤ 16384 chars; parses as PEM SubjectPublicKeyInfo (`-----BEGIN PUBLIC KEY-----`) or OpenSSH single-line (`ssh-rsa AAAA...`, trailing comment ignored); must be RSA with modulus ≥ 2048 bits |
 
 ### 5.4 Key generation
 
 Both generated keys use `secrets.choice` over the alphabet
 `A-Za-z0-9_` (64 symbols) and are 32 characters long (192 bits).
+
+### 5.5 Encrypted payloads
+
+When an application carries a `public_key`, every applicant-facing secret is
+delivered as one JWE compact serialization (RFC 7516) under the field name
+`encrypted_payload`, and the corresponding plaintext fields are omitted.
+
+- Protected header: `{"alg":"RSA-OAEP-256","enc":"A256GCM"}`.
+- Content key: 32 random bytes from `secrets.token_bytes`, wrapped with
+  RSA-OAEP using SHA-256 for both the hash and MGF1.
+- Content: the UTF-8 JSON document described by the endpoint, encrypted with
+  AES-256-GCM, a fresh 96-bit IV, a 128-bit tag, and the base64url-encoded
+  protected header as additional authenticated data, exactly as JWE requires.
+- Serialization: five base64url segments without padding, joined by `.`.
+
+A new content key and IV are generated on every response; the same plaintext
+yields a different ciphertext each time.
+
+The applicant decrypts with any JOSE library, with `step crypto jwe decrypt`,
+or with this `cryptography`-only snippet:
+
+```python
+import base64, json, sys
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+def b64d(s):
+    return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
+
+private_key = serialization.load_pem_private_key(open(sys.argv[1], "rb").read(), None)
+header, enc_key, iv, ciphertext, tag = sys.argv[2].split(".")
+cek = private_key.decrypt(b64d(enc_key), padding.OAEP(
+    padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
+plaintext = AESGCM(cek).decrypt(b64d(iv), b64d(ciphertext) + b64d(tag), header.encode())
+print(json.dumps(json.loads(plaintext), indent=2))
+```
+
+Fingerprints are `SHA256:` followed by the SHA-256 of the key's DER-encoded
+SubjectPublicKeyInfo in the standard base64 alphabet (`+` and `/`, not
+base64url) with `=` padding removed. A key supplied in PEM or OpenSSH form
+yields the same fingerprint, and an applicant can confirm the key the
+registrar holds with:
+
+```
+openssl pkey -pubin -in key.pem -outform DER | openssl dgst -sha256 -binary | base64 | tr -d '='
+```
 
 ## 6. Authentication
 
@@ -174,18 +235,29 @@ Request:
   "zone_name": "otherZone",
   "zone_port": 1247,
   "catalog_provider_hosts": ["icat.other.example.org"],
-  "zone_key": "OPTIONAL_EXISTING_ZONE_KEY"
+  "zone_key": "OPTIONAL_EXISTING_ZONE_KEY",
+  "name": "Optional Human Name",
+  "email": "optional@example.org",
+  "public_key": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----\n"
 }
 ```
 
+`name` and `email` are for the reviewing admin only. FZRS never uses them
+for anything and never sends mail. `public_key` is the applicant's RSA
+public key; when present, every secret FZRS returns to the applicant is
+encrypted to it (section 5.5).
+
 Behavior:
 
-1. Validate per 5.3. Extra keys → `400`.
-2. If `max_pending_applications` pending records exist → `503`.
-3. If a `pending` record with the same `zone_name` exists → `409`. Approved,
+1. Validate per 5.3. Extra keys → `400`. An unparseable, non-RSA, or
+   too-short `public_key` → `400`.
+2. If `require_public_key` is true and no `public_key` was supplied → `400`
+   with an error saying this registrar requires one.
+3. If `max_pending_applications` pending records exist → `503`.
+4. If a `pending` record with the same `zone_name` exists → `409`. Approved,
    rejected, and expired records do not block a new application.
-4. Generate `negotiation_key`; generate `zone_key` if not supplied.
-5. Persist, then respond `201`:
+5. Generate `negotiation_key`; generate `zone_key` if not supplied.
+6. Persist, then respond `201`. Without a public key:
 
 ```json
 {
@@ -194,6 +266,20 @@ Behavior:
   "expires_at": "2026-11-07T15:04:05Z",
   "negotiation_key": "....32 chars....",
   "zone_key": "....",
+  "status_url": "/status?application_id=6f1c..."
+}
+```
+
+With a public key, `negotiation_key` and `zone_key` are replaced by one
+field whose plaintext is `{"negotiation_key": "...", "zone_key": "..."}`:
+
+```json
+{
+  "application_id": "6f1c...",
+  "status": "pending",
+  "expires_at": "2026-11-07T15:04:05Z",
+  "public_key_fingerprint": "SHA256:...",
+  "encrypted_payload": "eyJhbGciOi...",
   "status_url": "/status?application_id=6f1c..."
 }
 ```
@@ -233,6 +319,22 @@ The home zone's `zone_key`, hosts, name, and port are read from
 `negotiation_key` is never disclosed; the pair-specific key from the record is
 used.
 
+When the record carries a `public_key`, the two fields above are replaced by
+`public_key_fingerprint` and one `encrypted_payload` whose plaintext is the
+JSON document `{"applicant_federation_entry": {...}, "applicant_mkzone_command":
+"..."}` with exactly the content shown above:
+
+```json
+{
+  "application_id": "6f1c...",
+  "status": "approved",
+  "public_key_fingerprint": "SHA256:...",
+  "encrypted_payload": "eyJhbGciOi..."
+}
+```
+
+`name`, `email`, and the public key itself are never returned by `status`.
+
 ### 7.3 `GET /list?status=<filter>` — rodsadmin
 
 - `status` is one of `pending` (default), `approved`, `rejected`, `expired`,
@@ -244,7 +346,9 @@ used.
 ```
 
 Ordered by `submitted_at` ascending. Records are returned in full, including
-keys, because the caller is a rodsadmin.
+keys, `name`, `email`, `public_key`, and `public_key_fingerprint`, because the
+caller is a rodsadmin. The fingerprint lets the admin confirm the key with the
+applicant out of band before approving.
 
 ### 7.4 `POST /judge` — rodsadmin
 
@@ -325,6 +429,11 @@ with an `error` naming the step. The admin can retry after fixing the cause.
 }
 ```
 
+The judge response is always plaintext, whether or not the applicant supplied
+a public key. The admin is already authenticated over the same channel and
+can read the home zone's `zone_key` from server_config.json; the encrypted
+form is only for the applicant-facing `apply` and `status` responses.
+
 ## 8. Expiration
 
 No background thread. At the start of every request, every `pending` record
@@ -362,18 +471,30 @@ connections are per request and are not shared across threads.
   validation, and the 409 duplicate rule.
 - `status` reveals the home zone's `zone_key` only for approved applications
   and only to a holder of the matching 122-bit random `application_id`.
+- When the applicant supplies an RSA public key, the home zone's `zone_key`,
+  the shared `negotiation_key`, and the applicant's `zone_key` are only ever
+  sent to the applicant inside a JWE encrypted to that key, in both the
+  `apply` and the `status` responses, so a plaintext HTTP path does not
+  expose them. Without a key they travel in plaintext, and
+  `require_public_key` lets a deployment forbid that.
+- `name` and `email` are stored and shown to admins as supplied. They are
+  not verified, not used to contact anyone, and not returned to applicants.
 - The home zone's own top-level `negotiation_key` is never read or returned.
 - Admin passwords are verified against iRODS on every call and never stored.
 - TLS is the reverse proxy's job. Binding to `0.0.0.0` on plain HTTP without
-  a proxy exposes admin passwords; the README section at the top of `fzrs.py`
-  says so.
+  a proxy exposes admin passwords and any plaintext applicant secrets; the
+  README section at the top of `fzrs.py` says so. Public-key encryption
+  protects applicant secrets, not admin credentials.
 
 ## 12. Out of scope for this iteration
 
 - TLS in-process.
 - Purging or redacting old records.
 - Per-IP rate limiting.
-- Notifying the applicant (email, webhook); they poll `status`.
+- Notifying the applicant (email, webhook); they poll `status`. The `email`
+  field is informational only.
+- Non-RSA applicant keys (Ed25519, X25519, ECDSA) and signed or
+  authenticated applications.
 - Removing a federation (`unfederate`).
 - Supervision by the iRODS server as a child process.
 
@@ -381,7 +502,12 @@ connections are per request and are not shared across threads.
 
 1. Run FZRS as the `irods` service account against the local zone with a
    config of `{"port": 9100}`.
-2. `POST /apply` for a fake zone; expect `201` and both keys.
+2. `POST /apply` for a fake zone; expect `201` and both keys. Repeat with a
+   `name`, `email`, and an RSA public key generated with
+   `openssl genrsa -out key.pem 2048 && openssl rsa -in key.pem -pubout`;
+   expect `201` with `encrypted_payload` and no plaintext keys, and decrypt
+   it with the snippet in 5.5. Repeat with a 1024-bit key and with garbage;
+   expect `400`.
 3. `GET /list` without auth → `401`; with a rodsuser → `403`; with `rods` →
    `200` showing the pending record.
 4. `GET /status` → `pending`.
@@ -390,7 +516,10 @@ connections are per request and are not shared across threads.
    server log shows the reload. Use a resolvable applicant hostname
    (`localhost` or an IP literal); the reload briefly refuses connections
    while the agent factory restarts.
-6. `GET /status` → `approved` with `applicant_federation_entry`.
+6. `GET /status` → `approved` with `applicant_federation_entry`; for the
+   keyed application, `encrypted_payload` instead, decrypting to the same
+   entry. `GET /list` shows name, email, and the fingerprint matching
+   `openssl` output.
 7. `POST /judge` again on the same id → `409`.
 8. `POST /apply` with a 1-second expiration config, wait, `GET /list?status=expired`
    shows it, `POST /judge` → `410`.

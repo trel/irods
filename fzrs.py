@@ -13,8 +13,14 @@ Usage:
     python3 fzrs.py /path/to/fzrs.json
 
 Run this as the iRODS service account on a catalog provider of the home zone.
-The service speaks plain HTTP only and MUST be deployed behind a
+The service speaks plain HTTP only and should be deployed behind a
 TLS-terminating reverse proxy: admin credentials travel in HTTP Basic headers.
+An applicant that supplies an RSA public key receives its secrets as a JWE
+(RSA-OAEP-256 + A256GCM) encrypted to that key, so the applicant side does
+not depend on TLS. Set "require_public_key": true to refuse plaintext
+delivery altogether.
+
+Dependencies: python-irodsclient and cryptography.
 
 Endpoints:
 
@@ -28,6 +34,7 @@ See fzrs-spec.md for the full specification.
 
 import base64
 import datetime
+import hashlib
 import ipaddress
 import json
 import logging
@@ -46,6 +53,10 @@ from urllib.parse import parse_qs, urlsplit
 
 import irods.exception
 import irods.session
+from cryptography.exceptions import UnsupportedAlgorithm
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from irods.api_number import api_number
 from irods.message import GeneralAdminRequest, iRODSMessage
 
@@ -73,6 +84,12 @@ STATUS_EXPIRED = "expired"
 ALL_STATUSES = (STATUS_PENDING, STATUS_APPROVED, STATUS_REJECTED, STATUS_EXPIRED)
 
 DECISION_NOTE_MAX_LENGTH = 1024
+NAME_MAX_LENGTH = 256
+EMAIL_MAX_LENGTH = 254
+PUBLIC_KEY_MAX_LENGTH = 16384
+RSA_MIN_BITS = 2048
+
+JWE_PROTECTED_HEADER = {"alg": "RSA-OAEP-256", "enc": "A256GCM"}
 
 QUEUE_SCHEMA_VERSION = 1
 
@@ -85,6 +102,7 @@ CONFIG_DEFAULTS = {
     "irods_environment_file": None,  # resolved from env var / ~/.irods
     "server_config_file": "/etc/irods/server_config.json",
     "server_pid_file": "/var/run/irods/irods-server.pid",
+    "require_public_key": False,
 }
 CONFIG_REQUIRED = ("port",)
 CONFIG_KNOWN_KEYS = set(CONFIG_DEFAULTS) | set(CONFIG_REQUIRED)
@@ -198,6 +216,8 @@ def load_config(path):
 
     if not isinstance(cfg["bind_address"], str) or not cfg["bind_address"]:
         raise ConfigError("bind_address must be a non-empty string")
+    if not isinstance(cfg["require_public_key"], bool):
+        raise ConfigError("require_public_key must be true or false")
 
     def resolve_path(key, default):
         v = cfg[key]
@@ -230,6 +250,59 @@ def load_irods_environment(path):
         if key not in env:
             raise ConfigError("iRODS environment file is missing {}".format(key))
     return env
+
+
+# ---------------------------------------------------------------------------
+# Applicant public keys and encrypted payloads (spec section 5.5)
+# ---------------------------------------------------------------------------
+
+def b64url(data):
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+
+def parse_public_key(text):
+    """Parse a PEM SubjectPublicKeyInfo or OpenSSH public key. Must be RSA >= 2048 bits.
+
+    Raises HTTPError(400) on anything else.
+    """
+    if not isinstance(text, str) or not text.strip():
+        raise HTTPError(400, "public_key must be a non-empty string")
+    if len(text) > PUBLIC_KEY_MAX_LENGTH:
+        raise HTTPError(400, "public_key must be at most {} characters".format(PUBLIC_KEY_MAX_LENGTH))
+    raw = text.strip().encode("utf-8")
+    key = None
+    for loader in (serialization.load_pem_public_key, serialization.load_ssh_public_key):
+        try:
+            key = loader(raw)
+            break
+        except (ValueError, TypeError, UnsupportedAlgorithm):
+            continue
+    if key is None:
+        raise HTTPError(400, "public_key must be a PEM (BEGIN PUBLIC KEY) or OpenSSH (ssh-rsa) public key")
+    if not isinstance(key, rsa.RSAPublicKey):
+        raise HTTPError(400, "public_key must be an RSA key")
+    if key.key_size < RSA_MIN_BITS:
+        raise HTTPError(400, "public_key must be at least {} bits".format(RSA_MIN_BITS))
+    return key
+
+
+def public_key_fingerprint(key):
+    """SHA256:<standard base64, unpadded> of the DER SubjectPublicKeyInfo."""
+    der = key.public_bytes(serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo)
+    return "SHA256:" + base64.b64encode(hashlib.sha256(der).digest()).rstrip(b"=").decode("ascii")
+
+
+def encrypt_payload(public_key_text, obj):
+    """Return obj as a JWE compact serialization, RSA-OAEP-256 + A256GCM, for the given key."""
+    key = parse_public_key(public_key_text)
+    protected = b64url(json.dumps(JWE_PROTECTED_HEADER, separators=(",", ":")).encode("utf-8"))
+    cek = secrets.token_bytes(32)
+    iv = secrets.token_bytes(12)
+    encrypted_key = key.encrypt(cek, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
+    plaintext = json.dumps(obj, sort_keys=True).encode("utf-8")
+    ciphertext_and_tag = AESGCM(cek).encrypt(iv, plaintext, protected.encode("ascii"))
+    ciphertext, tag = ciphertext_and_tag[:-16], ciphertext_and_tag[-16:]
+    return ".".join([protected, b64url(encrypted_key), b64url(iv), b64url(ciphertext), b64url(tag)])
 
 
 # ---------------------------------------------------------------------------
@@ -442,7 +515,7 @@ class HomeZoneConfig:
 def validate_apply_request(body):
     if not isinstance(body, dict):
         raise HTTPError(400, "request body must be a JSON object")
-    allowed = {"zone_name", "zone_port", "catalog_provider_hosts", "zone_key"}
+    allowed = {"zone_name", "zone_port", "catalog_provider_hosts", "zone_key", "name", "email", "public_key"}
     unknown = sorted(set(body) - allowed)
     if unknown:
         raise HTTPError(400, "unknown field(s): {}".format(", ".join(unknown)))
@@ -471,11 +544,32 @@ def validate_apply_request(body):
     if zone_key is not None and (not isinstance(zone_key, str) or not ZONE_KEY_RE.match(zone_key)):
         raise HTTPError(400, "zone_key must match ^[A-Za-z0-9_]{1,49}$")
 
+    name = body.get("name")
+    if name is not None and (not isinstance(name, str) or not 1 <= len(name) <= NAME_MAX_LENGTH):
+        raise HTTPError(400, "name must be a string of 1 to {} characters".format(NAME_MAX_LENGTH))
+
+    email = body.get("email")
+    if email is not None:
+        local, sep, domain = email.partition("@") if isinstance(email, str) else ("", "", "")
+        if (not isinstance(email, str) or not 3 <= len(email) <= EMAIL_MAX_LENGTH
+                or not sep or not local or not domain or "@" in domain):
+            raise HTTPError(400, "email must be a string of at most {} characters with exactly one @".format(
+                EMAIL_MAX_LENGTH))
+
+    public_key = body.get("public_key")
+    fingerprint = None
+    if public_key is not None:
+        fingerprint = public_key_fingerprint(parse_public_key(public_key))
+
     return {
         "zone_name": zone_name,
         "zone_port": zone_port,
         "catalog_provider_hosts": list(hosts),
         "zone_key": zone_key,
+        "name": name,
+        "email": email,
+        "public_key": public_key,
+        "public_key_fingerprint": fingerprint,
     }
 
 
@@ -543,6 +637,8 @@ class App:
         req = validate_apply_request(body)
         if req["zone_name"] == self.irods.zone:
             raise HTTPError(400, "zone_name must not be the home zone's name")
+        if self.config["require_public_key"] and req["public_key"] is None:
+            raise HTTPError(400, "this registrar requires a public_key so that secrets are never sent in plaintext")
         now = utc_now()
         with self.queue.lock:
             if self.queue.count_pending() >= self.config["max_pending_applications"]:
@@ -562,22 +658,32 @@ class App:
                 "zone_key": req["zone_key"] if req["zone_key"] is not None else generate_key(),
                 "zone_key_generated": req["zone_key"] is None,
                 "negotiation_key": generate_key(),
+                "name": req["name"],
+                "email": req["email"],
+                "public_key": req["public_key"],
+                "public_key_fingerprint": req["public_key_fingerprint"],
                 "judged_at": None,
                 "judged_by": None,
                 "decision_note": None,
             }
             self.queue.applications[record["application_id"]] = record
             self.queue.save()
-        log.info("application %s submitted for zone %s from %s", record["application_id"],
-                 record["zone_name"], remote_address)
-        return 201, {
+        log.info("application %s submitted for zone %s from %s%s", record["application_id"],
+                 record["zone_name"], remote_address,
+                 " (public key {})".format(record["public_key_fingerprint"]) if record["public_key"] else "")
+        response = {
             "application_id": record["application_id"],
             "status": record["status"],
             "expires_at": record["expires_at"],
-            "negotiation_key": record["negotiation_key"],
-            "zone_key": record["zone_key"],
             "status_url": "/status?application_id={}".format(record["application_id"]),
         }
+        secrets_for_applicant = {"negotiation_key": record["negotiation_key"], "zone_key": record["zone_key"]}
+        if record["public_key"]:
+            response["public_key_fingerprint"] = record["public_key_fingerprint"]
+            response["encrypted_payload"] = encrypt_payload(record["public_key"], secrets_for_applicant)
+        else:
+            response.update(secrets_for_applicant)
+        return 201, response
 
     def status(self, query):
         ids = query.get("application_id", [])
@@ -591,8 +697,15 @@ class App:
         response = {k: record[k] for k in (
             "application_id", "status", "submitted_at", "expires_at", "judged_at", "decision_note")}
         if record["status"] == STATUS_APPROVED:
-            response["applicant_federation_entry"] = self.applicant_federation_entry(record)
-            response["applicant_mkzone_command"] = self.applicant_mkzone_command()
+            payload = {
+                "applicant_federation_entry": self.applicant_federation_entry(record),
+                "applicant_mkzone_command": self.applicant_mkzone_command(),
+            }
+            if record["public_key"]:
+                response["public_key_fingerprint"] = record["public_key_fingerprint"]
+                response["encrypted_payload"] = encrypt_payload(record["public_key"], payload)
+            else:
+                response.update(payload)
         return 200, response
 
     def list_applications(self, query, admin):
