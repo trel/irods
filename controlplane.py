@@ -1,0 +1,1541 @@
+#!/usr/bin/env python3
+"""iRODS Control Plane Service.
+
+A single-file HTTP service that fronts one iRODS zone (the "home zone") and
+runs as that zone's service account on a catalog provider. It offers three
+features:
+
+  federation  a remote zone applies to federate with the home zone, a
+              rodsadmin approves or rejects, and on approval the service
+              performs the home-zone side (mkzone, server_config.json entry,
+              reload) and hands the applicant its own federation stanza.
+  keyserver   a rodsadmin reads the lifecycle of the home zone's zone_key
+              (current key, its expiry, the already-minted next key) and
+              mints single-use bootstrap keys to hand to a new server's
+              operator out of band.
+  bootstrap   a new server presents a bootstrap key, a rodsadmin approves
+              or rejects, and on approval the service returns the zone
+              facts the operator needs to run setup_irods.py and join the
+              zone as a catalog consumer or an additional provider.
+
+Usage:
+
+    python3 controlplane.py /path/to/controlplane.json
+
+The service speaks plain HTTP only and should be deployed behind a
+TLS-terminating reverse proxy: admin credentials travel in HTTP Basic
+headers. An applicant that supplies an RSA public key receives its secrets as
+a JWE (RSA-OAEP-256 + A256GCM) encrypted to that key, and an applicant may
+encrypt its whole application to the service's own ephemeral key published by
+/info, so the applicant side does not depend on TLS. Each feature's
+"require_public_key" and "require_encrypted_apply" refuse plaintext in either
+direction; bootstrap defaults both to true. The service key lives only in
+memory and changes at every restart.
+
+Dependencies: python-irodsclient and cryptography.
+
+Endpoints:
+
+    GET  /info                                   unauthenticated
+    POST /federation/apply                       unauthenticated
+    GET  /federation/status?application_id=<id>  unauthenticated
+    GET  /federation/list?status=<filter>        rodsadmin
+    POST /federation/judge                       rodsadmin
+    GET  /keyserver/local_zone                   rodsadmin
+    PUT  /keyserver/bootstrap                    rodsadmin
+    POST /bootstrap/apply                        unauthenticated
+    GET  /bootstrap/status?application_id=<id>   unauthenticated
+    GET  /bootstrap/list?status=<filter>         rodsadmin
+    POST /bootstrap/judge                        rodsadmin
+
+See controlplane-spec.md for the full specification.
+"""
+
+import base64
+import datetime
+import hashlib
+import ipaddress
+import json
+import logging
+import os
+import re
+import secrets
+import shutil
+import signal
+import socket
+import sys
+import tempfile
+import threading
+import uuid
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlsplit
+
+import irods.exception
+import irods.session
+from cryptography.exceptions import UnsupportedAlgorithm
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from irods.api_number import api_number
+from irods.message import GeneralAdminRequest, iRODSMessage
+
+# ---------------------------------------------------------------------------
+# Constants and validation rules (derived from server_config.json schema)
+# ---------------------------------------------------------------------------
+
+SERVICE_NAME = "controlplane"
+VERSION = "0.1.0"
+AUTH_CHALLENGE = {"WWW-Authenticate": 'Basic realm="controlplane"'}
+
+ZONE_NAME_RE = re.compile(r"^[A-Za-z0-9_.]{1,63}$")
+ZONE_KEY_RE = re.compile(r"^[A-Za-z0-9_]{1,49}$")
+NEGOTIATION_KEY_RE = re.compile(r"^[A-Za-z0-9_]{32}$")
+HOSTNAME_LABEL_RE = re.compile(r"^(?!-)[A-Za-z0-9-]{1,63}(?<!-)$")
+USERNAME_RE = re.compile(r"^[A-Za-z0-9_.@-]{1,63}$")
+UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
+
+KEY_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_"
+KEY_LENGTH = 32
+
+ZONE_KEY_SIGNING_HASH_SCHEME = "sha256"
+
+STATUS_PENDING = "pending"
+STATUS_APPROVED = "approved"
+STATUS_REJECTED = "rejected"
+STATUS_EXPIRED = "expired"
+ALL_STATUSES = (STATUS_PENDING, STATUS_APPROVED, STATUS_REJECTED, STATUS_EXPIRED)
+
+KEY_AVAILABLE = "available"
+KEY_USED = "used"
+KEY_EXPIRED = "expired"
+
+ROLES = ("consumer", "provider")
+
+DECISION_NOTE_MAX_LENGTH = 1024
+NAME_MAX_LENGTH = 256
+EMAIL_MAX_LENGTH = 254
+PUBLIC_KEY_MAX_LENGTH = 16384
+RSA_MIN_BITS = 2048
+
+JWE_PROTECTED_HEADER = {"alg": "RSA-OAEP-256", "enc": "A256GCM"}
+SERVICE_KEY_BITS = 3072
+
+STATE_SCHEMA_VERSION = 1
+
+# Zone-wide keys of server_config.json copied verbatim into bootstrap zone facts.
+ZONE_FACT_KEYS = (
+    "schema_name", "schema_version", "zone_name", "zone_port", "zone_user", "zone_auth_scheme",
+    "zone_key", "negotiation_key", "catalog_provider_hosts", "client_server_policy",
+    "default_hash_scheme", "match_hash_policy", "encryption",
+)
+
+DEFAULT_PORT = 1248  # one above the conventional iRODS zone port
+
+CONFIG_DEFAULTS = {
+    "port": DEFAULT_PORT,
+    "bind_address": "0.0.0.0",
+    "state_file": None,  # resolved to <config dir>/controlplane-state.json
+    "max_request_body_bytes": 65536,
+    "irods_environment_file": None,  # resolved from env var / ~/.irods
+    "server_config_file": "/etc/irods/server_config.json",
+    "server_pid_file": "/var/run/irods/irods-server.pid",
+    "allowed_encryption_clock_skew_in_seconds": 300,
+}
+CONFIG_REQUIRED = ()
+FEATURE_DEFAULTS = {
+    "federation": {
+        "application_expiration_in_seconds": 7 * 24 * 60 * 60,
+        "max_pending_applications": 100,
+        "require_public_key": False,
+        "require_encrypted_apply": False,
+    },
+    "bootstrap": {
+        "application_expiration_in_seconds": 24 * 60 * 60,
+        "max_pending_applications": 100,
+        "require_public_key": True,
+        "require_encrypted_apply": True,
+    },
+    "keyserver": {
+        "lifetime_of_zone_keys_in_seconds": 90 * 24 * 60 * 60,
+        "lifetime_of_bootstrap_keys_in_seconds": 24 * 60 * 60,
+    },
+}
+CONFIG_KNOWN_KEYS = set(CONFIG_DEFAULTS) | set(CONFIG_REQUIRED) | set(FEATURE_DEFAULTS)
+
+log = logging.getLogger("controlplane")
+
+
+# ---------------------------------------------------------------------------
+# Small helpers
+# ---------------------------------------------------------------------------
+
+class ConfigError(Exception):
+    pass
+
+
+class HTTPError(Exception):
+    def __init__(self, status, message, headers=None):
+        super().__init__(message)
+        self.status = status
+        self.message = message
+        self.headers = headers or {}
+
+
+def utc_now():
+    return datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0)
+
+
+def to_iso(dt):
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def from_iso(s):
+    return datetime.datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
+
+
+def plus_seconds(dt, seconds):
+    return dt + datetime.timedelta(seconds=seconds)
+
+
+def generate_key():
+    return "".join(secrets.choice(KEY_ALPHABET) for _ in range(KEY_LENGTH))
+
+
+def is_valid_host(value):
+    if not isinstance(value, str) or not value or len(value) > 253:
+        return False
+    try:
+        ipaddress.ip_address(value)
+        return True
+    except ValueError:
+        pass
+    return all(HOSTNAME_LABEL_RE.match(label) for label in value.rstrip(".").split("."))
+
+
+def is_int(value):
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def atomic_write_json(path, obj, mode=None):
+    """Write obj as JSON to path via a temp file in the same directory."""
+    directory = os.path.dirname(os.path.abspath(path))
+    fd, tmp = tempfile.mkstemp(prefix=".controlplane-", suffix=".tmp", dir=directory)
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(obj, f, indent=4, sort_keys=True)
+            f.write("\n")
+            f.flush()
+            os.fsync(f.fileno())
+        if mode is not None:
+            os.chmod(tmp, mode)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+def load_config(path):
+    try:
+        with open(path, "r") as f:
+            raw = json.load(f)
+    except FileNotFoundError:
+        raise ConfigError("configuration file not found: {}".format(path))
+    except json.JSONDecodeError as e:
+        raise ConfigError("configuration file is not valid JSON: {}".format(e))
+    if not isinstance(raw, dict):
+        raise ConfigError("configuration file must contain a JSON object")
+
+    unknown = sorted(set(raw) - CONFIG_KNOWN_KEYS)
+    if unknown:
+        raise ConfigError("unknown configuration key(s): {}".format(", ".join(unknown)))
+    for key in CONFIG_REQUIRED:
+        if key not in raw:
+            raise ConfigError("missing required configuration key: {}".format(key))
+
+    cfg = dict(CONFIG_DEFAULTS)
+    cfg.update({k: v for k, v in raw.items() if k not in FEATURE_DEFAULTS})
+    for feature, defaults in FEATURE_DEFAULTS.items():
+        given = raw.get(feature, {})
+        if not isinstance(given, dict):
+            raise ConfigError("{} must be a JSON object".format(feature))
+        unknown = sorted(set(given) - set(defaults))
+        if unknown:
+            raise ConfigError("unknown {} configuration key(s): {}".format(feature, ", ".join(unknown)))
+        section = dict(defaults)
+        section.update(given)
+        cfg[feature] = section
+    config_dir = os.path.dirname(os.path.abspath(path))
+
+    def positive_int(section, key, maximum=None):
+        v = section[key]
+        if not is_int(v) or v <= 0 or (maximum is not None and v > maximum):
+            raise ConfigError("{} must be an integer in [1, {}]".format(key, maximum or "inf"))
+
+    def boolean(section, key):
+        if not isinstance(section[key], bool):
+            raise ConfigError("{} must be true or false".format(key))
+
+    positive_int(cfg, "port", 65535)
+    positive_int(cfg, "max_request_body_bytes")
+    positive_int(cfg, "allowed_encryption_clock_skew_in_seconds")
+    if not isinstance(cfg["bind_address"], str) or not cfg["bind_address"]:
+        raise ConfigError("bind_address must be a non-empty string")
+    for feature in ("federation", "bootstrap"):
+        positive_int(cfg[feature], "application_expiration_in_seconds")
+        positive_int(cfg[feature], "max_pending_applications")
+        boolean(cfg[feature], "require_public_key")
+        boolean(cfg[feature], "require_encrypted_apply")
+    positive_int(cfg["keyserver"], "lifetime_of_zone_keys_in_seconds")
+    positive_int(cfg["keyserver"], "lifetime_of_bootstrap_keys_in_seconds")
+
+    def resolve_path(key, default):
+        v = cfg[key]
+        if v is None:
+            v = default
+        if not isinstance(v, str) or not v:
+            raise ConfigError("{} must be a non-empty string".format(key))
+        v = os.path.expanduser(v)
+        if not os.path.isabs(v):
+            v = os.path.join(config_dir, v)
+        cfg[key] = os.path.normpath(v)
+
+    resolve_path("state_file", "controlplane-state.json")
+    resolve_path("irods_environment_file",
+                 os.environ.get("IRODS_ENVIRONMENT_FILE") or "~/.irods/irods_environment.json")
+    resolve_path("server_config_file", CONFIG_DEFAULTS["server_config_file"])
+    resolve_path("server_pid_file", CONFIG_DEFAULTS["server_pid_file"])
+    return cfg
+
+
+def load_irods_environment(path):
+    try:
+        with open(path, "r") as f:
+            env = json.load(f)
+    except FileNotFoundError:
+        raise ConfigError("iRODS environment file not found: {}".format(path))
+    except json.JSONDecodeError as e:
+        raise ConfigError("iRODS environment file is not valid JSON: {}".format(e))
+    for key in ("irods_host", "irods_port", "irods_zone_name", "irods_user_name"):
+        if key not in env:
+            raise ConfigError("iRODS environment file is missing {}".format(key))
+    return env
+
+
+# ---------------------------------------------------------------------------
+# Applicant public keys and encrypted payloads (spec section 6)
+# ---------------------------------------------------------------------------
+
+def b64url(data):
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+
+def parse_public_key(text):
+    """Parse a PEM SubjectPublicKeyInfo or OpenSSH public key. Must be RSA >= 2048 bits.
+
+    Raises HTTPError(400) on anything else.
+    """
+    if not isinstance(text, str) or not text.strip():
+        raise HTTPError(400, "public_key must be a non-empty string")
+    if len(text) > PUBLIC_KEY_MAX_LENGTH:
+        raise HTTPError(400, "public_key must be at most {} characters".format(PUBLIC_KEY_MAX_LENGTH))
+    raw = text.strip().encode("utf-8")
+    key = None
+    for loader in (serialization.load_pem_public_key, serialization.load_ssh_public_key):
+        try:
+            key = loader(raw)
+            break
+        except (ValueError, TypeError, UnsupportedAlgorithm):
+            continue
+    if key is None:
+        raise HTTPError(400, "public_key must be a PEM (BEGIN PUBLIC KEY) or OpenSSH (ssh-rsa) public key")
+    if not isinstance(key, rsa.RSAPublicKey):
+        raise HTTPError(400, "public_key must be an RSA key")
+    if key.key_size < RSA_MIN_BITS:
+        raise HTTPError(400, "public_key must be at least {} bits".format(RSA_MIN_BITS))
+    return key
+
+
+def public_key_fingerprint(key):
+    """SHA256:<standard base64, unpadded> of the DER SubjectPublicKeyInfo."""
+    der = key.public_bytes(serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo)
+    return "SHA256:" + base64.b64encode(hashlib.sha256(der).digest()).rstrip(b"=").decode("ascii")
+
+
+def b64url_decode(text):
+    if not isinstance(text, str) or not re.match(r"^[A-Za-z0-9_-]*$", text):
+        raise ValueError("not base64url")
+    return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
+
+
+def decrypt_payload(private_key, jwe):
+    """Open a JWE compact serialization made for private_key. Returns the parsed JSON.
+
+    Raises HTTPError(400) for anything that does not open, with a hint to
+    fetch /info again, since the usual cause is a key from a previous process.
+    """
+    hint = "cannot open encrypted_payload: it must be a JWE compact serialization encrypted to the " \
+           "current service key from /info; fetch /info again and retry"
+    try:
+        if not isinstance(jwe, str):
+            raise ValueError("not a string")
+        parts = jwe.split(".")
+        if len(parts) != 5:
+            raise ValueError("expected five segments")
+        protected, encrypted_key, iv, ciphertext, tag = parts
+        if json.loads(b64url_decode(protected)) != JWE_PROTECTED_HEADER:
+            raise ValueError("unsupported protected header")
+        cek = private_key.decrypt(b64url_decode(encrypted_key),
+                                  padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
+        plaintext = AESGCM(cek).decrypt(b64url_decode(iv), b64url_decode(ciphertext) + b64url_decode(tag),
+                                        protected.encode("ascii"))
+        return json.loads(plaintext.decode("utf-8"))
+    except Exception as e:  # cryptography raises several types; none carry secrets
+        raise HTTPError(400, "{} ({})".format(hint, e.__class__.__name__))
+
+
+def generate_service_key():
+    return rsa.generate_private_key(public_exponent=65537, key_size=SERVICE_KEY_BITS)
+
+
+def public_key_pem(key):
+    return key.public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo).decode("ascii")
+
+
+def encrypt_payload(public_key_text, obj):
+    """Return obj as a JWE compact serialization, RSA-OAEP-256 + A256GCM, for the given key."""
+    key = parse_public_key(public_key_text)
+    protected = b64url(json.dumps(JWE_PROTECTED_HEADER, separators=(",", ":")).encode("utf-8"))
+    cek = secrets.token_bytes(32)
+    iv = secrets.token_bytes(12)
+    encrypted_key = key.encrypt(cek, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
+    plaintext = json.dumps(obj, sort_keys=True).encode("utf-8")
+    ciphertext_and_tag = AESGCM(cek).encrypt(iv, plaintext, protected.encode("ascii"))
+    ciphertext, tag = ciphertext_and_tag[:-16], ciphertext_and_tag[-16:]
+    return ".".join([protected, b64url(encrypted_key), b64url(iv), b64url(ciphertext), b64url(tag)])
+
+
+# ---------------------------------------------------------------------------
+# State (spec section 5.1)
+# ---------------------------------------------------------------------------
+
+class State:
+    """All persistent state, kept in memory and written atomically as one JSON file.
+
+    Callers must hold self.lock around any read-modify-write sequence.
+    """
+
+    def __init__(self, path):
+        self.path = path
+        self.lock = threading.Lock()
+        self.federation = {}      # application_id -> record, insertion ordered
+        self.bootstrap = {}       # application_id -> record
+        self.bootstrap_keys = {}  # bootstrap_key -> record
+        self.keyserver = {}       # spec 5.5, empty until adopted
+
+    def load(self):
+        if not os.path.exists(self.path):
+            self.save()
+            return
+        with open(self.path, "r") as f:
+            data = json.load(f)  # a corrupt file is a startup error
+        try:
+            if data["schema_version"] != STATE_SCHEMA_VERSION:
+                raise ValueError("schema_version")
+            self.federation = {r["application_id"]: r for r in data["federation"]["applications"]}
+            self.bootstrap = {r["application_id"]: r for r in data["bootstrap"]["applications"]}
+            self.bootstrap_keys = {r["bootstrap_key"]: r for r in data["bootstrap"]["keys"]}
+            self.keyserver = data["keyserver"]
+            if not isinstance(self.keyserver, dict):
+                raise ValueError("keyserver")
+        except (KeyError, TypeError, ValueError):
+            raise ConfigError("state file {} has an unexpected format".format(self.path))
+
+    def save(self):
+        atomic_write_json(self.path, {
+            "schema_version": STATE_SCHEMA_VERSION,
+            "federation": {"applications": list(self.federation.values())},
+            "bootstrap": {"applications": list(self.bootstrap.values()),
+                          "keys": list(self.bootstrap_keys.values())},
+            "keyserver": self.keyserver,
+        }, mode=0o600)
+
+    def expire(self, now):
+        """Mark overdue pending applications and available keys expired. Returns True if changed."""
+        changed = False
+        for record in list(self.federation.values()) + list(self.bootstrap.values()):
+            if record["status"] == STATUS_PENDING and from_iso(record["expires_at"]) <= now:
+                record["status"] = STATUS_EXPIRED
+                changed = True
+        for key in self.bootstrap_keys.values():
+            if key["status"] == KEY_AVAILABLE and from_iso(key["expires_at"]) <= now:
+                key["status"] = KEY_EXPIRED
+                changed = True
+        if changed:
+            self.save()
+        return changed
+
+    @staticmethod
+    def count_pending(applications):
+        return sum(1 for r in applications.values() if r["status"] == STATUS_PENDING)
+
+    def find_pending_federation_by_zone_name(self, zone_name):
+        for r in self.federation.values():
+            if r["status"] == STATUS_PENDING and r["zone_name"] == zone_name:
+                return r
+        return None
+
+
+# ---------------------------------------------------------------------------
+# iRODS access
+# ---------------------------------------------------------------------------
+
+# Keys of the service account environment that describe the connection rather
+# than the identity; these are copied into admin sessions so SSL/negotiation
+# settings are honored.
+ENV_KEYS_NOT_COPIED = {
+    "irods_user_name", "irods_cwd", "irods_home", "irods_default_resource",
+    "irods_authentication_file", "irods_authentication_scheme",
+    "schema_name", "schema_version",
+}
+
+
+class IRODS:
+    def __init__(self, env_file, env):
+        self.env_file = env_file
+        self.env = env
+
+    @property
+    def host(self):
+        return self.env["irods_host"]
+
+    @property
+    def port(self):
+        return int(self.env["irods_port"])
+
+    @property
+    def zone(self):
+        return self.env["irods_zone_name"]
+
+    def service_session(self):
+        return irods.session.iRODSSession(irods_env_file=self.env_file)
+
+    def admin_session(self, username, password):
+        """Authenticate username/password against the home zone and require rodsadmin.
+
+        Raises HTTPError(401) on bad credentials, HTTPError(403) if not a
+        rodsadmin, HTTPError(502) if iRODS is unreachable. Returns an open
+        session the caller must clean up.
+        """
+        kwargs = {k: v for k, v in self.env.items() if k not in ENV_KEYS_NOT_COPIED}
+        kwargs.update({
+            "irods_host": self.host,
+            "irods_port": self.port,
+            "irods_zone_name": self.zone,
+            "irods_user_name": username,
+            "password": password,
+            "irods_authentication_scheme": self.env.get("irods_authentication_scheme", "native"),
+        })
+        session = irods.session.iRODSSession(**kwargs)
+        try:
+            session.server_version  # forces a connection and authentication
+            user = session.users.get(username)
+        except (irods.exception.CAT_INVALID_AUTHENTICATION,
+                irods.exception.CAT_INVALID_USER,
+                irods.exception.PAMException,
+                irods.exception.UserDoesNotExist):
+            session.cleanup()
+            raise HTTPError(401, "invalid iRODS credentials", AUTH_CHALLENGE)
+        except irods.exception.NetworkException as e:
+            session.cleanup()
+            raise HTTPError(502, "cannot reach iRODS: {}".format(e))
+        except Exception:
+            session.cleanup()
+            raise
+        if user.type != "rodsadmin":
+            session.cleanup()
+            raise HTTPError(403, "user {} is not a rodsadmin".format(username))
+        return session
+
+    @staticmethod
+    def zone_exists(session, zone_name):
+        try:
+            session.zones.get(zone_name)
+            return True
+        except irods.exception.ZoneDoesNotExist:
+            return False
+
+    @staticmethod
+    def mkzone(session, zone_name, connection_string):
+        """Equivalent of: iadmin mkzone <zone_name> remote <host:port>."""
+        body = GeneralAdminRequest("add", "zone", zone_name, "remote", connection_string, "")
+        request = iRODSMessage("RODS_API_REQ", msg=body, int_info=api_number["GENERAL_ADMIN_AN"])
+        with session.pool.get_connection() as conn:
+            conn.send(request)
+            conn.recv()
+
+    @staticmethod
+    def rmzone(session, zone_name):
+        session.zones.remove(zone_name)
+
+
+# ---------------------------------------------------------------------------
+# Home zone server_config.json handling
+# ---------------------------------------------------------------------------
+
+class HomeZoneConfig:
+    def __init__(self, server_config_file, pid_file):
+        self.path = server_config_file
+        self.pid_file = pid_file
+
+    def read(self):
+        with open(self.path, "r") as f:
+            return json.load(f)
+
+    def facts(self):
+        cfg = self.read()
+        return {
+            "zone_name": cfg["zone_name"],
+            "zone_key": cfg["zone_key"],
+            "zone_port": cfg["zone_port"],
+            "catalog_provider_hosts": list(cfg["catalog_provider_hosts"]),
+        }
+
+    def zone_facts(self, role):
+        """Zone-wide facts for a new server of the given role (spec 8.3.2), copied verbatim."""
+        cfg = self.read()
+        facts = {"catalog_service_role": role}
+        for key in ZONE_FACT_KEYS:
+            if key in cfg:
+                facts[key] = cfg[key]
+        if role == "provider":
+            facts["database"] = cfg["plugin_configuration"]["database"]
+        return facts
+
+    @staticmethod
+    def federation_entry_for(zone_name, cfg):
+        for entry in cfg.get("federation", []):
+            if entry.get("zone_name") == zone_name:
+                return entry
+        return None
+
+    def add_federation_entry(self, entry):
+        """Append entry to the federation array. Raises if zone_name already present."""
+        cfg = self.read()
+        if self.federation_entry_for(entry["zone_name"], cfg) is not None:
+            raise RuntimeError("federation entry for zone {} already exists in {}".format(
+                entry["zone_name"], self.path))
+        cfg.setdefault("federation", []).append(entry)
+        st = os.stat(self.path)
+        backup = "{}.controlplane-backup-{}".format(self.path, utc_now().strftime("%Y%m%dT%H%M%SZ"))
+        shutil.copy2(self.path, backup)
+        atomic_write_json(self.path, cfg, mode=st.st_mode & 0o777)
+        log.info("appended federation entry for %s to %s (backup at %s)", entry["zone_name"], self.path, backup)
+
+    def reload_server(self):
+        try:
+            with open(self.pid_file, "r") as f:
+                pid = int(f.read().strip())
+        except (OSError, ValueError) as e:
+            raise RuntimeError("cannot read server pid file {}: {}".format(self.pid_file, e))
+        try:
+            os.kill(pid, signal.SIGHUP)
+        except OSError as e:
+            raise RuntimeError("cannot signal iRODS server pid {}: {}".format(pid, e))
+        log.info("sent SIGHUP to iRODS server pid %d", pid)
+
+
+# ---------------------------------------------------------------------------
+# Request validation
+# ---------------------------------------------------------------------------
+
+def validate_public_key_field(body):
+    """Return (public_key text or None, fingerprint or None)."""
+    public_key = body.get("public_key")
+    if public_key is None:
+        return None, None
+    return public_key, public_key_fingerprint(parse_public_key(public_key))
+
+
+def validate_federation_apply(body):
+    if not isinstance(body, dict):
+        raise HTTPError(400, "request body must be a JSON object")
+    allowed = {"zone_name", "zone_port", "catalog_provider_hosts", "zone_key", "name", "email", "public_key"}
+    unknown = sorted(set(body) - allowed)
+    if unknown:
+        raise HTTPError(400, "unknown field(s): {}".format(", ".join(unknown)))
+    for key in ("zone_name", "zone_port", "catalog_provider_hosts"):
+        if key not in body:
+            raise HTTPError(400, "missing required field: {}".format(key))
+
+    zone_name = body["zone_name"]
+    if not isinstance(zone_name, str) or not ZONE_NAME_RE.match(zone_name):
+        raise HTTPError(400, "zone_name must match ^[A-Za-z0-9_.]{1,63}$")
+
+    zone_port = body["zone_port"]
+    if not is_int(zone_port) or not 0 <= zone_port <= 65535:
+        raise HTTPError(400, "zone_port must be an integer in [0, 65535]")
+
+    hosts = body["catalog_provider_hosts"]
+    if not isinstance(hosts, list) or not hosts:
+        raise HTTPError(400, "catalog_provider_hosts must be a non-empty array of hostnames")
+    if len(set(hosts)) != len(hosts):
+        raise HTTPError(400, "catalog_provider_hosts must not contain duplicates")
+    for h in hosts:
+        if not is_valid_host(h):
+            raise HTTPError(400, "catalog_provider_hosts contains an invalid hostname: {!r}".format(h))
+
+    zone_key = body.get("zone_key")
+    if zone_key is not None and (not isinstance(zone_key, str) or not ZONE_KEY_RE.match(zone_key)):
+        raise HTTPError(400, "zone_key must match ^[A-Za-z0-9_]{1,49}$")
+
+    name = body.get("name")
+    if name is not None and (not isinstance(name, str) or not 1 <= len(name) <= NAME_MAX_LENGTH):
+        raise HTTPError(400, "name must be a string of 1 to {} characters".format(NAME_MAX_LENGTH))
+
+    email = body.get("email")
+    if email is not None:
+        local, sep, domain = email.partition("@") if isinstance(email, str) else ("", "", "")
+        if (not isinstance(email, str) or not 3 <= len(email) <= EMAIL_MAX_LENGTH
+                or not sep or not local or not domain or "@" in domain):
+            raise HTTPError(400, "email must be a string of at most {} characters with exactly one @".format(
+                EMAIL_MAX_LENGTH))
+
+    public_key, fingerprint = validate_public_key_field(body)
+    return {
+        "zone_name": zone_name,
+        "zone_port": zone_port,
+        "catalog_provider_hosts": list(hosts),
+        "zone_key": zone_key,
+        "name": name,
+        "email": email,
+        "public_key": public_key,
+        "public_key_fingerprint": fingerprint,
+    }
+
+
+def validate_bootstrap_apply(body):
+    if not isinstance(body, dict):
+        raise HTTPError(400, "request body must be a JSON object")
+    allowed = {"bootstrap_key", "catalog_service_role", "public_key"}
+    unknown = sorted(set(body) - allowed)
+    if unknown:
+        raise HTTPError(400, "unknown field(s): {}".format(", ".join(unknown)))
+    for key in ("bootstrap_key", "catalog_service_role"):
+        if key not in body:
+            raise HTTPError(400, "missing required field: {}".format(key))
+    bootstrap_key = body["bootstrap_key"]
+    if not isinstance(bootstrap_key, str) or not UUID_RE.match(bootstrap_key):
+        raise HTTPError(400, "bootstrap_key must be a lower-case uuid4 string")
+    role = body["catalog_service_role"]
+    if role not in ROLES:
+        raise HTTPError(400, "catalog_service_role must be one of {}".format(", ".join(ROLES)))
+    public_key, fingerprint = validate_public_key_field(body)
+    return {
+        "bootstrap_key": bootstrap_key,
+        "catalog_service_role": role,
+        "public_key": public_key,
+        "public_key_fingerprint": fingerprint,
+    }
+
+
+def validate_judge(body):
+    if not isinstance(body, dict):
+        raise HTTPError(400, "request body must be a JSON object")
+    unknown = sorted(set(body) - {"application_id", "decision", "decision_note"})
+    if unknown:
+        raise HTTPError(400, "unknown field(s): {}".format(", ".join(unknown)))
+    application_id = body.get("application_id")
+    if not isinstance(application_id, str) or not application_id:
+        raise HTTPError(400, "application_id is required")
+    decision = body.get("decision")
+    if decision not in ("approve", "reject"):
+        raise HTTPError(400, "decision must be \"approve\" or \"reject\"")
+    note = body.get("decision_note")
+    if note is not None and (not isinstance(note, str) or len(note) > DECISION_NOTE_MAX_LENGTH):
+        raise HTTPError(400, "decision_note must be a string of at most {} characters".format(
+            DECISION_NOTE_MAX_LENGTH))
+    return application_id, decision, note
+
+
+def single_query_value(query, name, required):
+    values = query.get(name, [])
+    if required and (len(values) != 1 or not values[0]):
+        raise HTTPError(400, "{} query parameter is required".format(name))
+    if not required and len(values) > 1:
+        raise HTTPError(400, "{} query parameter must be given at most once".format(name))
+    return values[0] if values else None
+
+
+def status_filter(query):
+    wanted = single_query_value(query, "status", required=False) or STATUS_PENDING
+    if wanted not in ALL_STATUSES + ("all",):
+        raise HTTPError(400, "status must be one of {}".format(", ".join(ALL_STATUSES + ("all",))))
+    return wanted
+
+
+# ---------------------------------------------------------------------------
+# Application logic
+# ---------------------------------------------------------------------------
+
+class App:
+    def __init__(self, config):
+        self.config = config
+        self.state = State(config["state_file"])
+        env = load_irods_environment(config["irods_environment_file"])
+        self.irods = IRODS(config["irods_environment_file"], env)
+        self.home = HomeZoneConfig(config["server_config_file"], config["server_pid_file"])
+        self.service_private_key = None  # generated in start(); tests may preset it
+        self.replay_memory = {}  # sha256 hex of accepted encrypted applications -> forget-after epoch
+
+    @property
+    def service_public_key(self):
+        return self.service_private_key.public_key()
+
+    @property
+    def service_public_key_fingerprint(self):
+        return public_key_fingerprint(self.service_public_key)
+
+    def start(self):
+        if self.service_private_key is None:
+            self.service_private_key = generate_service_key()
+        log.info("service public key fingerprint %s (ephemeral, %d-bit RSA, new at every start)",
+                 self.service_public_key_fingerprint, self.service_private_key.key_size)
+        self.state.load()
+        # Fail fast if the home zone facts are unreadable.
+        facts = self.home.facts()
+        if facts["zone_name"] != self.irods.zone:
+            raise ConfigError("zone_name in {} ({}) does not match irods_zone_name in {} ({})".format(
+                self.home.path, facts["zone_name"], self.irods.env_file, self.irods.zone))
+        log.info("home zone %s at %s:%d, service account %s", self.irods.zone, self.irods.host,
+                 self.irods.port, self.irods.env["irods_user_name"])
+        log.info("state file %s holds %d federation application(s), %d bootstrap application(s), "
+                 "%d bootstrap key(s)", self.state.path, len(self.state.federation),
+                 len(self.state.bootstrap), len(self.state.bootstrap_keys))
+
+    # -- shared helpers -------------------------------------------------------
+
+    def sweep(self):
+        with self.state.lock:
+            if self.state.expire(utc_now()):
+                log.info("expiration sweep marked applications or bootstrap keys expired")
+
+    def feature_config(self, feature):
+        return self.config[feature]
+
+    def open_encrypted_application(self, body):
+        """Return (plaintext application, ciphertext digest, forget-after epoch) for spec 6.3."""
+        if len(body) != 1:
+            raise HTTPError(400, "an encrypted application must contain encrypted_payload and nothing else")
+        jwe = body["encrypted_payload"]
+        plaintext = decrypt_payload(self.service_private_key, jwe)
+        if not isinstance(plaintext, dict):
+            raise HTTPError(400, "encrypted_payload must decrypt to a JSON object")
+        skew = self.config["allowed_encryption_clock_skew_in_seconds"]
+        now = int(utc_now().timestamp())
+        iat = plaintext.pop("iat", None)
+        if not is_int(iat):
+            raise HTTPError(400, "an encrypted application must carry iat, integer seconds since the epoch "
+                                 "(server time is {})".format(now))
+        if abs(now - iat) > skew:
+            raise HTTPError(400, "iat {} is more than {} seconds from server time {}".format(iat, skew, now))
+        digest = hashlib.sha256(jwe.encode("ascii")).hexdigest()
+        return plaintext, digest, iat + skew
+
+    def unwrap_application(self, body, feature):
+        """Apply the encrypted/plaintext policy of a feature. Returns (plaintext, encrypted, digest, forget_after)."""
+        if not isinstance(body, dict):
+            raise HTTPError(400, "request body must be a JSON object")
+        if "encrypted_payload" in body:
+            plaintext, digest, forget_after = self.open_encrypted_application(body)
+            return plaintext, True, digest, forget_after
+        if self.feature_config(feature)["require_encrypted_apply"]:
+            raise HTTPError(400, "this service requires encrypted {} applications: encrypt the application "
+                                 "to the service key from /info and send it as encrypted_payload".format(feature))
+        return body, False, None, None
+
+    def require_public_key(self, req, feature):
+        if self.feature_config(feature)["require_public_key"] and req["public_key"] is None:
+            raise HTTPError(400, "this service requires a public_key for {} applications so that secrets "
+                                 "are never sent in plaintext".format(feature))
+
+    def prune_replay_memory(self, now_epoch):
+        """Caller holds the state lock."""
+        for digest in [d for d, until in self.replay_memory.items() if until < now_epoch]:
+            del self.replay_memory[digest]
+
+    def check_replay(self, encrypted, digest, now):
+        """Caller holds the state lock."""
+        if encrypted:
+            self.prune_replay_memory(int(now.timestamp()))
+            if digest in self.replay_memory:
+                raise HTTPError(409, "this encrypted application was already submitted")
+
+    def check_queue_room(self, applications, feature):
+        """Caller holds the state lock."""
+        if State.count_pending(applications) >= self.feature_config(feature)["max_pending_applications"]:
+            raise HTTPError(503, "{} application queue is full".format(feature))
+
+    def new_record(self, now, feature, remote_address):
+        return {
+            "application_id": str(uuid.uuid4()),
+            "status": STATUS_PENDING,
+            "submitted_at": to_iso(now),
+            "expires_at": to_iso(plus_seconds(now, self.feature_config(feature)["application_expiration_in_seconds"])),
+            "remote_address": remote_address,
+        }
+
+    @staticmethod
+    def bookkeeping(record, *extra):
+        keys = ("application_id", "status") + extra + ("submitted_at", "expires_at", "judged_at", "decision_note")
+        return {k: record[k] for k in keys}
+
+    @staticmethod
+    def with_secrets(response, record, payload):
+        """Attach payload to a response, encrypted to the record's key when it has one."""
+        if record["public_key"]:
+            response["public_key_fingerprint"] = record["public_key_fingerprint"]
+            response["encrypted_payload"] = encrypt_payload(record["public_key"], payload)
+        else:
+            response.update(payload)
+        return response
+
+    def lookup_for_judge(self, applications, application_id):
+        """Caller holds the state lock."""
+        record = applications.get(application_id)
+        if record is None:
+            raise HTTPError(404, "no such application")
+        if record["status"] in (STATUS_APPROVED, STATUS_REJECTED):
+            raise HTTPError(409, "application has already been {}".format(record["status"]))
+        if record["status"] == STATUS_EXPIRED:
+            raise HTTPError(410, "application has expired")
+        return record
+
+    def finalize(self, record, status, admin, note):
+        record["status"] = status
+        record["judged_at"] = to_iso(utc_now())
+        record["judged_by"] = admin
+        record["decision_note"] = note
+        self.state.save()
+
+    def info(self):
+        response = {
+            "service": SERVICE_NAME,
+            "version": VERSION,
+            "service_public_key": public_key_pem(self.service_public_key),
+            "service_public_key_fingerprint": self.service_public_key_fingerprint,
+            "encryption": dict(JWE_PROTECTED_HEADER),
+            "allowed_encryption_clock_skew_in_seconds": self.config["allowed_encryption_clock_skew_in_seconds"],
+        }
+        for feature in ("federation", "bootstrap"):
+            cfg = self.feature_config(feature)
+            response[feature] = {k: cfg[k] for k in (
+                "require_public_key", "require_encrypted_apply", "application_expiration_in_seconds")}
+        return 200, response
+
+    # -- federation (spec 8.1) --------------------------------------------------
+
+    def applicant_federation_entry(self, record):
+        facts = self.home.facts()
+        return {
+            "catalog_provider_hosts": facts["catalog_provider_hosts"],
+            "negotiation_key": record["negotiation_key"],
+            "zone_key": facts["zone_key"],
+            "zone_key_signing_hash_scheme": ZONE_KEY_SIGNING_HASH_SCHEME,
+            "zone_name": facts["zone_name"],
+            "zone_port": facts["zone_port"],
+        }
+
+    def applicant_mkzone_command(self):
+        facts = self.home.facts()
+        return "iadmin mkzone {} remote {}:{}".format(
+            facts["zone_name"], facts["catalog_provider_hosts"][0], facts["zone_port"])
+
+    @staticmethod
+    def home_federation_entry(record):
+        return {
+            "catalog_provider_hosts": list(record["catalog_provider_hosts"]),
+            "negotiation_key": record["negotiation_key"],
+            "zone_key": record["zone_key"],
+            "zone_key_signing_hash_scheme": ZONE_KEY_SIGNING_HASH_SCHEME,
+            "zone_name": record["zone_name"],
+            "zone_port": record["zone_port"],
+        }
+
+    @staticmethod
+    def entry_matches_record(entry, record):
+        expected = App.home_federation_entry(record)
+        return all(entry.get(k) == v for k, v in expected.items())
+
+    def federation_apply(self, body, remote_address):
+        body, encrypted, digest, forget_after = self.unwrap_application(body, "federation")
+        req = validate_federation_apply(body)
+        if req["zone_name"] == self.irods.zone:
+            raise HTTPError(400, "zone_name must not be the home zone's name")
+        self.require_public_key(req, "federation")
+        now = utc_now()
+        with self.state.lock:
+            self.check_replay(encrypted, digest, now)
+            self.check_queue_room(self.state.federation, "federation")
+            if self.state.find_pending_federation_by_zone_name(req["zone_name"]) is not None:
+                raise HTTPError(409, "an application for zone {} is already pending".format(req["zone_name"]))
+            record = self.new_record(now, "federation", remote_address)
+            record.update({
+                "zone_name": req["zone_name"],
+                "zone_port": req["zone_port"],
+                "catalog_provider_hosts": req["catalog_provider_hosts"],
+                "zone_key": req["zone_key"] if req["zone_key"] is not None else generate_key(),
+                "zone_key_generated": req["zone_key"] is None,
+                "negotiation_key": generate_key(),
+                "name": req["name"],
+                "email": req["email"],
+                "public_key": req["public_key"],
+                "public_key_fingerprint": req["public_key_fingerprint"],
+                "encrypted_application": encrypted,
+                "judged_at": None,
+                "judged_by": None,
+                "decision_note": None,
+            })
+            self.state.federation[record["application_id"]] = record
+            self.state.save()
+            if encrypted:
+                self.replay_memory[digest] = forget_after
+        log.info("federation application %s submitted for zone %s from %s (%s application)%s",
+                 record["application_id"], record["zone_name"], remote_address,
+                 "encrypted" if encrypted else "plaintext",
+                 " (public key {})".format(record["public_key_fingerprint"]) if record["public_key"] else "")
+        response = {
+            "application_id": record["application_id"],
+            "status": record["status"],
+            "expires_at": record["expires_at"],
+            "status_url": "/federation/status?application_id={}".format(record["application_id"]),
+        }
+        payload = {"negotiation_key": record["negotiation_key"], "zone_key": record["zone_key"]}
+        return 201, self.with_secrets(response, record, payload)
+
+    def federation_status(self, query):
+        application_id = single_query_value(query, "application_id", required=True)
+        with self.state.lock:
+            record = self.state.federation.get(application_id)
+            if record is None:
+                raise HTTPError(404, "no such application")
+            record = dict(record)
+        response = self.bookkeeping(record)
+        if record["status"] == STATUS_APPROVED:
+            payload = {
+                "applicant_federation_entry": self.applicant_federation_entry(record),
+                "applicant_mkzone_command": self.applicant_mkzone_command(),
+            }
+            self.with_secrets(response, record, payload)
+        return 200, response
+
+    def federation_list(self, query, admin):
+        wanted = status_filter(query)
+        with self.state.lock:
+            records = [dict(r) for r in self.state.federation.values()
+                       if wanted == "all" or r["status"] == wanted]
+        records.sort(key=lambda r: r["submitted_at"])
+        log.info("%s listed %d federation application(s) with status=%s", admin, len(records), wanted)
+        return 200, {"service_public_key_fingerprint": self.service_public_key_fingerprint,
+                     "applications": records}
+
+    def federation_judge(self, body, admin, session):
+        application_id, decision, note = validate_judge(body)
+        with self.state.lock:
+            record = self.lookup_for_judge(self.state.federation, application_id)
+            if decision == "reject":
+                self.finalize(record, STATUS_REJECTED, admin, note)
+                log.info("%s rejected federation application %s (zone %s)", admin, application_id,
+                         record["zone_name"])
+                return 200, {"application": dict(record)}
+
+            self._federation_approve(record, session)
+            self.finalize(record, STATUS_APPROVED, admin, note)
+            log.info("%s approved federation application %s (zone %s)", admin, application_id,
+                     record["zone_name"])
+            return 200, {
+                "application": dict(record),
+                "home_federation_entry": self.home_federation_entry(record),
+                "applicant_federation_entry": self.applicant_federation_entry(record),
+                "applicant_mkzone_command": self.applicant_mkzone_command(),
+            }
+
+    def _federation_approve(self, record, session):
+        """Run the home-zone side of federation. Caller holds the state lock."""
+        zone_name = record["zone_name"]
+        connection_string = "{}:{}".format(record["catalog_provider_hosts"][0], record["zone_port"])
+        entry = self.home_federation_entry(record)
+
+        # Step 0: every applicant host must resolve. iRODS agents retry DNS
+        # for ~30 seconds per unresolvable remote zone host at startup
+        # (getaddrinfo_with_retry), which would stall every connection to
+        # the home zone.
+        for host in record["catalog_provider_hosts"]:
+            try:
+                socket.getaddrinfo(host, None)
+            except socket.gaierror as e:
+                raise HTTPError(400, "catalog_provider_hosts entry {!r} does not resolve: {}; "
+                                     "refusing to federate with an unresolvable host".format(host, e))
+
+        # Step 1: inspect current state (also detects a retry after a failed reload).
+        zone_present = self.irods.zone_exists(session, zone_name)
+        existing_entry = self.home.federation_entry_for(zone_name, self.home.read())
+        retry_of_reload = (zone_present and existing_entry is not None
+                           and self.entry_matches_record(existing_entry, record))
+        if zone_present and not retry_of_reload:
+            raise HTTPError(409, "zone {} already exists in the home catalog".format(zone_name))
+
+        if not retry_of_reload:
+            # Step 2: create the remote zone in the catalog.
+            try:
+                self.irods.mkzone(session, zone_name, connection_string)
+                log.info("created remote zone %s (%s) in home catalog", zone_name, connection_string)
+            except Exception as e:
+                log.error("mkzone %s failed: %s", zone_name, e)
+                raise HTTPError(500, "step mkzone failed: {}".format(e))
+
+            # Step 3: append the federation entry to server_config.json.
+            try:
+                self.home.add_federation_entry(entry)
+            except Exception as e:
+                log.error("editing %s failed: %s; rolling back mkzone", self.home.path, e)
+                try:
+                    self.irods.rmzone(session, zone_name)
+                except Exception as e2:
+                    log.error("rollback rmzone %s failed: %s", zone_name, e2)
+                    raise HTTPError(500, "step server_config failed: {}; rollback rmzone also failed: {}; "
+                                         "manual cleanup required".format(e, e2))
+                raise HTTPError(500, "step server_config failed: {}; mkzone rolled back".format(e))
+        else:
+            log.info("zone %s and its federation entry already present; retrying reload only", zone_name)
+
+        # Step 4: reload the iRODS server configuration.
+        try:
+            self.home.reload_server()
+        except Exception as e:
+            log.error("reload failed: %s", e)
+            raise HTTPError(500, "step reload failed: {}. The catalog zone and the federation entry "
+                                 "are in place; fix the cause and judge again to retry the reload.".format(e))
+
+    # -- keyserver (spec 5.5, 8.2) ----------------------------------------------
+
+    def reconcile_zone_key(self, now):
+        """Bring the zone key state in line with server_config.json (spec 5.5). Caller holds the state lock."""
+        lifetime = self.config["keyserver"]["lifetime_of_zone_keys_in_seconds"]
+        current = self.home.read()["zone_key"]
+        ks = self.state.keyserver
+
+        def mint_next(expires_at):
+            return {"value": generate_key(), "minted_at": to_iso(now),
+                    "expires_at": to_iso(plus_seconds(expires_at, lifetime))}
+
+        def adopt(level, why):
+            issued_at = now
+            expires_at = plus_seconds(issued_at, lifetime)
+            self.state.keyserver = {
+                "zone_key": {"value": current, "issued_at": to_iso(issued_at), "expires_at": to_iso(expires_at)},
+                "next_zone_key": mint_next(expires_at),
+            }
+            self.state.save()
+            log.log(level, "%s; adopted the zone_key in %s with expiry %s and minted a next key",
+                    why, self.home.path, to_iso(expires_at))
+
+        if not ks:
+            adopt(logging.INFO, "no zone key state yet")
+        elif current == ks["zone_key"]["value"]:
+            pass
+        elif current == ks["next_zone_key"]["value"]:
+            adopt(logging.INFO, "zone key rotation detected: {} now holds the previously minted next key".format(
+                self.home.path))
+        else:
+            adopt(logging.WARNING, "zone_key in {} matches neither the current nor the next key; it was "
+                                   "changed by hand".format(self.home.path))
+        return self.state.keyserver
+
+    def keyserver_local_zone(self, admin):
+        with self.state.lock:
+            ks = json.loads(json.dumps(self.reconcile_zone_key(utc_now())))
+        log.info("%s read the local zone key lifecycle", admin)
+        return 200, {
+            "zone_name": self.irods.zone,
+            "lifetime_of_zone_keys_in_seconds": self.config["keyserver"]["lifetime_of_zone_keys_in_seconds"],
+            "zone_key": ks["zone_key"],
+            "next_zone_key": ks["next_zone_key"],
+        }
+
+    def keyserver_mint_bootstrap(self, body, admin):
+        if body is not None and body != {}:
+            raise HTTPError(400, "request body must be empty or an empty JSON object")
+        now = utc_now()
+        with self.state.lock:
+            self.reconcile_zone_key(now)
+            key = {
+                "bootstrap_key": str(uuid.uuid4()),
+                "status": KEY_AVAILABLE,
+                "created_at": to_iso(now),
+                "created_by": admin,
+                "expires_at": to_iso(plus_seconds(
+                    now, self.config["keyserver"]["lifetime_of_bootstrap_keys_in_seconds"])),
+                "used_at": None,
+                "application_id": None,
+            }
+            self.state.bootstrap_keys[key["bootstrap_key"]] = key
+            self.state.save()
+            key = dict(key)
+        log.info("%s minted a bootstrap key expiring %s", admin, key["expires_at"])
+        return 201, key
+
+    # -- bootstrap (spec 8.3) ---------------------------------------------------
+
+    def bootstrap_apply(self, body, remote_address):
+        body, encrypted, digest, forget_after = self.unwrap_application(body, "bootstrap")
+        req = validate_bootstrap_apply(body)
+        self.require_public_key(req, "bootstrap")
+        now = utc_now()
+        with self.state.lock:
+            self.reconcile_zone_key(now)
+            self.check_replay(encrypted, digest, now)
+            self.check_queue_room(self.state.bootstrap, "bootstrap")
+            key = self.state.bootstrap_keys.get(req["bootstrap_key"])
+            if key is None or key["status"] == KEY_USED:
+                raise HTTPError(403, "bootstrap key is not valid")
+            if key["status"] == KEY_EXPIRED:
+                raise HTTPError(403, "bootstrap key has expired")
+            record = self.new_record(now, "bootstrap", remote_address)
+            record.update({
+                "catalog_service_role": req["catalog_service_role"],
+                "bootstrap_key": req["bootstrap_key"],
+                "public_key": req["public_key"],
+                "public_key_fingerprint": req["public_key_fingerprint"],
+                "encrypted_application": encrypted,
+                "judged_at": None,
+                "judged_by": None,
+                "decision_note": None,
+            })
+            key["status"] = KEY_USED
+            key["used_at"] = to_iso(now)
+            key["application_id"] = record["application_id"]
+            self.state.bootstrap[record["application_id"]] = record
+            self.state.save()
+            if encrypted:
+                self.replay_memory[digest] = forget_after
+        log.info("bootstrap application %s submitted for a %s from %s (%s application)%s; bootstrap key consumed",
+                 record["application_id"], record["catalog_service_role"], remote_address,
+                 "encrypted" if encrypted else "plaintext",
+                 " (public key {})".format(record["public_key_fingerprint"]) if record["public_key"] else "")
+        response = {
+            "application_id": record["application_id"],
+            "status": record["status"],
+            "expires_at": record["expires_at"],
+            "status_url": "/bootstrap/status?application_id={}".format(record["application_id"]),
+        }
+        if record["public_key"]:
+            response["public_key_fingerprint"] = record["public_key_fingerprint"]
+        return 201, response
+
+    def bootstrap_status(self, query):
+        application_id = single_query_value(query, "application_id", required=True)
+        with self.state.lock:
+            self.reconcile_zone_key(utc_now())
+            record = self.state.bootstrap.get(application_id)
+            if record is None:
+                raise HTTPError(404, "no such application")
+            record = dict(record)
+        response = self.bookkeeping(record, "catalog_service_role")
+        if record["status"] == STATUS_APPROVED:
+            payload = {"zone_facts": self.home.zone_facts(record["catalog_service_role"])}
+            self.with_secrets(response, record, payload)
+        return 200, response
+
+    def bootstrap_list(self, query, admin):
+        wanted = status_filter(query)
+        with self.state.lock:
+            self.reconcile_zone_key(utc_now())
+            records = [dict(r) for r in self.state.bootstrap.values()
+                       if wanted == "all" or r["status"] == wanted]
+            keys = [dict(k) for k in self.state.bootstrap_keys.values()]
+        records.sort(key=lambda r: r["submitted_at"])
+        keys.sort(key=lambda k: k["created_at"])
+        log.info("%s listed %d bootstrap application(s) with status=%s and %d bootstrap key(s)",
+                 admin, len(records), wanted, len(keys))
+        return 200, {"service_public_key_fingerprint": self.service_public_key_fingerprint,
+                     "applications": records, "bootstrap_keys": keys}
+
+    def bootstrap_judge(self, body, admin):
+        application_id, decision, note = validate_judge(body)
+        with self.state.lock:
+            self.reconcile_zone_key(utc_now())
+            record = self.lookup_for_judge(self.state.bootstrap, application_id)
+            status = STATUS_REJECTED if decision == "reject" else STATUS_APPROVED
+            self.finalize(record, status, admin, note)
+            log.info("%s %s bootstrap application %s (%s)", admin, status, application_id,
+                     record["catalog_service_role"])
+            return 200, {"application": dict(record)}
+
+
+# ---------------------------------------------------------------------------
+# HTTP layer
+# ---------------------------------------------------------------------------
+
+class Handler(BaseHTTPRequestHandler):
+    server_version = SERVICE_NAME + "/" + VERSION
+    sys_version = ""
+    protocol_version = "HTTP/1.1"
+
+    @property
+    def app(self):
+        return self.server.app
+
+    # -- plumbing -------------------------------------------------------------
+
+    def log_message(self, fmt, *args):  # route http.server's own logging to ours
+        log.debug("%s " + fmt, self.client_address[0], *args)
+
+    def send_json(self, status, obj, headers=None):
+        data = (json.dumps(obj, indent=2, sort_keys=True) + "\n").encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        for k, v in (headers or {}).items():
+            self.send_header(k, v)
+        self.end_headers()
+        self.wfile.write(data)
+
+    def remote_address(self):
+        forwarded = self.headers.get("X-Forwarded-For")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+        return self.client_address[0]
+
+    def read_json_body(self, optional=False):
+        length = self.headers.get("Content-Length")
+        if length is None:
+            if optional:
+                return None
+            raise HTTPError(400, "Content-Length is required")
+        try:
+            length = int(length)
+        except ValueError:
+            raise HTTPError(400, "Content-Length is not an integer")
+        if length < 0:
+            raise HTTPError(400, "Content-Length is negative")
+        if length > self.app.config["max_request_body_bytes"]:
+            raise HTTPError(413, "request body too large")
+        raw = self.rfile.read(length)
+        self._body_consumed = True
+        if optional and not raw:
+            return None
+        try:
+            return json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as e:
+            raise HTTPError(400, "request body is not valid JSON: {}".format(e))
+
+    def discard_body(self):
+        if getattr(self, "_body_consumed", False):
+            return
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            length = 0
+        if 0 < length <= self.app.config["max_request_body_bytes"]:
+            self.rfile.read(length)
+        self._body_consumed = True
+
+    def basic_auth(self):
+        """Returns (username, session). Raises HTTPError on failure."""
+        header = self.headers.get("Authorization")
+        if not header:
+            raise HTTPError(401, "authentication required", AUTH_CHALLENGE)
+        parts = header.split(None, 1)
+        if len(parts) != 2 or parts[0].lower() != "basic":
+            raise HTTPError(401, "only HTTP Basic authentication is supported", AUTH_CHALLENGE)
+        try:
+            decoded = base64.b64decode(parts[1], validate=True).decode("utf-8")
+        except (ValueError, UnicodeDecodeError):
+            raise HTTPError(401, "malformed Authorization header", AUTH_CHALLENGE)
+        username, sep, password = decoded.partition(":")
+        if not sep or not username or not password:
+            raise HTTPError(401, "malformed Basic credentials", AUTH_CHALLENGE)
+        if "#" in username or not USERNAME_RE.match(username):
+            raise HTTPError(401, "username must be a plain home-zone username", AUTH_CHALLENGE)
+        session = self.app.irods.admin_session(username, password)
+        return username, session
+
+    def as_admin(self, func, *args):
+        """Authenticate, run func(username, session, *args), clean up the session."""
+        username, session = self.basic_auth()
+        try:
+            return func(username, session, *args)
+        finally:
+            session.cleanup()
+
+    # -- dispatch -------------------------------------------------------------
+
+    ROUTES = {
+        ("GET", "/info"): "handle_info",
+        ("POST", "/federation/apply"): "handle_federation_apply",
+        ("GET", "/federation/status"): "handle_federation_status",
+        ("GET", "/federation/list"): "handle_federation_list",
+        ("POST", "/federation/judge"): "handle_federation_judge",
+        ("GET", "/keyserver/local_zone"): "handle_keyserver_local_zone",
+        ("PUT", "/keyserver/bootstrap"): "handle_keyserver_bootstrap",
+        ("POST", "/bootstrap/apply"): "handle_bootstrap_apply",
+        ("GET", "/bootstrap/status"): "handle_bootstrap_status",
+        ("GET", "/bootstrap/list"): "handle_bootstrap_list",
+        ("POST", "/bootstrap/judge"): "handle_bootstrap_judge",
+    }
+
+    def dispatch(self, method):
+        self._body_consumed = False
+        parsed = urlsplit(self.path)
+        path = parsed.path.rstrip("/") or "/"
+        query = parse_qs(parsed.query, keep_blank_values=True)
+        status = 500
+        try:
+            self.app.sweep()
+            status, body, headers = self.route(method, path, query)
+            self.send_json(status, body, headers)
+        except HTTPError as e:
+            status = e.status
+            self.discard_body()
+            self.send_json(e.status, {"error": e.message}, e.headers)
+        except (BrokenPipeError, ConnectionResetError):
+            log.info("client went away while serving %s %s", method, path)
+        except Exception as e:
+            log.exception("unhandled error serving %s %s", method, path)
+            try:
+                self.send_json(500, {"error": "internal error: {}".format(e)})
+            except Exception:
+                pass
+        finally:
+            log.info("%s %s %s -> %d", self.remote_address(), method, self.path, status)
+
+    def route(self, method, path, query):
+        known_paths = {p for _, p in self.ROUTES}
+        if path not in known_paths:
+            raise HTTPError(404, "no such endpoint")
+        name = self.ROUTES.get((method, path))
+        if name is None:
+            raise HTTPError(405, "method not allowed", {"Allow": ", ".join(
+                m for m, p in self.ROUTES if p == path)})
+        return getattr(self, name)(query)
+
+    def handle_info(self, query):
+        status, response = self.app.info()
+        return status, response, {"Cache-Control": "no-store"}
+
+    def handle_federation_apply(self, query):
+        body = self.read_json_body()
+        status, response = self.app.federation_apply(body, self.remote_address())
+        return status, response, None
+
+    def handle_federation_status(self, query):
+        return self.app.federation_status(query) + (None,)
+
+    def handle_federation_list(self, query):
+        return self.as_admin(lambda user, session: self.app.federation_list(query, user)) + (None,)
+
+    def handle_federation_judge(self, query):
+        body = self.read_json_body()
+        return self.as_admin(lambda user, session: self.app.federation_judge(body, user, session)) + (None,)
+
+    def handle_keyserver_local_zone(self, query):
+        status, response = self.as_admin(lambda user, session: self.app.keyserver_local_zone(user))
+        return status, response, {"Cache-Control": "no-store"}
+
+    def handle_keyserver_bootstrap(self, query):
+        body = self.read_json_body(optional=True)
+        return self.as_admin(lambda user, session: self.app.keyserver_mint_bootstrap(body, user)) + (None,)
+
+    def handle_bootstrap_apply(self, query):
+        body = self.read_json_body()
+        status, response = self.app.bootstrap_apply(body, self.remote_address())
+        return status, response, None
+
+    def handle_bootstrap_status(self, query):
+        return self.app.bootstrap_status(query) + (None,)
+
+    def handle_bootstrap_list(self, query):
+        return self.as_admin(lambda user, session: self.app.bootstrap_list(query, user)) + (None,)
+
+    def handle_bootstrap_judge(self, query):
+        body = self.read_json_body()
+        return self.as_admin(lambda user, session: self.app.bootstrap_judge(body, user)) + (None,)
+
+    def do_GET(self):
+        self.dispatch("GET")
+
+    def do_POST(self):
+        self.dispatch("POST")
+
+    def do_PUT(self):
+        self.dispatch("PUT")
+
+    def do_DELETE(self):
+        self.dispatch("DELETE")
+
+
+class Server(ThreadingHTTPServer):
+    daemon_threads = True
+    allow_reuse_address = True
+
+    def __init__(self, address, app):
+        super().__init__(address, Handler)
+        self.app = app
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+def main(argv):
+    logging.basicConfig(stream=sys.stdout, level=logging.INFO,
+                        format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    logging.getLogger("irods").setLevel(logging.WARNING)
+
+    if len(argv) != 2 or argv[1] in ("-h", "--help"):
+        print("usage: {} <config.json>".format(os.path.basename(argv[0])))
+        return 2
+
+    try:
+        config = load_config(argv[1])
+        app = App(config)
+        app.start()
+    except ConfigError as e:
+        print("{}: {}".format(SERVICE_NAME, e))
+        return 1
+    except Exception as e:
+        print("{}: startup failed: {}".format(SERVICE_NAME, e))
+        return 1
+
+    try:
+        server = Server((config["bind_address"], config["port"]), app)
+    except OSError as e:
+        print("{}: cannot listen on {}:{}: {}".format(SERVICE_NAME, config["bind_address"], config["port"], e))
+        return 1
+
+    def stop(signum, frame):
+        log.info("received signal %d, shutting down", signum)
+        threading.Thread(target=server.shutdown, daemon=True).start()
+
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+
+    log.warning("serving plain HTTP on %s:%d; deploy behind a TLS-terminating proxy",
+                config["bind_address"], config["port"])
+    try:
+        server.serve_forever()
+    finally:
+        server.server_close()
+    log.info("stopped")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
