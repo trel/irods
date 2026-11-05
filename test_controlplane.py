@@ -66,9 +66,11 @@ import tempfile
 import threading
 import time
 import unittest
+import unittest.mock
 import uuid
 from urllib.parse import parse_qs, urlsplit
 
+import irods.exception
 import jsonschema
 import yaml
 
@@ -94,6 +96,10 @@ HUP_CHILD = (
 # Fakes
 # ---------------------------------------------------------------------------
 
+HOST = "rs01.example.org"        # what a redeeming server calls itself
+ACCOUNT = "adm." + HOST          # the account the default prefix makes of it
+
+
 class FakeSession:
     def __init__(self):
         self.cleaned_up = False
@@ -115,6 +121,9 @@ class FakeIRODS:
         self.sessions = []
         self.mkzone_error = None
         self.rmzone_error = None
+        self.created = []           # service accounts created, in order
+        self.create_error = None    # HTTPError to raise from create_service_account
+        self.remove_error = None    # message to raise from remove_service_account
 
     host = property(lambda self: self.env["irods_host"])
     port = property(lambda self: self.env["irods_port"])
@@ -145,6 +154,22 @@ class FakeIRODS:
         if self.rmzone_error:
             raise RuntimeError(self.rmzone_error)
         del self.zones[zone_name]
+
+    def create_service_account(self, name, password):
+        if self.create_error is not None:
+            raise self.create_error
+        if name in self.users:
+            raise controlplane.HTTPError(409, "user {} already exists".format(name))
+        self.users[name] = (password, "rodsadmin")
+        self.created.append(name)
+
+    def remove_service_account(self, name):
+        if self.remove_error:
+            raise RuntimeError(self.remove_error)
+        del self.users[name]
+
+    def service_accounts(self):
+        return sorted(name for name, (_, t) in self.users.items() if name not in ("rods", "alice"))
 
 
 # ---------------------------------------------------------------------------
@@ -424,8 +449,8 @@ class Fixture:
         assert status == 201, (status, body)
         return body["bootstrap_key"]
 
-    def redeem(self, bootstrap_key, **kwargs):
-        return self.request("POST", "/bootstrap/redeem", {"bootstrap_key": bootstrap_key}, **kwargs)
+    def redeem(self, bootstrap_key, host=HOST, **kwargs):
+        return self.request("POST", "/bootstrap/redeem", {"bootstrap_key": bootstrap_key, "host": host}, **kwargs)
 
     def revoke(self, bootstrap_key, auth=("rods", "rods")):
         return self.request("POST", "/bootstrap/revoke", {"bootstrap_key": bootstrap_key}, auth=auth)
@@ -434,10 +459,11 @@ class Fixture:
         return self.request("GET", "/bootstrap/list" + query, auth=auth)
 
 
-def expected_facts(role):
+def expected_facts(role, account=None):
     home = home_server_config()
     facts = {"catalog_service_role": role}
     facts.update({k: home[k] for k in controlplane.ZONE_FACT_KEYS})
+    facts["zone_user"] = ACCOUNT if account is None else account
     if role == "provider":
         facts["database"] = dict(HOME_DATABASE)
     return facts
@@ -520,7 +546,8 @@ class ConfigTests(unittest.TestCase):
         self.assertTrue(os.path.isabs(cfg["irods_environment_file"]))
         self.assertEqual(cfg["federation"], {"application_expiration_in_seconds": 7 * 24 * 3600,
                                              "max_pending_applications": 100})
-        self.assertEqual(cfg["bootstrap"], {"default_lifetime_of_bootstrap_keys_in_seconds": 3600})
+        self.assertEqual(cfg["bootstrap"], {"default_lifetime_of_bootstrap_keys_in_seconds": 3600,
+                                            "new_admin_account_prefix": "adm."})
         self.assertEqual(cfg["keyserver"], {"lifetime_of_zone_keys_in_seconds": 90 * 24 * 3600})
 
     def test_nested_overrides_merge_with_defaults(self):
@@ -528,7 +555,11 @@ class ConfigTests(unittest.TestCase):
                          "bootstrap": {"default_lifetime_of_bootstrap_keys_in_seconds": 5}})
         self.assertEqual(cfg["federation"], {"application_expiration_in_seconds": 60,
                                              "max_pending_applications": 100})
-        self.assertEqual(cfg["bootstrap"], {"default_lifetime_of_bootstrap_keys_in_seconds": 5})
+        self.assertEqual(cfg["bootstrap"], {"default_lifetime_of_bootstrap_keys_in_seconds": 5,
+                                            "new_admin_account_prefix": "adm."})
+        cfg = self.load({"port": 1, "bootstrap": {"new_admin_account_prefix": ""}})
+        self.assertEqual(cfg["bootstrap"], {"default_lifetime_of_bootstrap_keys_in_seconds": 3600,
+                                            "new_admin_account_prefix": ""})
         self.assertEqual(cfg["keyserver"], {"lifetime_of_zone_keys_in_seconds": 90 * 24 * 3600})
 
     def test_default_state_file_sits_next_to_config(self):
@@ -557,6 +588,10 @@ class ConfigTests(unittest.TestCase):
             ({"port": 1, "keyserver": {"application_expiration_in_seconds": 1}}, "unknown keyserver configuration key"),
             ({"port": 1, "keyserver": {"lifetime_of_zone_keys_in_seconds": 0}}, "lifetime_of_zone_keys"),
             ({"port": 1, "bootstrap": {"default_lifetime_of_bootstrap_keys_in_seconds": "1"}}, "default_lifetime_of_bootstrap_keys"),
+            ({"port": 1, "bootstrap": {"new_admin_account_prefix": 5}}, "new_admin_account_prefix"),
+            ({"port": 1, "bootstrap": {"new_admin_account_prefix": "a" * 17}}, "new_admin_account_prefix"),
+            ({"port": 1, "bootstrap": {"new_admin_account_prefix": "adm "}}, "new_admin_account_prefix"),
+            ({"port": 1, "bootstrap": {"new_admin_account_prefix": "adm@"}}, "new_admin_account_prefix"),
             ({"port": 1, "keyserver": {"default_lifetime_of_bootstrap_keys_in_seconds": 1}}, "unknown keyserver configuration key"),
             ({"port": 1, "keyserver": []}, "keyserver must be a JSON object"),
             ({"port": 1, "bind_address": ""}, "bind_address"),
@@ -1416,13 +1451,34 @@ class ValidateBootstrapBodiesTests(unittest.TestCase):
             self.check(v, {"bootstrap_key": bad}, "bootstrap_key must be")
         self.assertEqual(v({"bootstrap_key": key}), key)
 
+    def test_redeem_body(self):
+        def v(body, prefix="adm."):
+            return controlplane.validate_bootstrap_redeem(body, prefix)
+        key = str(uuid.uuid4())
+        self.check(v, [], "JSON object")
+        self.check(v, {}, "missing required field: bootstrap_key")
+        self.check(v, {"bootstrap_key": "nope", "host": HOST}, "bootstrap_key must be")
+        self.check(v, {"bootstrap_key": key}, "missing required field: host")
+        self.check(v, {"bootstrap_key": key, "host": HOST, "note": "x"}, "unknown field(s): note")
+        for bad in ("", 5, "10.0.0.1", "::1", "bad_host", "-x.example.org", "a" * 64 + ".org"):
+            self.check(v, {"bootstrap_key": key, "host": bad}, "host must be a hostname")
+        just_fits = ("ab." * 20)[:-1]      # 59 chars + "adm." = 63
+        too_long = ("ab." * 21)[:-1]       # 62 chars + "adm." = 66
+        self.assertEqual(v({"bootstrap_key": key, "host": just_fits}), (key, just_fits, "adm." + just_fits))
+        self.check(v, {"bootstrap_key": key, "host": too_long}, "host is too long")
+        self.assertEqual(v({"bootstrap_key": key, "host": too_long}, ""), (key, too_long, too_long))
+        self.assertEqual(v({"bootstrap_key": key, "host": HOST}), (key, HOST, ACCOUNT))
+        self.assertEqual(v({"bootstrap_key": key, "host": HOST}, "svc-"), (key, HOST, "svc-" + HOST))
+
 
 # ---------------------------------------------------------------------------
 # HTTP: bootstrap
 # ---------------------------------------------------------------------------
 
 KEY_FIELDS = {"bootstrap_key", "status", "catalog_service_role", "note", "created_at", "created_by",
-              "expires_at", "redeemed_at", "redeemed_from", "revoked_at", "revoked_by"}
+              "expires_at", "redeemed_at", "redeemed_from", "host", "service_account", "revoked_at",
+              "revoked_by"}
+PASSWORD_RE = r"^[A-Za-z0-9_]{32}$"
 
 
 class BootstrapCreateTests(ServerTestCase):
@@ -1434,8 +1490,8 @@ class BootstrapCreateTests(ServerTestCase):
         self.assertRegex(body["bootstrap_key"], UUID_RE)
         self.assertEqual((body["status"], body["catalog_service_role"], body["note"], body["created_by"]),
                          ("available", "consumer", None, "rods"))
-        self.assertEqual((body["redeemed_at"], body["redeemed_from"], body["revoked_at"], body["revoked_by"]),
-                         (None, None, None, None))
+        self.assertEqual((body["redeemed_at"], body["redeemed_from"], body["host"], body["service_account"],
+                          body["revoked_at"], body["revoked_by"]), (None,) * 6)
         created = controlplane.from_iso(body["created_at"])
         self.assertLessEqual(abs((created - before).total_seconds()), 5)
         self.assertEqual(controlplane.from_iso(body["expires_at"]), created + controlplane.datetime.timedelta(hours=1))
@@ -1493,30 +1549,110 @@ class BootstrapRedeemTests(ServerTestCase):
     def test_redeem_consumer(self):
         key = self.fx.new_key()
         before = controlplane.utc_now()
-        status, body, _ = self.fx.redeem(key)
+        with self.assertLogs("controlplane", level="INFO") as logs:
+            status, body, _ = self.fx.redeem(key)
         self.assertEqual(status, 200)
-        self.assertEqual(set(body), {"zone_facts"})
+        self.assertEqual(set(body), {"service_account", "zone_facts"})
         self.assertEqual(body["zone_facts"], expected_facts("consumer"))
+        self.assertEqual(body["zone_facts"]["zone_user"], ACCOUNT)
         self.assertEqual(body["zone_facts"]["zone_key"], HOME_ZONE_KEY)
         self.assertEqual(body["zone_facts"]["negotiation_key"], HOME_NEGOTIATION_KEY)
         self.assertNotIn("database", body["zone_facts"])
         self.assertNotIn("db-secret", json.dumps(body))
 
+        # the account exists in iRODS with exactly the password returned, and nowhere else
+        account = body["service_account"]
+        self.assertEqual(set(account), {"name", "password"})
+        self.assertEqual(account["name"], ACCOUNT)
+        self.assertRegex(account["password"], PASSWORD_RE)
+        self.assertEqual(self.fx.irods.users[ACCOUNT], (account["password"], "rodsadmin"))
+        self.assertEqual(self.fx.irods.created, [ACCOUNT])
+        self.assertNotIn(account["password"], open(self.fx.config["state_file"]).read())
+        self.assertFalse(any(account["password"] in line for line in logs.output), logs.output)
+        self.assertTrue(any("by host {}; created rodsadmin {}".format(HOST, ACCOUNT) in line
+                            for line in logs.output), logs.output)
+
         _, listing, _ = self.fx.bootstrap_list()
         rec = listing["bootstrap_keys"][0]
-        self.assertEqual((rec["status"], rec["redeemed_from"]), ("redeemed", "127.0.0.1"))
+        self.assertEqual((rec["status"], rec["redeemed_from"], rec["host"], rec["service_account"]),
+                         ("redeemed", "127.0.0.1", HOST, ACCOUNT))
         self.assertLessEqual(abs((controlplane.from_iso(rec["redeemed_at"]) - before).total_seconds()), 5)
-        self.assertEqual(self.fx.state()["bootstrap"]["keys"][0]["status"], "redeemed")
+        saved = self.fx.state()["bootstrap"]["keys"][0]
+        self.assertEqual((saved["status"], saved["host"], saved["service_account"]), ("redeemed", HOST, ACCOUNT))
 
-        # single use
-        status, again, _ = self.fx.redeem(key)
-        self.assertEqual(status, 403)
-        self.assertIn("not valid", again["error"])
-        self.assertNotIn("zone_facts", again)
+        # single use, and a second host name does not help
+        for host in (HOST, "rs02.example.org"):
+            status, again, _ = self.fx.redeem(key, host=host)
+            self.assertEqual(status, 403)
+            self.assertIn("not valid", again["error"])
+            self.assertNotIn("zone_facts", again)
+        self.assertEqual(self.fx.irods.created, [ACCOUNT])
 
-        # nothing touched in iRODS
+        # nothing else touched in iRODS or on disk
         self.assertEqual((self.fx.irods.zones, self.fx.hups()), ({}, 0))
         self.assertEqual(self.fx.server_config(), home_server_config())
+
+    def test_each_redemption_gets_its_own_account(self):
+        first = self.fx.redeem(self.fx.new_key(), host="rs01.example.org")[1]
+        second = self.fx.redeem(self.fx.new_key("provider"), host="rs02.example.org")[1]
+        self.assertEqual(self.fx.irods.created, ["adm.rs01.example.org", "adm.rs02.example.org"])
+        self.assertNotEqual(first["service_account"]["password"], second["service_account"]["password"])
+        self.assertEqual(second["zone_facts"]["zone_user"], "adm.rs02.example.org")
+        self.assertEqual([k["service_account"] for k in self.fx.bootstrap_list()[1]["bootstrap_keys"]],
+                         ["adm.rs01.example.org", "adm.rs02.example.org"])
+
+    def test_existing_account_is_409_and_consumes_nothing(self):
+        self.assertEqual(self.fx.redeem(self.fx.new_key())[0], 200)
+        key = self.fx.new_key()
+        status, body, _ = self.fx.redeem(key)
+        self.assertEqual(status, 409)
+        self.assertEqual(body["error"], "user {} already exists".format(ACCOUNT))
+        self.assertEqual(self.fx.bootstrap_list()[1]["bootstrap_keys"][1]["status"], "available")
+        self.assertEqual(self.fx.irods.created, [ACCOUNT])
+        # the same key works for another host name
+        self.assertEqual(self.fx.redeem(key, host="rs02.example.org")[0], 200)
+        self.assertEqual(self.fx.irods.created, [ACCOUNT, "adm.rs02.example.org"])
+
+    def test_irods_failure_leaves_key_available(self):
+        key = self.fx.new_key()
+        for error in (controlplane.HTTPError(502, "cannot reach iRODS: fake outage"),
+                      controlplane.HTTPError(500, "creating user failed: CAT_SQL_ERR")):
+            self.fx.irods.create_error = error
+            status, body, _ = self.fx.redeem(key)
+            self.assertEqual((status, body["error"]), (error.status, error.message))
+            self.assertEqual(self.fx.bootstrap_list()[1]["bootstrap_keys"][0]["status"], "available")
+            self.assertEqual(self.fx.irods.created, [])
+        self.fx.irods.create_error = None
+        self.assertEqual(self.fx.redeem(key)[0], 200)
+
+    def test_failed_state_write_removes_the_account(self):
+        key = self.fx.new_key()
+        state_before = open(self.fx.config["state_file"]).read()
+        with unittest.mock.patch.object(self.fx.app.state, "save", side_effect=OSError("disk full")):
+            with self.assertLogs("controlplane", level="ERROR") as logs:
+                status, body, _ = self.fx.redeem(key)
+        self.assertEqual(status, 500)
+        self.assertIn("persisting the redemption failed: disk full; account removed", body["error"])
+        self.assertTrue(any("removing account " + ACCOUNT in line for line in logs.output), logs.output)
+        self.assertEqual(self.fx.irods.created, [ACCOUNT])
+        self.assertNotIn(ACCOUNT, self.fx.irods.users)
+        self.assertEqual(open(self.fx.config["state_file"]).read(), state_before)
+        rec = self.fx.bootstrap_list()[1]["bootstrap_keys"][0]
+        self.assertEqual((rec["status"], rec["host"], rec["service_account"]), ("available", None, None))
+        # with the write working again the same key and host succeed
+        self.assertEqual(self.fx.redeem(key)[0], 200)
+        self.assertIn(ACCOUNT, self.fx.irods.users)
+
+    def test_failed_state_write_and_failed_rollback_say_so(self):
+        key = self.fx.new_key()
+        self.fx.irods.remove_error = "CAT_SQL_ERR"
+        with unittest.mock.patch.object(self.fx.app.state, "save", side_effect=OSError("disk full")):
+            with self.assertLogs("controlplane", level="ERROR"):
+                status, body, _ = self.fx.redeem(key)
+        self.assertEqual(status, 500)
+        self.assertIn("rollback rmuser also failed: CAT_SQL_ERR; manual cleanup required", body["error"])
+        self.assertIn(ACCOUNT, self.fx.irods.users)
+        self.assertEqual(self.fx.bootstrap_list()[1]["bootstrap_keys"][0]["status"], "available")
 
     def test_redeem_provider_includes_database(self):
         status, body, _ = self.fx.redeem(self.fx.new_key("provider"))
@@ -1548,10 +1684,14 @@ class BootstrapRedeemTests(ServerTestCase):
         cases = [
             ([], "JSON object"),
             ({}, "missing required field: bootstrap_key"),
-            ({"bootstrap_key": "not-a-uuid"}, "bootstrap_key must be"),
-            ({"bootstrap_key": key.upper()}, "bootstrap_key must be"),
-            ({"bootstrap_key": 5}, "bootstrap_key must be"),
-            ({"bootstrap_key": key, "note": "x"}, "unknown field(s): note"),
+            ({"bootstrap_key": "not-a-uuid", "host": HOST}, "bootstrap_key must be"),
+            ({"bootstrap_key": key.upper(), "host": HOST}, "bootstrap_key must be"),
+            ({"bootstrap_key": 5, "host": HOST}, "bootstrap_key must be"),
+            ({"bootstrap_key": key}, "missing required field: host"),
+            ({"bootstrap_key": key, "host": "10.0.0.1"}, "host must be a hostname"),
+            ({"bootstrap_key": key, "host": "rs01_example"}, "host must be a hostname"),
+            ({"bootstrap_key": key, "host": ("ab." * 21)[:-1]}, "host is too long"),
+            ({"bootstrap_key": key, "host": HOST, "note": "x"}, "unknown field(s): note"),
         ]
         for body, fragment in cases:
             status, resp, _ = self.fx.request("POST", "/bootstrap/redeem", body)
@@ -1561,6 +1701,7 @@ class BootstrapRedeemTests(ServerTestCase):
         self.assertEqual(self.fx.request("POST", "/bootstrap/redeem", raw_body=b"a" * 70000)[0], 413)
         self.assertEqual(self.fx.request("GET", "/bootstrap/redeem")[0], 405)
         self.assertEqual(self.fx.bootstrap_list()[1]["bootstrap_keys"][0]["status"], "available")
+        self.assertEqual(self.fx.irods.created, [])
 
     def test_x_forwarded_for_is_recorded(self):
         key = self.fx.new_key()
@@ -1589,8 +1730,31 @@ class BootstrapRedeemTests(ServerTestCase):
         self.assertEqual(status, 500)
         self.assertIn("encryption", body["error"])
         self.assertEqual(self.fx.bootstrap_list()[1]["bootstrap_keys"][0]["status"], "available")
+        self.assertEqual(self.fx.irods.created, [])
         write_json(self.fx.server_config_file, home_server_config())
         self.assertEqual(self.fx.redeem(key)[0], 200)
+
+
+class BootstrapAccountPrefixTests(ServerTestCase):
+    config_overrides = {"bootstrap": {"new_admin_account_prefix": "svc-"}}
+
+    def test_prefix_from_configuration(self):
+        status, body, _ = self.fx.redeem(self.fx.new_key())
+        self.assertEqual(status, 200)
+        self.assertEqual(body["service_account"]["name"], "svc-" + HOST)
+        self.assertEqual(body["zone_facts"], expected_facts("consumer", "svc-" + HOST))
+        self.assertEqual(self.fx.irods.created, ["svc-" + HOST])
+        self.assertEqual(self.fx.bootstrap_list()[1]["bootstrap_keys"][0]["service_account"], "svc-" + HOST)
+
+
+class BootstrapEmptyPrefixTests(ServerTestCase):
+    config_overrides = {"bootstrap": {"new_admin_account_prefix": ""}}
+
+    def test_account_is_the_host_name(self):
+        status, body, _ = self.fx.redeem(self.fx.new_key())
+        self.assertEqual(status, 200)
+        self.assertEqual(body["service_account"]["name"], HOST)
+        self.assertEqual(body["zone_facts"]["zone_user"], HOST)
 
 
 class BootstrapRevokeTests(ServerTestCase):
@@ -1662,6 +1826,8 @@ class BootstrapListTests(ServerTestCase):
         self.assertEqual(set(body), {"bootstrap_keys"})
         self.assertEqual([k["bootstrap_key"] for k in body["bootstrap_keys"]], [a, b, c])
         self.assertEqual([k["status"] for k in body["bootstrap_keys"]], ["available", "redeemed", "revoked"])
+        self.assertEqual([(k["host"], k["service_account"]) for k in body["bootstrap_keys"]],
+                         [(None, None), (HOST, ACCOUNT), (None, None)])
         for wanted, keys in (("available", [a]), ("redeemed", [b]), ("revoked", [c]), ("expired", []),
                              ("all", [a, b, c])):
             _, body, _ = self.fx.bootstrap_list("?status=" + wanted)
@@ -1712,6 +1878,7 @@ class BootstrapConcurrencyTests(ServerTestCase):
         self.assertEqual(sorted(results), [200] + [403] * 15)
         _, listing, _ = self.fx.bootstrap_list()
         self.assertEqual([k["status"] for k in listing["bootstrap_keys"]], ["redeemed"])
+        self.assertEqual(self.fx.irods.created, [ACCOUNT])
 
 
 # ---------------------------------------------------------------------------
@@ -1842,6 +2009,70 @@ LIVE_RODSUSER = os.environ.get("CONTROLPLANE_LIVE_RODSUSER")
 LIVE_RODSUSER_PASSWORD = os.environ.get("CONTROLPLANE_LIVE_RODSUSER_PASSWORD")
 
 
+class ServiceAccountCreationTests(unittest.TestCase):
+    """IRODS.create_service_account against a mocked python-irodsclient session."""
+
+    def setUp(self):
+        self.irods = controlplane.IRODS("/nonexistent/env.json", {"irods_host": HOME_HOST, "irods_port": 1247,
+                                                                 "irods_zone_name": HOME_ZONE})
+        self.session = unittest.mock.Mock()
+        self.irods.service_session = unittest.mock.Mock(return_value=self.session)
+
+    def expect(self, status, fragment):
+        with self.assertRaises(controlplane.HTTPError) as cm:
+            self.irods.create_service_account(ACCOUNT, "p" * 32)
+        self.assertEqual(cm.exception.status, status, cm.exception.message)
+        self.assertIn(fragment, cm.exception.message)
+        if self.irods.service_session.return_value is self.session:
+            self.assertTrue(self.session.cleanup.called)
+
+    def test_success_creates_a_rodsadmin_and_sets_the_password(self):
+        self.irods.create_service_account(ACCOUNT, "p" * 32)
+        self.session.users.create.assert_called_once_with(ACCOUNT, "rodsadmin")
+        self.session.users.modify.assert_called_once_with(ACCOUNT, "password", "p" * 32)
+        self.session.users.remove.assert_not_called()
+        self.session.cleanup.assert_called_once_with()
+
+    def test_existing_user_is_409(self):
+        self.session.users.create.side_effect = irods.exception.CATALOG_ALREADY_HAS_ITEM_BY_THAT_NAME()
+        self.expect(409, "user {} already exists".format(ACCOUNT))
+        self.session.users.modify.assert_not_called()
+
+    def test_unreachable_is_502(self):
+        self.session.users.create.side_effect = irods.exception.NetworkException("refused")
+        self.expect(502, "cannot reach iRODS")
+
+    def test_other_create_failure_is_500(self):
+        self.session.users.create.side_effect = RuntimeError("CAT_SQL_ERR")
+        self.expect(500, "creating user {} failed: CAT_SQL_ERR".format(ACCOUNT))
+
+    def test_session_failure_is_500(self):
+        self.irods.service_session = unittest.mock.Mock(side_effect=FileNotFoundError("no .irodsA"))
+        self.expect(500, "cannot open the service account session: no .irodsA")
+
+    def test_password_failure_removes_the_account(self):
+        self.session.users.modify.side_effect = RuntimeError("PAM_AUTH_PASSWORD_INVALID")
+        with self.assertLogs("controlplane", level="ERROR"):
+            self.expect(500, "setting the password of {} failed: PAM_AUTH_PASSWORD_INVALID; account removed"
+                        .format(ACCOUNT))
+        self.session.users.remove.assert_called_once_with(ACCOUNT)
+
+    def test_password_failure_and_failed_removal_say_so(self):
+        self.session.users.modify.side_effect = RuntimeError("boom")
+        self.session.users.remove.side_effect = RuntimeError("CAT_SQL_ERR")
+        with self.assertLogs("controlplane", level="ERROR"):
+            self.expect(500, "rollback rmuser also failed: CAT_SQL_ERR; manual cleanup required")
+
+    def test_remove_service_account(self):
+        self.irods.remove_service_account(ACCOUNT)
+        self.session.users.remove.assert_called_once_with(ACCOUNT)
+        self.session.cleanup.assert_called_once_with()
+        self.session.users.remove.side_effect = irods.exception.UserDoesNotExist()
+        with self.assertRaises(irods.exception.UserDoesNotExist):
+            self.irods.remove_service_account(ACCOUNT)
+        self.assertEqual(self.session.cleanup.call_count, 2)
+
+
 @unittest.skipUnless(LIVE_ENV and LIVE_PASSWORD, "set CONTROLPLANE_LIVE_IRODS_ENV_FILE and CONTROLPLANE_LIVE_ADMIN_PASSWORD")
 class LiveIRODSTests(unittest.TestCase):
     def setUp(self):
@@ -1876,6 +2107,35 @@ class LiveIRODSTests(unittest.TestCase):
             self.assertEqual(session.zone, self.irods.zone)
         finally:
             session.cleanup()
+
+    def test_create_and_remove_service_account(self):
+        name = "controlplane.test." + controlplane.generate_key()[:8].replace("_", "x")
+        password = controlplane.generate_key()
+        self.irods.create_service_account(name, password)
+        try:
+            session = self.irods.admin_session(name, password)  # logs in and is a rodsadmin
+            session.cleanup()
+            with self.assertRaises(controlplane.HTTPError) as cm:
+                self.irods.create_service_account(name, controlplane.generate_key())
+            self.assertEqual((cm.exception.status, cm.exception.message), (409, "user {} already exists".format(name)))
+        finally:
+            self.irods.remove_service_account(name)
+        with self.assertRaises(controlplane.HTTPError) as cm:
+            self.irods.admin_session(name, password)
+        self.assertEqual(cm.exception.status, 401)
+        with self.assertRaises(Exception):
+            self.irods.remove_service_account(name)
+
+    def test_create_service_account_unreachable_is_502(self):
+        env = dict(self.env)
+        env["irods_port"] = 1
+        with tempfile.TemporaryDirectory() as d:
+            env_file = os.path.join(d, "irods_environment.json")
+            write_json(env_file, env)
+            with self.assertRaises(controlplane.HTTPError) as cm:
+                controlplane.IRODS(env_file, env).create_service_account("controlplane.unreachable", "x" * 32)
+        self.assertEqual(cm.exception.status, 502)
+        self.assertIn("cannot reach iRODS", cm.exception.message)
 
     def test_mkzone_and_rmzone(self):
         session = self.irods.admin_session(self.admin, LIVE_PASSWORD)

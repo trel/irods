@@ -14,7 +14,8 @@ features:
   bootstrap   a rodsadmin creates a single-use bootstrap key bound to a
               catalog service role; whoever redeems it within its lifetime
               receives the zone facts needed to run setup_irods.py and join
-              the zone as a catalog consumer or an additional provider.
+              the zone as a catalog consumer or an additional provider, plus
+              a rodsadmin account created for that server to run as.
               Creating the key is the approval.
 
 Usage:
@@ -81,6 +82,7 @@ ZONE_KEY_RE = re.compile(r"^[A-Za-z0-9_]{1,49}$")
 NEGOTIATION_KEY_RE = re.compile(r"^[A-Za-z0-9_]{32}$")
 HOSTNAME_LABEL_RE = re.compile(r"^(?!-)[A-Za-z0-9-]{1,63}(?<!-)$")
 USERNAME_RE = re.compile(r"^[A-Za-z0-9_.@-]{1,63}$")
+ACCOUNT_PREFIX_RE = re.compile(r"^[A-Za-z0-9_.-]{0,16}$")
 UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
 
 KEY_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_"
@@ -134,6 +136,7 @@ FEATURE_DEFAULTS = {
     },
     "bootstrap": {
         "default_lifetime_of_bootstrap_keys_in_seconds": 60 * 60,
+        "new_admin_account_prefix": "adm.",
     },
     "keyserver": {
         "lifetime_of_zone_keys_in_seconds": 90 * 24 * 60 * 60,
@@ -189,6 +192,14 @@ def is_valid_host(value):
     except ValueError:
         pass
     return all(HOSTNAME_LABEL_RE.match(label) for label in value.rstrip(".").split("."))
+
+
+def is_ip_literal(value):
+    try:
+        ipaddress.ip_address(value)
+        return True
+    except ValueError:
+        return False
 
 
 def is_int(value):
@@ -261,6 +272,10 @@ def load_config(path):
     positive_int(cfg["federation"], "application_expiration_in_seconds")
     positive_int(cfg["federation"], "max_pending_applications")
     positive_int(cfg["bootstrap"], "default_lifetime_of_bootstrap_keys_in_seconds")
+    prefix = cfg["bootstrap"]["new_admin_account_prefix"]
+    if not isinstance(prefix, str) or not ACCOUNT_PREFIX_RE.match(prefix):
+        raise ConfigError("new_admin_account_prefix must be a string of at most 16 characters "
+                          "from A-Z, a-z, 0-9, '_', '.', and '-'")
     positive_int(cfg["keyserver"], "lifetime_of_zone_keys_in_seconds")
 
     def resolve_path(key, default):
@@ -434,6 +449,50 @@ class IRODS:
             session.cleanup()
             raise HTTPError(403, "user {} is not a rodsadmin".format(username))
         return session
+
+    def create_service_account(self, name, password):
+        """iadmin mkuser <name> rodsadmin and set its password, as the service account.
+
+        Raises HTTPError(409) if a user of that name exists, HTTPError(502)
+        if iRODS is unreachable, HTTPError(500) for anything else. Nothing
+        is left behind on failure.
+        """
+        try:
+            session = self.service_session()
+        except Exception as e:
+            raise HTTPError(500, "cannot open the service account session: {}".format(e))
+        try:
+            try:
+                session.users.create(name, "rodsadmin")
+            except irods.exception.CATALOG_ALREADY_HAS_ITEM_BY_THAT_NAME:
+                raise HTTPError(409, "user {} already exists".format(name))
+            try:
+                session.users.modify(name, "password", password)
+            except Exception as e:
+                log.error("setting the password of %s failed: %s; removing the account", name, e)
+                try:
+                    session.users.remove(name)
+                except Exception as e2:
+                    log.error("rollback rmuser %s failed: %s", name, e2)
+                    raise HTTPError(500, "setting the password of {} failed: {}; rollback rmuser also "
+                                         "failed: {}; manual cleanup required".format(name, e, e2))
+                raise HTTPError(500, "setting the password of {} failed: {}; account removed".format(name, e))
+        except HTTPError:
+            raise
+        except irods.exception.NetworkException as e:
+            raise HTTPError(502, "cannot reach iRODS: {}".format(e))
+        except Exception as e:
+            raise HTTPError(500, "creating user {} failed: {}".format(name, e))
+        finally:
+            session.cleanup()
+
+    def remove_service_account(self, name):
+        """iadmin rmuser <name>, as the service account. Raises on failure."""
+        session = self.service_session()
+        try:
+            session.users.remove(name)
+        finally:
+            session.cleanup()
 
     @staticmethod
     def zone_exists(session, zone_name):
@@ -612,6 +671,25 @@ def validate_bootstrap_key_body(body):
     if not isinstance(bootstrap_key, str) or not UUID_RE.match(bootstrap_key):
         raise HTTPError(400, "bootstrap_key must be a lower-case uuid4 string")
     return bootstrap_key
+
+
+def validate_bootstrap_redeem(body, account_prefix):
+    """Return (bootstrap_key, host, account) for a redeem body."""
+    if not isinstance(body, dict):
+        raise HTTPError(400, "request body must be a JSON object")
+    unknown = sorted(set(body) - {"bootstrap_key", "host"})
+    if unknown:
+        raise HTTPError(400, "unknown field(s): {}".format(", ".join(unknown)))
+    bootstrap_key = validate_bootstrap_key_body({"bootstrap_key": body.get("bootstrap_key")})
+    host = body.get("host")
+    if host is None:
+        raise HTTPError(400, "missing required field: host")
+    if not is_valid_host(host) or is_ip_literal(host):
+        raise HTTPError(400, "host must be a hostname")
+    account = account_prefix + host
+    if not USERNAME_RE.match(account):
+        raise HTTPError(400, "host is too long: {!r} would not be a legal iRODS user name".format(account))
+    return bootstrap_key, host, account
 
 
 def validate_judge(body):
@@ -970,6 +1048,8 @@ class App:
                 "expires_at": to_iso(plus_seconds(now, lifetime)),
                 "redeemed_at": None,
                 "redeemed_from": None,
+                "host": None,
+                "service_account": None,
                 "revoked_at": None,
                 "revoked_by": None,
             }
@@ -980,7 +1060,8 @@ class App:
         return 201, key
 
     def bootstrap_redeem(self, body, remote_address):
-        bootstrap_key = validate_bootstrap_key_body(body)
+        bootstrap_key, host, account = validate_bootstrap_redeem(
+            body, self.config["bootstrap"]["new_admin_account_prefix"])
         now = utc_now()
         with self.state.lock:
             self.reconcile_zone_key(now)
@@ -992,16 +1073,35 @@ class App:
             if key["status"] == KEY_EXPIRED:
                 log.warning("refused a bootstrap redemption from %s: key expired", remote_address)
                 raise HTTPError(403, "bootstrap key has expired")
-            # Read the facts before consuming the key, so an unreadable or
-            # incomplete server_config.json leaves the key available.
-            facts = self.home.zone_facts(key["catalog_service_role"])
+            # Read the facts and create the account before consuming the
+            # key, so an unreadable or incomplete server_config.json, or an
+            # account that cannot be created, leaves the key available.
+            role = key["catalog_service_role"]
+            facts = self.home.zone_facts(role)
+            facts["zone_user"] = account
+            password = generate_key()
+            self.irods.create_service_account(account, password)
+            before = dict(key)
             key["status"] = KEY_REDEEMED
             key["redeemed_at"] = to_iso(now)
             key["redeemed_from"] = remote_address
-            self.state.save()
-            role = key["catalog_service_role"]
-        log.info("bootstrap key for a %s redeemed from %s; zone facts released", role, remote_address)
-        return 200, {"zone_facts": facts}
+            key["host"] = host
+            key["service_account"] = account
+            try:
+                self.state.save()
+            except Exception as e:
+                key.update(before)
+                log.error("persisting the redemption failed: %s; removing account %s", e, account)
+                try:
+                    self.irods.remove_service_account(account)
+                except Exception as e2:
+                    log.error("rollback rmuser %s failed: %s", account, e2)
+                    raise HTTPError(500, "persisting the redemption failed: {}; rollback rmuser also "
+                                         "failed: {}; manual cleanup required".format(e, e2))
+                raise HTTPError(500, "persisting the redemption failed: {}; account removed".format(e))
+        log.info("bootstrap key for a %s redeemed from %s by host %s; created rodsadmin %s and "
+                 "released zone facts", role, remote_address, host, account)
+        return 200, {"service_account": {"name": account, "password": password}, "zone_facts": facts}
 
     def bootstrap_revoke(self, body, admin):
         bootstrap_key = validate_bootstrap_key_body(body)

@@ -23,8 +23,10 @@ provider. It offers three features, each a group of endpoints:
   lifetime and receives in the same response the *zone facts* needed to
   fill in a `json_configuration_file` for `setup_irods.py` and join the
   home zone as a catalog consumer or an additional catalog provider.
-  Creating the key is the approval; no one judges a redemption. Nothing is
-  done inside the home zone's iRODS instance for a redemption.
+  Creating the key is the approval; no one judges a redemption. The
+  redemption also creates a rodsadmin account dedicated to the new server,
+  which becomes that server's service account identity, so the operator
+  never needs the zone's own admin password.
 
 The service assumes it is reached only through a TLS-terminating reverse
 proxy, so the channel to every client is already encrypted. It therefore
@@ -54,7 +56,8 @@ All files live at the top level of the repository.
   because federation approval edits `/etc/irods/server_config.json` and
   signals the iRODS server, and because the keyserver and bootstrap features
   read that file for the zone's keys and, for a provider bootstrap, its
-  database credentials.
+  database credentials. The service account's own iRODS session is what
+  creates the per-server rodsadmin account on a bootstrap redemption.
 - Speaks plain HTTP only and must be deployed behind a TLS-terminating
   reverse proxy. Admin credentials travel in HTTP Basic headers and every
   applicant-facing secret travels as a plain JSON field; the proxy's TLS is
@@ -103,6 +106,7 @@ Relative paths resolve against the configuration file's directory.
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `default_lifetime_of_bootstrap_keys_in_seconds` | integer > 0 | `3600` (1 hour) | Lifetime of a bootstrap key when `/bootstrap/create` does not give `lifetime_in_seconds` |
+| `new_admin_account_prefix` | string per 5.5 | `"adm."` | Prepended to the redeeming host's name to form the rodsadmin account created for the new server |
 
 Every bootstrap key is single use.
 
@@ -117,7 +121,7 @@ Every bootstrap key is single use.
 ```json
 {
   "federation": {"application_expiration_in_seconds": 1209600},
-  "bootstrap": {"default_lifetime_of_bootstrap_keys_in_seconds": 7200}
+  "bootstrap": {"default_lifetime_of_bootstrap_keys_in_seconds": 7200, "new_admin_account_prefix": "svc-"}
 }
 ```
 
@@ -129,7 +133,9 @@ It reads the service account's `irods_environment_file` (and the matching
 
 - `irods_host`, `irods_port`, `irods_zone_name` — used both for the service
   account session and as the target when verifying admin credentials.
-- `irods_user_name` — the service account.
+- `irods_user_name` — the service account. Its session, with the
+  `.irodsA` beside the environment file, is the one that creates and, on
+  rollback, removes the rodsadmin account for a redeemed bootstrap key.
 - Any SSL settings present are honored as-is; a non-SSL environment is
   acceptable.
 
@@ -198,14 +204,17 @@ All timestamps are ISO 8601 in UTC with a `Z` suffix and whole seconds.
 | `expires_at` | service | `created_at + lifetime`, where lifetime is the `lifetime_in_seconds` given at creation, else `bootstrap.default_lifetime_of_bootstrap_keys_in_seconds` |
 | `redeemed_at` | service | null until redeemed |
 | `redeemed_from` | service | peer IP of the `redeem` request (proxy's `X-Forwarded-For` first value if present, else socket peer), null until redeemed |
+| `host` | operator | hostname the redeeming server gave for itself, null until redeemed |
+| `service_account` | service | name of the rodsadmin account created for that server, `bootstrap.new_admin_account_prefix` + `host`, null until redeemed |
 | `revoked_at` | service | null unless revoked |
 | `revoked_by` | service | iRODS username of the admin who revoked it, null unless revoked |
 
 A key is consumed at the moment a redemption succeeds (`200`), in the same
 lock and the same state write that delivers the facts. A redemption that
 fails for any reason, including a home `server_config_file` that cannot be
-read, does not consume the key. A redeemed, expired, or revoked key is
-never revived.
+read or an account that cannot be created, does not consume the key, and an
+account created for a redemption whose state write then fails is removed
+again. A redeemed, expired, or revoked key is never revived.
 
 ### 5.4 Zone key state
 
@@ -254,6 +263,8 @@ Derived from `schemas/configuration/v5/server_config.json.in`.
 | `negotiation_key` | `^[A-Za-z0-9_]{32}$` |
 | `catalog_service_role` | `consumer` or `provider` |
 | `bootstrap_key` | string in canonical `uuid4` text form, lower case |
+| `host` | one RFC 1123 hostname as for `catalog_provider_hosts`, not an IP literal; `new_admin_account_prefix` + `host` must be 1–63 chars so it is a legal iRODS user name |
+| `new_admin_account_prefix` | `^[A-Za-z0-9_.-]{0,16}$`; may be empty |
 | `lifetime_in_seconds` | integer > 0 |
 | `note` | string ≤ 1024 chars |
 | `decision_note` | string ≤ 1024 chars |
@@ -265,6 +276,8 @@ Derived from `schemas/configuration/v5/server_config.json.in`.
 Generated `zone_key`, `negotiation_key`, and `next_zone_key` values use
 `secrets.choice` over the alphabet `A-Za-z0-9_` (64 symbols) and are 32
 characters long (192 bits). Bootstrap keys and application ids are `uuid4`.
+The password of a service account created on redemption uses the same
+alphabet and length, which fits the 42-character limit of `setup_irods.py`.
 
 ## 6. Authentication
 
@@ -598,30 +611,48 @@ reason about them in `/bootstrap/list`.
 Request:
 
 ```json
-{ "bootstrap_key": "0b2f...-..." }
+{ "bootstrap_key": "0b2f...-...", "host": "rs01.home.example.org" }
 ```
+
+`host` is the name the new server will put in its own `server_config.json`
+as `host`; it names the server in the key record and in the account created
+for it.
 
 Behavior:
 
-1. Validate per 5.5. Extra keys → `400`. Missing `bootstrap_key` → `400`.
+1. Validate per 5.5. Extra keys → `400`. Missing or invalid
+   `bootstrap_key` or `host` → `400`, including a `host` that would make
+   the account name too long.
 2. Look up the key. Unknown, redeemed, or revoked → `403` with an error
    saying the bootstrap key is not valid (the three are not
    distinguished); expired → `403` saying so. Nothing is consumed. A
    refused redemption is logged at WARNING with the remote address.
 3. Read the zone facts for the key's role from `server_config_file`. A
    failure here → `500`; the key is not consumed.
-4. Mark the key `redeemed` with `redeemed_at` and `redeemed_from`, persist,
-   and respond `200`:
+4. Create the server's account through the service account session: a
+   rodsadmin named `new_admin_account_prefix` + `host` with a freshly
+   generated password (5.6). A user of that name already existing → `409`
+   saying so, and the admin decides whether to `iadmin rmuser` it. iRODS
+   unreachable → `502`; any other failure → `500`. In every one of these
+   cases the key is not consumed and no account is left behind.
+5. Mark the key `redeemed` with `redeemed_at`, `redeemed_from`, `host`,
+   and `service_account`, and persist. If persisting fails, remove the
+   account again and respond `500`; the key stays available.
+6. Respond `200`:
 
 ```json
 {
+  "service_account": {
+    "name": "adm.rs01.home.example.org",
+    "password": "<generated, 32 characters>"
+  },
   "zone_facts": {
     "catalog_service_role": "provider",
     "schema_name": "server_config",
     "schema_version": "v5",
     "zone_name": "homeZone",
     "zone_port": 1247,
-    "zone_user": "rods",
+    "zone_user": "adm.rs01.home.example.org",
     "zone_auth_scheme": "native",
     "zone_key": "<the zone's current zone_key>",
     "negotiation_key": "<the zone's negotiation_key>",
@@ -643,14 +674,25 @@ Behavior:
 }
 ```
 
-The facts are delivered exactly once. No endpoint returns them again; an
-operator who loses the response asks the admin for a new key.
+The facts and the password are delivered exactly once. No endpoint returns
+them again, and the service does not keep the password; an operator who
+loses the response asks the admin for a new key, after the admin has
+removed the account the lost redemption created.
+
+`service_account` is the identity the new server runs as: it goes into the
+server's `service_account_environment` as `irods_user_name` and into
+`setup_irods.py`'s `admin_password`. It is a rodsadmin like any other, and
+once the server is up iRODS refuses to downgrade it or remove its password
+because the zone report lists it as a server's `zone_user`. `iadmin rmuser`
+removes it when the server is decommissioned.
 
 Rules for `zone_facts`:
 
-- Every value is copied verbatim from the home provider's
-  `server_config_file`; nothing is invented or rewritten. `zone_key` is the
-  key currently in that file, which is also `zone_key.value` of 7.2.1.
+- Every value except `zone_user` is copied verbatim from the home
+  provider's `server_config_file`; nothing else is invented or rewritten.
+  `zone_user` is the account just created, so the new server's
+  `server_config.json` names its own identity. `zone_key` is the key
+  currently in that file, which is also `zone_key.value` of 7.2.1.
 - `database` is present only when the key's `catalog_service_role` is
   `provider` and is `plugin_configuration.database` copied whole, including
   `password`. A consumer key never releases it.
@@ -661,16 +703,18 @@ Rules for `zone_facts`:
 - The next zone key and its expiry are not included. A new server that
   comes up after key rotation exists goes through the same rotation process
   as every existing server.
-- Host-specific settings (`host`, `server_port_range_*`, the default
-  resource, the service account user and group, the admin password) are the
-  operator's to supply. Appendix A maps `zone_facts` onto a
+- Host-specific settings (`server_port_range_*`, the default resource, the
+  operating system user and group of the service account) are the
+  operator's to supply. Appendix A maps the response onto a
   `json_configuration_file`.
 
-The admin password of the zone is **not** part of the facts. The service
-cannot reliably recover it (with newer iRODS authentication `.irodsA` is no
-longer reversible), so the operator obtains it out of band for now.
+The zone's own admin password is never part of the answer and the service
+never knows it. A new server does not need it: everything its service
+account does, it does as the account created here.
 
-`redeem` performs no iRODS operations and needs no iRODS connection.
+`redeem` performs exactly two iRODS operations, creating the account and
+setting its password, plus the removal on rollback. It changes nothing
+else in the catalog and never touches `server_config.json`.
 
 #### 7.3.3 `POST /bootstrap/revoke` — rodsadmin
 
@@ -702,8 +746,9 @@ The body is read and parsed before the credentials are checked, as for
 
 Ordered by `created_at` ascending. Records are returned in full because the
 caller is a rodsadmin, so the admin can see which keys are still available
-and when each expires, which were redeemed, when, and from which address,
-and which were revoked or expired unused.
+and when each expires, which were redeemed, when, from which address, by
+which host and into which account, and which were revoked or expired
+unused.
 
 ## 8. Expiration
 
@@ -736,7 +781,8 @@ iRODS connections are per request and are not shared across threads.
   status code, and the admin username for authenticated calls. Passwords
   and keys, including bootstrap keys and zone keys, are never logged.
 - Apply log lines say which feature the application is for.
-- Bootstrap key creation, redemption, and revocation, zone key adoption
+- Bootstrap key creation, redemption (with the host and the account
+  created), and revocation, zone key adoption
   and rotation detection, approve/reject decisions, and every step of the
   federation approve sequence are logged at INFO; failures at ERROR with
   the exception text; a hand-changed zone key and a refused redemption at
@@ -776,8 +822,19 @@ iRODS connections are per request and are not shared across threads.
   lifetime receives the zone facts with no further human step, so a key
   must be handed over as carefully as the secrets it releases.
   `/bootstrap/revoke` withdraws an unredeemed key at any time, and
-  `/bootstrap/list` shows every redemption with its source address so an
-  unexpected one is visible.
+  `/bootstrap/list` shows every redemption with its source address, the
+  host it claimed, and the account it was given, so an unexpected one is
+  visible and its account can be removed.
+- Each server bootstrapped this way runs as its own rodsadmin account. The
+  zone's admin password never reaches the new host and is never known to
+  the service. The generated password crosses the wire once, in the
+  `redeem` response, and is kept nowhere but the new server's `.irodsA`.
+  Compromise of one server's credential is contained to that account,
+  which `iadmin rmuser` revokes; the zone key it also holds is shared by
+  every server and is not revocable per host.
+- A redemption refuses to take over an existing account of the same name.
+  A key holder cannot lock a running server out of the zone by claiming
+  its hostname.
 - `zone_facts` reveals the home zone's own `zone_key` and `negotiation_key`
   and, for a provider key, the database password. These are exactly what a
   new server in the zone must have. The role is fixed by the admin at
@@ -792,8 +849,9 @@ iRODS connections are per request and are not shared across threads.
   the configuration file; the service account's home directory is the
   intended place.
 - The service never writes the zone key into `server_config.json` and never
-  sends a reload for keyserver or bootstrap operations; only federation
-  approval touches the iRODS server.
+  sends a reload for keyserver or bootstrap operations. Federation approval
+  and the account created on a bootstrap redemption are the only changes
+  the service makes to the iRODS catalog.
 - Admin passwords are verified against iRODS on every call and never stored.
 
 ## 12. Out of scope for this iteration
@@ -803,8 +861,10 @@ iRODS connections are per request and are not shared across threads.
   across the zone's servers. The keyserver only publishes the schedule and
   the next key.
 - Rotating `negotiation_key`.
-- Returning the zone's admin password in `zone_facts`.
-- Any iRODS action on redemption, such as pre-creating a resource.
+- Pre-creating a resource on redemption.
+- Binding a key at creation to the host that may redeem it.
+- Removing a server's account when it is decommissioned; `iadmin rmuser`
+  does that.
 - Returning the zone facts a second time after a lost `redeem` response;
   the operator asks for a new key.
 - Application-layer encryption of applicant secrets independent of the
@@ -836,21 +896,27 @@ Run the service as the `irods` service account against the local zone with
    consumer` → `201` with a key whose `expires_at` is one hour after
    `created_at`; `GET /bootstrap/list` shows it `available`. Without auth
    → `401`; as a rodsuser → `403`; with no role → `400`.
-5. `POST /bootstrap/redeem` with the key → `200` with `zone_facts`
-   matching `server_config.json` and no `database`. Redeem again → `403`,
-   the key is not valid. `GET /bootstrap/list` shows the key `redeemed`
-   with `redeemed_at` and `redeemed_from`.
+5. `POST /bootstrap/redeem` with the key and `host: rs01.example.org` →
+   `200` with `service_account.name` `adm.rs01.example.org`, `zone_facts`
+   matching `server_config.json` except `zone_user`, which is that name,
+   and no `database`. `iadmin lu` lists the account as a rodsadmin and
+   `ils` as it with the returned password succeeds. Redeem again → `403`,
+   the key is not valid. Redeem a fresh key with the same host → `409`.
+   `GET /bootstrap/list` shows the key `redeemed` with `redeemed_at`,
+   `redeemed_from`, `host`, and `service_account`.
 6. Create a `provider` key with `lifetime_in_seconds: 120` and a `note`,
-   redeem it, and confirm the facts include `database` with the password
-   from `server_config.json`. Confirm `iadmin lz`, `server_config.json`,
-   and the server log are unchanged by all bootstrap steps.
+   redeem it from another host name, and confirm the facts include
+   `database` with the password from `server_config.json`. Confirm
+   `iadmin lz` and `server_config.json` are unchanged by all bootstrap
+   steps and that `iadmin lu` shows exactly one new account per
+   redemption.
 7. Create a key with `lifetime_in_seconds: 1`, wait, `GET /bootstrap/list`
    shows it `expired`, redeem it → `403` saying expired.
 8. Create a key and `POST /bootstrap/revoke` it → `200` with status
    `revoked`; redeem it → `403`; revoke it again → `409`; revoke an unknown
    key → `404`.
-9. Clean up: stop the service and delete its state file; nothing in iRODS
-   needs restoring.
+9. Clean up: stop the service, delete its state file, and `iadmin rmuser`
+   the accounts the redemptions created.
 
 Federation, against the same instance:
 
@@ -888,8 +954,10 @@ and the reload retry), the keyserver (adoption, steady state, rotation
 detection, hand-change warning, state file mode), the bootstrap feature
 (creation with the default and an overridden lifetime, every validation,
 redemption under concurrency, redeemed, expired, and revoked keys, facts
-for both roles, database only for provider keys, a missing fact leaving
-the key unconsumed, revocation, listing, no iRODS writes), the nested
+for both roles, database only for provider keys, the account created on
+redemption and its password, a name collision, iRODS failures and a failed
+state write leaving the key unconsumed and no account behind, the prefix
+setting, revocation, listing), the nested
 configuration, the state file, and `main()`.
 Live tests run against a real zone only when
 `CONTROLPLANE_LIVE_IRODS_ENV_FILE` and `CONTROLPLANE_LIVE_ADMIN_PASSWORD`
@@ -938,7 +1006,7 @@ is a lossless one-liner:
 python3 -c 'import json, sys, yaml; json.dump(yaml.safe_load(sys.stdin), sys.stdout, indent=2)' < controlplane-openapi.yaml > controlplane-openapi.json
 ```
 
-## Appendix A. From `zone_facts` to a `json_configuration_file`
+## Appendix A. From a `redeem` response to a `json_configuration_file`
 
 `setup_irods.py --json_configuration_file <file>` takes one JSON object with
 `host_system_information`, `server_config`, `default_resource_name`,
@@ -950,16 +1018,22 @@ optional `default_resource_directory`, `service_account_environment`, and
 | `server_config` key | Source |
 |---|---|
 | `catalog_service_role` | `zone_facts.catalog_service_role` |
-| `zone_name`, `zone_port`, `zone_user`, `zone_auth_scheme` | `zone_facts` |
+| `zone_name`, `zone_port`, `zone_auth_scheme` | `zone_facts` |
+| `zone_user` | `zone_facts.zone_user`, which equals `service_account.name` |
 | `zone_key`, `negotiation_key` | `zone_facts` |
 | `catalog_provider_hosts` | `zone_facts.catalog_provider_hosts`; a new provider adds its own host |
 | `client_server_policy`, `default_hash_scheme`, `match_hash_policy`, `encryption` | `zone_facts`, so the zone stays consistent |
 | `plugin_configuration.database` | `zone_facts.database` (provider only), with `host` corrected if it was `localhost` |
-| `host`, `server_port_range_start`, `server_port_range_end`, `default_resource_name`, `federation` (`[]`) | the operator |
+| `host` | the name sent as `host` in the `redeem` request |
+| `server_port_range_start`, `server_port_range_end`, `default_resource_name`, `federation` (`[]`) | the operator |
 
 `service_account_environment` is the usual `irods_environment.json` for the
-service account with `irods_host` set to the new server, `irods_zone_name`,
-`irods_port`, and `irods_user_name` from the facts, and
-`irods_client_server_policy` matching. `admin_password` is obtained out of
-band. `host_system_information` names the service account user and group,
+service account with `irods_host` set to the new server, `irods_zone_name`
+and `irods_port` from the facts, `irods_user_name` set to
+`service_account.name`, and `irods_client_server_policy` matching.
+`admin_password` is `service_account.password`. `host_system_information`
+names the operating system user and group of the service account,
 conventionally `irods`/`irods`.
+
+`scripts/bootstrap_irods.py` performs this mapping, runs `setup_irods.py`
+with the result, and deletes the file it wrote when setup succeeds.
