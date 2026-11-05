@@ -88,7 +88,8 @@ Relative paths resolve against the configuration file's directory.
 | `server_config_file` | string | `/etc/irods/server_config.json` | Home zone server configuration: edited by federation approval, read by keyserver and bootstrap |
 | `server_pid_file` | string | `/var/run/irods/irods-server.pid` | Used to send SIGHUP after a federation approval edits the server config |
 | `federation` | object | `{}` | Section 4.2 |
-| `keyserver` | object | `{}` | Section 4.3 |
+| `bootstrap` | object | `{}` | Section 4.3 |
+| `keyserver` | object | `{}` | Section 4.4 |
 
 ### 4.2 `federation` keys
 
@@ -97,25 +98,30 @@ Relative paths resolve against the configuration file's directory.
 | `application_expiration_in_seconds` | integer > 0 | `604800` (7 days) | Pending federation applications older than this expire |
 | `max_pending_applications` | integer > 0 | `100` | `/federation/apply` returns 503 when this many are pending |
 
-### 4.3 `keyserver` keys
+### 4.3 `bootstrap` keys
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `default_lifetime_of_bootstrap_keys_in_seconds` | integer > 0 | `3600` (1 hour) | Lifetime of a bootstrap key when `/bootstrap/create` does not give `lifetime_in_seconds` |
+
+Every bootstrap key is single use.
+
+### 4.4 `keyserver` keys
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `lifetime_of_zone_keys_in_seconds` | integer > 0 | `7776000` (90 days) | How long a `zone_key` is meant to stay current before rotation |
-| `lifetime_of_bootstrap_keys_in_seconds` | integer > 0 | `3600` (1 hour) | Default lifetime of a bootstrap key; `/bootstrap/create` may override it per key |
 
-Every bootstrap key is single use.
-
-### 4.4 Example
+### 4.5 Example
 
 ```json
 {
   "federation": {"application_expiration_in_seconds": 1209600},
-  "keyserver": {"lifetime_of_bootstrap_keys_in_seconds": 7200}
+  "bootstrap": {"default_lifetime_of_bootstrap_keys_in_seconds": 7200}
 }
 ```
 
-### 4.5 iRODS connection information
+### 4.6 iRODS connection information
 
 The service does not take iRODS host, port, zone, or user in its own config.
 It reads the service account's `irods_environment_file` (and the matching
@@ -189,7 +195,7 @@ All timestamps are ISO 8601 in UTC with a `Z` suffix and whole seconds.
 | `note` | admin | free text for the admin's own bookkeeping, optional, max 1024 chars, null when absent |
 | `created_at` | service | |
 | `created_by` | service | iRODS username of the admin who created it |
-| `expires_at` | service | `created_at + lifetime`, where lifetime is the `lifetime_in_seconds` given at creation, else `keyserver.lifetime_of_bootstrap_keys_in_seconds` |
+| `expires_at` | service | `created_at + lifetime`, where lifetime is the `lifetime_in_seconds` given at creation, else `bootstrap.default_lifetime_of_bootstrap_keys_in_seconds` |
 | `redeemed_at` | service | null until redeemed |
 | `redeemed_from` | service | peer IP of the `redeem` request (proxy's `X-Forwarded-For` first value if present, else socket peer), null until redeemed |
 | `revoked_at` | service | null unless revoked |
@@ -560,8 +566,9 @@ of a new server out of band. Request:
 `catalog_service_role` is required and fixes what the key releases: a
 `provider` key additionally releases the zone's database credentials.
 `lifetime_in_seconds` is optional and defaults to
-`keyserver.lifetime_of_bootstrap_keys_in_seconds`. `note` is optional and
-is shown back to admins by `list`; the service never interprets it.
+`bootstrap.default_lifetime_of_bootstrap_keys_in_seconds`. `note` is
+optional and is shown back to admins by `list`; the service never
+interprets it.
 
 - Extra keys → `400`. Missing or invalid `catalog_service_role` → `400`.
   `lifetime_in_seconds` or `note` failing 5.5 → `400`.

@@ -520,16 +520,16 @@ class ConfigTests(unittest.TestCase):
         self.assertTrue(os.path.isabs(cfg["irods_environment_file"]))
         self.assertEqual(cfg["federation"], {"application_expiration_in_seconds": 7 * 24 * 3600,
                                              "max_pending_applications": 100})
-        self.assertEqual(cfg["keyserver"], {"lifetime_of_zone_keys_in_seconds": 90 * 24 * 3600,
-                                            "lifetime_of_bootstrap_keys_in_seconds": 3600})
+        self.assertEqual(cfg["bootstrap"], {"default_lifetime_of_bootstrap_keys_in_seconds": 3600})
+        self.assertEqual(cfg["keyserver"], {"lifetime_of_zone_keys_in_seconds": 90 * 24 * 3600})
 
     def test_nested_overrides_merge_with_defaults(self):
         cfg = self.load({"port": 1, "federation": {"application_expiration_in_seconds": 60},
-                         "keyserver": {"lifetime_of_bootstrap_keys_in_seconds": 5}})
+                         "bootstrap": {"default_lifetime_of_bootstrap_keys_in_seconds": 5}})
         self.assertEqual(cfg["federation"], {"application_expiration_in_seconds": 60,
                                              "max_pending_applications": 100})
-        self.assertEqual(cfg["keyserver"], {"lifetime_of_zone_keys_in_seconds": 90 * 24 * 3600,
-                                            "lifetime_of_bootstrap_keys_in_seconds": 5})
+        self.assertEqual(cfg["bootstrap"], {"default_lifetime_of_bootstrap_keys_in_seconds": 5})
+        self.assertEqual(cfg["keyserver"], {"lifetime_of_zone_keys_in_seconds": 90 * 24 * 3600})
 
     def test_default_state_file_sits_next_to_config(self):
         cfg = self.load({})
@@ -553,10 +553,11 @@ class ConfigTests(unittest.TestCase):
             ({"port": 1, "federation": {"application_expiration_in_seconds": -1}}, "application_expiration"),
             ({"port": 1, "federation": {"max_pending_applications": True}}, "max_pending"),
             ({"port": 1, "federation": {"nope": 1}}, "unknown federation configuration key"),
-            ({"port": 1, "bootstrap": {}}, "unknown configuration key"),
+            ({"port": 1, "bootstrap": {"max_pending_applications": 1}}, "unknown bootstrap configuration key"),
             ({"port": 1, "keyserver": {"application_expiration_in_seconds": 1}}, "unknown keyserver configuration key"),
             ({"port": 1, "keyserver": {"lifetime_of_zone_keys_in_seconds": 0}}, "lifetime_of_zone_keys"),
-            ({"port": 1, "keyserver": {"lifetime_of_bootstrap_keys_in_seconds": "1"}}, "lifetime_of_bootstrap_keys"),
+            ({"port": 1, "bootstrap": {"default_lifetime_of_bootstrap_keys_in_seconds": "1"}}, "default_lifetime_of_bootstrap_keys"),
+            ({"port": 1, "keyserver": {"default_lifetime_of_bootstrap_keys_in_seconds": 1}}, "unknown keyserver configuration key"),
             ({"port": 1, "keyserver": []}, "keyserver must be a JSON object"),
             ({"port": 1, "bind_address": ""}, "bind_address"),
             ({"port": 1, "state_file": 7}, "state_file"),
@@ -1676,7 +1677,7 @@ class BootstrapListTests(ServerTestCase):
 
 
 class BootstrapKeyExpiryTests(ServerTestCase):
-    config_overrides = {"keyserver": {"lifetime_of_bootstrap_keys_in_seconds": 1}}
+    config_overrides = {"bootstrap": {"default_lifetime_of_bootstrap_keys_in_seconds": 1}}
 
     def test_expired_key_is_refused_listed_and_unrevokable(self):
         key = self.fx.new_key()

@@ -560,7 +560,7 @@ paths:
         bound to a catalog service role, which fixes what redeeming it
         releases: a `provider` key also releases the database credentials.
         The key is single use and expires after `lifetime_in_seconds`,
-        which defaults to `lifetime_of_bootstrap_keys_in_seconds`. Creating
+        which defaults to `default_lifetime_of_bootstrap_keys_in_seconds`. Creating
         the key is the approval; nobody judges its redemption.
       security:
         - rodsadminBasic: []
@@ -1448,7 +1448,7 @@ components:
         lifetime_in_seconds:
           type: integer
           minimum: 1
-          description: How long the key stays redeemable. Defaults to `lifetime_of_bootstrap_keys_in_seconds`.
+          description: How long the key stays redeemable. Defaults to `default_lifetime_of_bootstrap_keys_in_seconds`.
         note:
           type: string
           maxLength: 1024

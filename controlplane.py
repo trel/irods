@@ -132,9 +132,11 @@ FEATURE_DEFAULTS = {
         "application_expiration_in_seconds": 7 * 24 * 60 * 60,
         "max_pending_applications": 100,
     },
+    "bootstrap": {
+        "default_lifetime_of_bootstrap_keys_in_seconds": 60 * 60,
+    },
     "keyserver": {
         "lifetime_of_zone_keys_in_seconds": 90 * 24 * 60 * 60,
-        "lifetime_of_bootstrap_keys_in_seconds": 60 * 60,
     },
 }
 CONFIG_KNOWN_KEYS = set(CONFIG_DEFAULTS) | set(FEATURE_DEFAULTS)
@@ -258,8 +260,8 @@ def load_config(path):
         raise ConfigError("bind_address must be a non-empty string")
     positive_int(cfg["federation"], "application_expiration_in_seconds")
     positive_int(cfg["federation"], "max_pending_applications")
+    positive_int(cfg["bootstrap"], "default_lifetime_of_bootstrap_keys_in_seconds")
     positive_int(cfg["keyserver"], "lifetime_of_zone_keys_in_seconds")
-    positive_int(cfg["keyserver"], "lifetime_of_bootstrap_keys_in_seconds")
 
     def resolve_path(key, default):
         v = cfg[key]
@@ -954,7 +956,7 @@ class App:
     def bootstrap_create(self, body, admin):
         role, lifetime, note = validate_bootstrap_create(body)
         if lifetime is None:
-            lifetime = self.config["keyserver"]["lifetime_of_bootstrap_keys_in_seconds"]
+            lifetime = self.config["bootstrap"]["default_lifetime_of_bootstrap_keys_in_seconds"]
         now = utc_now()
         with self.state.lock:
             self.reconcile_zone_key(now)
