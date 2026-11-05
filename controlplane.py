@@ -10,13 +10,12 @@ features:
               performs the home-zone side (mkzone, server_config.json entry,
               reload) and hands the applicant its own federation stanza.
   keyserver   a rodsadmin reads the lifecycle of the home zone's zone_key
-              (current key, its expiry, the already-minted next key) and
-              mints single-use bootstrap keys to hand to a new server's
-              operator out of band.
-  bootstrap   a new server presents a bootstrap key, a rodsadmin approves
-              or rejects, and on approval the service returns the zone
-              facts the operator needs to run setup_irods.py and join the
-              zone as a catalog consumer or an additional provider.
+              (current key, its expiry, the already-minted next key).
+  bootstrap   a rodsadmin creates a single-use bootstrap key bound to a
+              catalog service role; whoever redeems it within its lifetime
+              receives the zone facts needed to run setup_irods.py and join
+              the zone as a catalog consumer or an additional provider.
+              Creating the key is the approval.
 
 Usage:
 
@@ -38,11 +37,10 @@ Endpoints:
     GET  /federation/list?status=<filter>        rodsadmin
     POST /federation/judge                       rodsadmin
     GET  /keyserver/local_zone                   rodsadmin
-    PUT  /keyserver/bootstrap                    rodsadmin
-    POST /bootstrap/apply                        unauthenticated
-    GET  /bootstrap/status?application_id=<id>   unauthenticated
+    POST /bootstrap/create                       rodsadmin
+    POST /bootstrap/redeem                       unauthenticated
+    POST /bootstrap/revoke                       rodsadmin
     GET  /bootstrap/list?status=<filter>         rodsadmin
-    POST /bootstrap/judge                        rodsadmin
 
 See controlplane-spec.md for the full specification.
 """
@@ -97,12 +95,15 @@ STATUS_EXPIRED = "expired"
 ALL_STATUSES = (STATUS_PENDING, STATUS_APPROVED, STATUS_REJECTED, STATUS_EXPIRED)
 
 KEY_AVAILABLE = "available"
-KEY_USED = "used"
+KEY_REDEEMED = "redeemed"
 KEY_EXPIRED = "expired"
+KEY_REVOKED = "revoked"
+ALL_KEY_STATUSES = (KEY_AVAILABLE, KEY_REDEEMED, KEY_EXPIRED, KEY_REVOKED)
 
 ROLES = ("consumer", "provider")
 
 DECISION_NOTE_MAX_LENGTH = 1024
+NOTE_MAX_LENGTH = 1024
 NAME_MAX_LENGTH = 256
 EMAIL_MAX_LENGTH = 254
 
@@ -131,13 +132,9 @@ FEATURE_DEFAULTS = {
         "application_expiration_in_seconds": 7 * 24 * 60 * 60,
         "max_pending_applications": 100,
     },
-    "bootstrap": {
-        "application_expiration_in_seconds": 24 * 60 * 60,
-        "max_pending_applications": 100,
-    },
     "keyserver": {
         "lifetime_of_zone_keys_in_seconds": 90 * 24 * 60 * 60,
-        "lifetime_of_bootstrap_keys_in_seconds": 24 * 60 * 60,
+        "lifetime_of_bootstrap_keys_in_seconds": 60 * 60,
     },
 }
 CONFIG_KNOWN_KEYS = set(CONFIG_DEFAULTS) | set(FEATURE_DEFAULTS)
@@ -259,9 +256,8 @@ def load_config(path):
     positive_int(cfg, "max_request_body_bytes")
     if not isinstance(cfg["bind_address"], str) or not cfg["bind_address"]:
         raise ConfigError("bind_address must be a non-empty string")
-    for feature in ("federation", "bootstrap"):
-        positive_int(cfg[feature], "application_expiration_in_seconds")
-        positive_int(cfg[feature], "max_pending_applications")
+    positive_int(cfg["federation"], "application_expiration_in_seconds")
+    positive_int(cfg["federation"], "max_pending_applications")
     positive_int(cfg["keyserver"], "lifetime_of_zone_keys_in_seconds")
     positive_int(cfg["keyserver"], "lifetime_of_bootstrap_keys_in_seconds")
 
@@ -312,9 +308,8 @@ class State:
         self.path = path
         self.lock = threading.Lock()
         self.federation = {}      # application_id -> record, insertion ordered
-        self.bootstrap = {}       # application_id -> record
         self.bootstrap_keys = {}  # bootstrap_key -> record
-        self.keyserver = {}       # spec 5.5, empty until adopted
+        self.keyserver = {}       # spec 5.4, empty until adopted
 
     def load(self):
         if not os.path.exists(self.path):
@@ -326,7 +321,6 @@ class State:
             if data["schema_version"] != STATE_SCHEMA_VERSION:
                 raise ValueError("schema_version")
             self.federation = {r["application_id"]: r for r in data["federation"]["applications"]}
-            self.bootstrap = {r["application_id"]: r for r in data["bootstrap"]["applications"]}
             self.bootstrap_keys = {r["bootstrap_key"]: r for r in data["bootstrap"]["keys"]}
             self.keyserver = data["keyserver"]
             if not isinstance(self.keyserver, dict):
@@ -338,15 +332,14 @@ class State:
         atomic_write_json(self.path, {
             "schema_version": STATE_SCHEMA_VERSION,
             "federation": {"applications": list(self.federation.values())},
-            "bootstrap": {"applications": list(self.bootstrap.values()),
-                          "keys": list(self.bootstrap_keys.values())},
+            "bootstrap": {"keys": list(self.bootstrap_keys.values())},
             "keyserver": self.keyserver,
         }, mode=0o600)
 
     def expire(self, now):
         """Mark overdue pending applications and available keys expired. Returns True if changed."""
         changed = False
-        for record in list(self.federation.values()) + list(self.bootstrap.values()):
+        for record in self.federation.values():
             if record["status"] == STATUS_PENDING and from_iso(record["expires_at"]) <= now:
                 record["status"] = STATUS_EXPIRED
                 changed = True
@@ -585,26 +578,38 @@ def validate_federation_apply(body):
     }
 
 
-def validate_bootstrap_apply(body):
+def validate_bootstrap_create(body):
+    """Return (catalog_service_role, lifetime_in_seconds or None, note or None)."""
     if not isinstance(body, dict):
         raise HTTPError(400, "request body must be a JSON object")
-    allowed = {"bootstrap_key", "catalog_service_role"}
-    unknown = sorted(set(body) - allowed)
+    unknown = sorted(set(body) - {"catalog_service_role", "lifetime_in_seconds", "note"})
     if unknown:
         raise HTTPError(400, "unknown field(s): {}".format(", ".join(unknown)))
-    for key in ("bootstrap_key", "catalog_service_role"):
-        if key not in body:
-            raise HTTPError(400, "missing required field: {}".format(key))
-    bootstrap_key = body["bootstrap_key"]
-    if not isinstance(bootstrap_key, str) or not UUID_RE.match(bootstrap_key):
-        raise HTTPError(400, "bootstrap_key must be a lower-case uuid4 string")
-    role = body["catalog_service_role"]
+    role = body.get("catalog_service_role")
     if role not in ROLES:
         raise HTTPError(400, "catalog_service_role must be one of {}".format(", ".join(ROLES)))
-    return {
-        "bootstrap_key": bootstrap_key,
-        "catalog_service_role": role,
-    }
+    lifetime = body.get("lifetime_in_seconds")
+    if lifetime is not None and (not is_int(lifetime) or lifetime <= 0):
+        raise HTTPError(400, "lifetime_in_seconds must be a positive integer")
+    note = body.get("note")
+    if note is not None and (not isinstance(note, str) or len(note) > NOTE_MAX_LENGTH):
+        raise HTTPError(400, "note must be a string of at most {} characters".format(NOTE_MAX_LENGTH))
+    return role, lifetime, note
+
+
+def validate_bootstrap_key_body(body):
+    """Body of redeem and revoke: exactly one field, bootstrap_key."""
+    if not isinstance(body, dict):
+        raise HTTPError(400, "request body must be a JSON object")
+    unknown = sorted(set(body) - {"bootstrap_key"})
+    if unknown:
+        raise HTTPError(400, "unknown field(s): {}".format(", ".join(unknown)))
+    bootstrap_key = body.get("bootstrap_key")
+    if bootstrap_key is None:
+        raise HTTPError(400, "missing required field: bootstrap_key")
+    if not isinstance(bootstrap_key, str) or not UUID_RE.match(bootstrap_key):
+        raise HTTPError(400, "bootstrap_key must be a lower-case uuid4 string")
+    return bootstrap_key
 
 
 def validate_judge(body):
@@ -642,6 +647,13 @@ def status_filter(query):
     return wanted
 
 
+def key_status_filter(query):
+    wanted = single_query_value(query, "status", required=False) or "all"
+    if wanted not in ALL_KEY_STATUSES + ("all",):
+        raise HTTPError(400, "status must be one of {}".format(", ".join(ALL_KEY_STATUSES + ("all",))))
+    return wanted
+
+
 # ---------------------------------------------------------------------------
 # Application logic
 # ---------------------------------------------------------------------------
@@ -663,9 +675,8 @@ class App:
                 self.home.path, facts["zone_name"], self.irods.env_file, self.irods.zone))
         log.info("home zone %s at %s:%d, service account %s", self.irods.zone, self.irods.host,
                  self.irods.port, self.irods.env["irods_user_name"])
-        log.info("state file %s holds %d federation application(s), %d bootstrap application(s), "
-                 "%d bootstrap key(s)", self.state.path, len(self.state.federation),
-                 len(self.state.bootstrap), len(self.state.bootstrap_keys))
+        log.info("state file %s holds %d federation application(s) and %d bootstrap key(s)",
+                 self.state.path, len(self.state.federation), len(self.state.bootstrap_keys))
 
     # -- shared helpers -------------------------------------------------------
 
@@ -715,11 +726,12 @@ class App:
         self.state.save()
 
     def info(self):
-        response = {"service": SERVICE_NAME, "version": VERSION}
-        for feature in ("federation", "bootstrap"):
-            cfg = self.feature_config(feature)
-            response[feature] = {k: cfg[k] for k in ("application_expiration_in_seconds",)}
-        return 200, response
+        cfg = self.feature_config("federation")
+        return 200, {
+            "service": SERVICE_NAME,
+            "version": VERSION,
+            "federation": {"application_expiration_in_seconds": cfg["application_expiration_in_seconds"]},
+        }
 
     # -- federation (spec 7.1) --------------------------------------------------
 
@@ -891,10 +903,10 @@ class App:
             raise HTTPError(500, "step reload failed: {}. The catalog zone and the federation entry "
                                  "are in place; fix the cause and judge again to retry the reload.".format(e))
 
-    # -- keyserver (spec 5.5, 7.2) ----------------------------------------------
+    # -- keyserver (spec 5.4, 7.2) ----------------------------------------------
 
     def reconcile_zone_key(self, now):
-        """Bring the zone key state in line with server_config.json (spec 5.5). Caller holds the state lock."""
+        """Bring the zone key state in line with server_config.json (spec 5.4). Caller holds the state lock."""
         lifetime = self.config["keyserver"]["lifetime_of_zone_keys_in_seconds"]
         current = self.home.read()["zone_key"]
         ks = self.state.keyserver
@@ -937,99 +949,85 @@ class App:
             "next_zone_key": ks["next_zone_key"],
         }
 
-    def keyserver_mint_bootstrap(self, body, admin):
-        if body is not None and body != {}:
-            raise HTTPError(400, "request body must be empty or an empty JSON object")
+    # -- bootstrap (spec 7.3) ---------------------------------------------------
+
+    def bootstrap_create(self, body, admin):
+        role, lifetime, note = validate_bootstrap_create(body)
+        if lifetime is None:
+            lifetime = self.config["keyserver"]["lifetime_of_bootstrap_keys_in_seconds"]
         now = utc_now()
         with self.state.lock:
             self.reconcile_zone_key(now)
             key = {
                 "bootstrap_key": str(uuid.uuid4()),
                 "status": KEY_AVAILABLE,
+                "catalog_service_role": role,
+                "note": note,
                 "created_at": to_iso(now),
                 "created_by": admin,
-                "expires_at": to_iso(plus_seconds(
-                    now, self.config["keyserver"]["lifetime_of_bootstrap_keys_in_seconds"])),
-                "used_at": None,
-                "application_id": None,
+                "expires_at": to_iso(plus_seconds(now, lifetime)),
+                "redeemed_at": None,
+                "redeemed_from": None,
+                "revoked_at": None,
+                "revoked_by": None,
             }
             self.state.bootstrap_keys[key["bootstrap_key"]] = key
             self.state.save()
             key = dict(key)
-        log.info("%s minted a bootstrap key expiring %s", admin, key["expires_at"])
+        log.info("%s created a %s bootstrap key expiring %s", admin, role, key["expires_at"])
         return 201, key
 
-    # -- bootstrap (spec 7.3) ---------------------------------------------------
-
-    def bootstrap_apply(self, body, remote_address):
-        req = validate_bootstrap_apply(body)
+    def bootstrap_redeem(self, body, remote_address):
+        bootstrap_key = validate_bootstrap_key_body(body)
         now = utc_now()
         with self.state.lock:
             self.reconcile_zone_key(now)
-            self.check_queue_room(self.state.bootstrap, "bootstrap")
-            key = self.state.bootstrap_keys.get(req["bootstrap_key"])
-            if key is None or key["status"] == KEY_USED:
+            key = self.state.bootstrap_keys.get(bootstrap_key)
+            if key is None or key["status"] in (KEY_REDEEMED, KEY_REVOKED):
+                log.warning("refused a bootstrap redemption from %s: key %s", remote_address,
+                            "unknown" if key is None else key["status"])
                 raise HTTPError(403, "bootstrap key is not valid")
             if key["status"] == KEY_EXPIRED:
+                log.warning("refused a bootstrap redemption from %s: key expired", remote_address)
                 raise HTTPError(403, "bootstrap key has expired")
-            record = self.new_record(now, "bootstrap", remote_address)
-            record.update({
-                "catalog_service_role": req["catalog_service_role"],
-                "bootstrap_key": req["bootstrap_key"],
-                "judged_at": None,
-                "judged_by": None,
-                "decision_note": None,
-            })
-            key["status"] = KEY_USED
-            key["used_at"] = to_iso(now)
-            key["application_id"] = record["application_id"]
-            self.state.bootstrap[record["application_id"]] = record
+            # Read the facts before consuming the key, so an unreadable or
+            # incomplete server_config.json leaves the key available.
+            facts = self.home.zone_facts(key["catalog_service_role"])
+            key["status"] = KEY_REDEEMED
+            key["redeemed_at"] = to_iso(now)
+            key["redeemed_from"] = remote_address
             self.state.save()
-        log.info("bootstrap application %s submitted for a %s from %s; bootstrap key consumed",
-                 record["application_id"], record["catalog_service_role"], remote_address)
-        return 201, {
-            "application_id": record["application_id"],
-            "status": record["status"],
-            "expires_at": record["expires_at"],
-            "status_url": "/bootstrap/status?application_id={}".format(record["application_id"]),
-        }
+            role = key["catalog_service_role"]
+        log.info("bootstrap key for a %s redeemed from %s; zone facts released", role, remote_address)
+        return 200, {"zone_facts": facts}
 
-    def bootstrap_status(self, query):
-        application_id = single_query_value(query, "application_id", required=True)
+    def bootstrap_revoke(self, body, admin):
+        bootstrap_key = validate_bootstrap_key_body(body)
+        now = utc_now()
         with self.state.lock:
-            self.reconcile_zone_key(utc_now())
-            record = self.state.bootstrap.get(application_id)
-            if record is None:
-                raise HTTPError(404, "no such application")
-            record = dict(record)
-        response = self.bookkeeping(record, "catalog_service_role")
-        if record["status"] == STATUS_APPROVED:
-            response["zone_facts"] = self.home.zone_facts(record["catalog_service_role"])
-        return 200, response
+            self.reconcile_zone_key(now)
+            key = self.state.bootstrap_keys.get(bootstrap_key)
+            if key is None:
+                raise HTTPError(404, "no such bootstrap key")
+            if key["status"] != KEY_AVAILABLE:
+                raise HTTPError(409, "bootstrap key is already {}".format(key["status"]))
+            key["status"] = KEY_REVOKED
+            key["revoked_at"] = to_iso(now)
+            key["revoked_by"] = admin
+            self.state.save()
+            key = dict(key)
+        log.info("%s revoked a %s bootstrap key", admin, key["catalog_service_role"])
+        return 200, {"bootstrap_key": key}
 
     def bootstrap_list(self, query, admin):
-        wanted = status_filter(query)
+        wanted = key_status_filter(query)
         with self.state.lock:
             self.reconcile_zone_key(utc_now())
-            records = [dict(r) for r in self.state.bootstrap.values()
-                       if wanted == "all" or r["status"] == wanted]
-            keys = [dict(k) for k in self.state.bootstrap_keys.values()]
-        records.sort(key=lambda r: r["submitted_at"])
+            keys = [dict(k) for k in self.state.bootstrap_keys.values()
+                    if wanted == "all" or k["status"] == wanted]
         keys.sort(key=lambda k: k["created_at"])
-        log.info("%s listed %d bootstrap application(s) with status=%s and %d bootstrap key(s)",
-                 admin, len(records), wanted, len(keys))
-        return 200, {"applications": records, "bootstrap_keys": keys}
-
-    def bootstrap_judge(self, body, admin):
-        application_id, decision, note = validate_judge(body)
-        with self.state.lock:
-            self.reconcile_zone_key(utc_now())
-            record = self.lookup_for_judge(self.state.bootstrap, application_id)
-            status = STATUS_REJECTED if decision == "reject" else STATUS_APPROVED
-            self.finalize(record, status, admin, note)
-            log.info("%s %s bootstrap application %s (%s)", admin, status, application_id,
-                     record["catalog_service_role"])
-            return 200, {"application": dict(record)}
+        log.info("%s listed %d bootstrap key(s) with status=%s", admin, len(keys), wanted)
+        return 200, {"bootstrap_keys": keys}
 
 
 # ---------------------------------------------------------------------------
@@ -1066,11 +1064,9 @@ class Handler(BaseHTTPRequestHandler):
             return forwarded.split(",")[0].strip()
         return self.client_address[0]
 
-    def read_json_body(self, optional=False):
+    def read_json_body(self):
         length = self.headers.get("Content-Length")
         if length is None:
-            if optional:
-                return None
             raise HTTPError(400, "Content-Length is required")
         try:
             length = int(length)
@@ -1082,8 +1078,6 @@ class Handler(BaseHTTPRequestHandler):
             raise HTTPError(413, "request body too large")
         raw = self.rfile.read(length)
         self._body_consumed = True
-        if optional and not raw:
-            return None
         try:
             return json.loads(raw.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as e:
@@ -1137,11 +1131,10 @@ class Handler(BaseHTTPRequestHandler):
         ("GET", "/federation/list"): "handle_federation_list",
         ("POST", "/federation/judge"): "handle_federation_judge",
         ("GET", "/keyserver/local_zone"): "handle_keyserver_local_zone",
-        ("PUT", "/keyserver/bootstrap"): "handle_keyserver_bootstrap",
-        ("POST", "/bootstrap/apply"): "handle_bootstrap_apply",
-        ("GET", "/bootstrap/status"): "handle_bootstrap_status",
+        ("POST", "/bootstrap/create"): "handle_bootstrap_create",
+        ("POST", "/bootstrap/redeem"): "handle_bootstrap_redeem",
+        ("POST", "/bootstrap/revoke"): "handle_bootstrap_revoke",
         ("GET", "/bootstrap/list"): "handle_bootstrap_list",
-        ("POST", "/bootstrap/judge"): "handle_bootstrap_judge",
     }
 
     def dispatch(self, method):
@@ -1202,24 +1195,21 @@ class Handler(BaseHTTPRequestHandler):
         status, response = self.as_admin(lambda user, session: self.app.keyserver_local_zone(user))
         return status, response, {"Cache-Control": "no-store"}
 
-    def handle_keyserver_bootstrap(self, query):
-        body = self.read_json_body(optional=True)
-        return self.as_admin(lambda user, session: self.app.keyserver_mint_bootstrap(body, user)) + (None,)
-
-    def handle_bootstrap_apply(self, query):
+    def handle_bootstrap_create(self, query):
         body = self.read_json_body()
-        status, response = self.app.bootstrap_apply(body, self.remote_address())
+        return self.as_admin(lambda user, session: self.app.bootstrap_create(body, user)) + (None,)
+
+    def handle_bootstrap_redeem(self, query):
+        body = self.read_json_body()
+        status, response = self.app.bootstrap_redeem(body, self.remote_address())
         return status, response, None
 
-    def handle_bootstrap_status(self, query):
-        return self.app.bootstrap_status(query) + (None,)
+    def handle_bootstrap_revoke(self, query):
+        body = self.read_json_body()
+        return self.as_admin(lambda user, session: self.app.bootstrap_revoke(body, user)) + (None,)
 
     def handle_bootstrap_list(self, query):
         return self.as_admin(lambda user, session: self.app.bootstrap_list(query, user)) + (None,)
-
-    def handle_bootstrap_judge(self, query):
-        body = self.read_json_body()
-        return self.as_admin(lambda user, session: self.app.bootstrap_judge(body, user)) + (None,)
 
     def do_GET(self):
         self.dispatch("GET")

@@ -414,21 +414,33 @@ class Fixture:
     def local_zone(self, auth=("rods", "rods")):
         return self.request("GET", "/keyserver/local_zone", auth=auth)
 
-    def mint(self, auth=("rods", "rods")):
-        status, body, _ = self.request("PUT", "/keyserver/bootstrap", auth=auth)
+    def create(self, role="consumer", auth=("rods", "rods"), **extra):
+        body = {"catalog_service_role": role}
+        body.update(extra)
+        return self.request("POST", "/bootstrap/create", body, auth=auth)
+
+    def new_key(self, role="consumer", **extra):
+        status, body, _ = self.create(role, **extra)
         assert status == 201, (status, body)
         return body["bootstrap_key"]
 
-    def bootstrap_apply(self, bootstrap_key=None, role="consumer", **extra):
-        body = {"bootstrap_key": bootstrap_key or self.mint(), "catalog_service_role": role}
-        body.update(extra)
-        return self.request("POST", "/bootstrap/apply", body)
+    def redeem(self, bootstrap_key, **kwargs):
+        return self.request("POST", "/bootstrap/redeem", {"bootstrap_key": bootstrap_key}, **kwargs)
+
+    def revoke(self, bootstrap_key, auth=("rods", "rods")):
+        return self.request("POST", "/bootstrap/revoke", {"bootstrap_key": bootstrap_key}, auth=auth)
 
     def bootstrap_list(self, query="", auth=("rods", "rods")):
         return self.request("GET", "/bootstrap/list" + query, auth=auth)
 
-    def bootstrap_status(self, application_id):
-        return self.request("GET", "/bootstrap/status?application_id=" + application_id)
+
+def expected_facts(role):
+    home = home_server_config()
+    facts = {"catalog_service_role": role}
+    facts.update({k: home[k] for k in controlplane.ZONE_FACT_KEYS})
+    if role == "provider":
+        facts["database"] = dict(HOME_DATABASE)
+    return facts
 
 
 class ServerTestCase(unittest.TestCase):
@@ -508,19 +520,14 @@ class ConfigTests(unittest.TestCase):
         self.assertTrue(os.path.isabs(cfg["irods_environment_file"]))
         self.assertEqual(cfg["federation"], {"application_expiration_in_seconds": 7 * 24 * 3600,
                                              "max_pending_applications": 100})
-        self.assertEqual(cfg["bootstrap"], {"application_expiration_in_seconds": 24 * 3600,
-                                            "max_pending_applications": 100})
         self.assertEqual(cfg["keyserver"], {"lifetime_of_zone_keys_in_seconds": 90 * 24 * 3600,
-                                            "lifetime_of_bootstrap_keys_in_seconds": 24 * 3600})
+                                            "lifetime_of_bootstrap_keys_in_seconds": 3600})
 
     def test_nested_overrides_merge_with_defaults(self):
         cfg = self.load({"port": 1, "federation": {"application_expiration_in_seconds": 60},
-                         "bootstrap": {"max_pending_applications": 3},
                          "keyserver": {"lifetime_of_bootstrap_keys_in_seconds": 5}})
         self.assertEqual(cfg["federation"], {"application_expiration_in_seconds": 60,
                                              "max_pending_applications": 100})
-        self.assertEqual(cfg["bootstrap"], {"application_expiration_in_seconds": 24 * 3600,
-                                            "max_pending_applications": 3})
         self.assertEqual(cfg["keyserver"], {"lifetime_of_zone_keys_in_seconds": 90 * 24 * 3600,
                                             "lifetime_of_bootstrap_keys_in_seconds": 5})
 
@@ -544,9 +551,10 @@ class ConfigTests(unittest.TestCase):
             ({"port": 70000}, "port must be"),
             ({"port": "9100"}, "port must be"),
             ({"port": 1, "federation": {"application_expiration_in_seconds": -1}}, "application_expiration"),
-            ({"port": 1, "bootstrap": {"max_pending_applications": True}}, "max_pending"),
+            ({"port": 1, "federation": {"max_pending_applications": True}}, "max_pending"),
             ({"port": 1, "federation": {"nope": 1}}, "unknown federation configuration key"),
-            ({"port": 1, "bootstrap": {"lifetime_of_zone_keys_in_seconds": 1}}, "unknown bootstrap configuration key"),
+            ({"port": 1, "bootstrap": {}}, "unknown configuration key"),
+            ({"port": 1, "keyserver": {"application_expiration_in_seconds": 1}}, "unknown keyserver configuration key"),
             ({"port": 1, "keyserver": {"lifetime_of_zone_keys_in_seconds": 0}}, "lifetime_of_zone_keys"),
             ({"port": 1, "keyserver": {"lifetime_of_bootstrap_keys_in_seconds": "1"}}, "lifetime_of_bootstrap_keys"),
             ({"port": 1, "keyserver": []}, "keyserver must be a JSON object"),
@@ -601,16 +609,14 @@ class StateTests(unittest.TestCase):
         self.assertEqual(oct(os.stat(self.path).st_mode & 0o777), "0o600")
         self.assertEqual(json.load(open(self.path)), {
             "schema_version": 1, "federation": {"applications": []},
-            "bootstrap": {"applications": [], "keys": []}, "keyserver": {}})
+            "bootstrap": {"keys": []}, "keyserver": {}})
         st.federation["a-id"] = self.record("a")
-        st.bootstrap["b-id"] = self.record("b")
         st.bootstrap_keys["k"] = self.key("k")
         st.keyserver = {"zone_key": {"value": "v"}}
         st.save()
         st2 = controlplane.State(self.path)
         st2.load()
         self.assertEqual(list(st2.federation), ["a-id"])
-        self.assertEqual(list(st2.bootstrap), ["b-id"])
         self.assertEqual(list(st2.bootstrap_keys), ["k"])
         self.assertEqual(st2.keyserver, {"zone_key": {"value": "v"}})
 
@@ -621,7 +627,7 @@ class StateTests(unittest.TestCase):
             controlplane.State(self.path).load()
         for bad in ({"schema_version": 99}, {"schema_version": 1, "federation": {}},
                     {"schema_version": 1, "federation": {"applications": []},
-                     "bootstrap": {"applications": [], "keys": []}, "keyserver": []}, [1]):
+                     "bootstrap": {"keys": []}, "keyserver": []}, [1]):
             write_json(self.path, bad)
             with self.assertRaises(controlplane.ConfigError, msg=repr(bad)):
                 controlplane.State(self.path).load()
@@ -633,17 +639,16 @@ class StateTests(unittest.TestCase):
         st.federation["a-id"] = self.record("a")
         st.federation["b-id"] = self.record("b", expires=later)
         st.federation["c-id"] = self.record("c", status="approved")
-        st.bootstrap["d-id"] = self.record("d")
         st.bootstrap_keys["old"] = self.key("old")
         st.bootstrap_keys["fresh"] = self.key("fresh", expires=later)
-        st.bootstrap_keys["used"] = self.key("used", status="used")
+        st.bootstrap_keys["gone"] = self.key("gone", status="redeemed")
+        st.bootstrap_keys["pulled"] = self.key("pulled", status="revoked")
         self.assertTrue(st.expire(controlplane.utc_now()))
         self.assertEqual([r["status"] for r in st.federation.values()], ["expired", "pending", "approved"])
-        self.assertEqual(st.bootstrap["d-id"]["status"], "expired")
-        self.assertEqual([k["status"] for k in st.bootstrap_keys.values()], ["expired", "available", "used"])
+        self.assertEqual([k["status"] for k in st.bootstrap_keys.values()],
+                         ["expired", "available", "redeemed", "revoked"])
         self.assertFalse(st.expire(controlplane.utc_now()))
         self.assertEqual(controlplane.State.count_pending(st.federation), 1)
-        self.assertEqual(controlplane.State.count_pending(st.bootstrap), 0)
         self.assertIs(st.find_pending_federation_by_zone_name("b"), st.federation["b-id"])
         self.assertIsNone(st.find_pending_federation_by_zone_name("a"))
 
@@ -825,23 +830,20 @@ class InfoTests(ServerTestCase):
         status, body, headers = self.fx.request("GET", "/info")
         self.assertEqual(status, 200)
         self.assertEqual(headers["Cache-Control"], "no-store")
-        self.assertEqual(set(body), {"service", "version", "federation", "bootstrap"})
+        self.assertEqual(set(body), {"service", "version", "federation"})
         self.assertEqual((body["service"], body["version"]), ("controlplane", controlplane.VERSION))
         self.assertEqual(body["federation"], {"application_expiration_in_seconds": 7 * 24 * 3600})
-        self.assertEqual(body["bootstrap"], {"application_expiration_in_seconds": 24 * 3600})
         self.assertNotIn("zone_name", json.dumps(body))
         self.assertNotIn(HOME_ZONE, json.dumps(body))
         self.assertEqual(self.fx.request("POST", "/info", raw_body=b"")[0], 405)
 
 
 class InfoReflectsConfigTests(ServerTestCase):
-    config_overrides = {"federation": {"application_expiration_in_seconds": 60},
-                        "bootstrap": {"application_expiration_in_seconds": 3600}}
+    config_overrides = {"federation": {"application_expiration_in_seconds": 60}}
 
-    def test_info_reports_configured_expirations(self):
+    def test_info_reports_configured_expiration(self):
         _, body, _ = self.fx.request("GET", "/info")
         self.assertEqual(body["federation"]["application_expiration_in_seconds"], 60)
-        self.assertEqual(body["bootstrap"]["application_expiration_in_seconds"], 3600)
 
 
 class QueueFullTests(ServerTestCase):
@@ -1249,8 +1251,8 @@ class OpenAPIContractTests(ServerTestCase):
         self.assertEqual(doc["info"]["version"], controlplane.VERSION)
         declared = {(m.upper(), p) for p, item in doc["paths"].items() for m in item if m in HTTP_METHODS}
         self.assertEqual(declared, set(controlplane.Handler.ROUTES))
-        admin_paths = {"/federation/list", "/federation/judge", "/keyserver/local_zone", "/keyserver/bootstrap",
-                       "/bootstrap/list", "/bootstrap/judge"}
+        admin_paths = {"/federation/list", "/federation/judge", "/keyserver/local_zone",
+                       "/bootstrap/create", "/bootstrap/revoke", "/bootstrap/list"}
         for path, item in doc["paths"].items():
             for method in (m for m in item if m in HTTP_METHODS):
                 if path in admin_paths:
@@ -1380,326 +1382,335 @@ class KeyserverTests(ServerTestCase):
         self.assertEqual(second["zone_key"]["value"], "MANUALLY_SET")
         self.assertNotEqual(second["next_zone_key"]["value"], first["next_zone_key"]["value"])
 
-    def test_mint_bootstrap_key(self):
-        before = controlplane.utc_now()
-        status, body, _ = self.fx.request("PUT", "/keyserver/bootstrap", auth=RODS)
-        self.assertEqual(status, 201)
-        self.assertEqual(set(body), {"bootstrap_key", "status", "created_at", "created_by", "expires_at",
-                                     "used_at", "application_id"})
-        self.assertRegex(body["bootstrap_key"], UUID_RE)
-        self.assertEqual((body["status"], body["created_by"], body["used_at"], body["application_id"]),
-                         ("available", "rods", None, None))
-        created = controlplane.from_iso(body["created_at"])
-        self.assertLessEqual(abs((created - before).total_seconds()), 5)
-        self.assertEqual(controlplane.from_iso(body["expires_at"]), created + controlplane.datetime.timedelta(days=1))
-        _, listing, _ = self.fx.bootstrap_list()
-        self.assertEqual(listing["bootstrap_keys"], [body])
-        self.assertEqual(self.fx.state()["bootstrap"]["keys"], [body])
-        # minting reconciles the zone key state too
-        self.assertEqual(self.fx.state()["keyserver"]["zone_key"]["value"], HOME_ZONE_KEY)
-        # an empty JSON object is accepted as the body; anything else is not
-        self.assertEqual(self.fx.request("PUT", "/keyserver/bootstrap", {}, auth=RODS)[0], 201)
-        status, err, _ = self.fx.request("PUT", "/keyserver/bootstrap", {"x": 1}, auth=RODS)
-        self.assertEqual(status, 400)
-        self.assertIn("empty", err["error"])
-        self.assertEqual(self.fx.request("PUT", "/keyserver/bootstrap", raw_body=b"nope", auth=RODS)[0], 400)
-        self.assertEqual(self.fx.request("PUT", "/keyserver/bootstrap", raw_body=b"a" * 70000, auth=RODS)[0], 413)
-        # authentication and method
-        self.assertEqual(self.fx.request("PUT", "/keyserver/bootstrap")[0], 401)
-        self.assertEqual(self.fx.request("PUT", "/keyserver/bootstrap", auth=("alice", "alicepass"))[0], 403)
-        status, _, headers = self.fx.request("GET", "/keyserver/bootstrap", auth=RODS)
-        self.assertEqual((status, headers["Allow"]), (405, "PUT"))
-        self.assertEqual(len(self.fx.bootstrap_list()[1]["bootstrap_keys"]), 2)
-        self.assertNotEqual(self.fx.mint(), self.fx.mint())
-        self.assertEqual(self.fx.hups(), 0)
 
+class ValidateBootstrapBodiesTests(unittest.TestCase):
+    def check(self, func, body, fragment):
+        with self.assertRaises(controlplane.HTTPError) as cm:
+            func(body)
+        self.assertEqual(cm.exception.status, 400)
+        self.assertIn(fragment, cm.exception.message)
 
-class ValidateBootstrapApplyTests(unittest.TestCase):
-    def test_direct_rejections_and_acceptance(self):
-        for bad, fragment in (([], "JSON object"), ({"bootstrap_key": "x"}, "missing required field")):
-            with self.assertRaises(controlplane.HTTPError) as cm:
-                controlplane.validate_bootstrap_apply(bad)
-            self.assertEqual(cm.exception.status, 400)
-            self.assertIn(fragment, cm.exception.message)
+    def test_create(self):
+        v = controlplane.validate_bootstrap_create
+        self.check(v, [], "JSON object")
+        self.check(v, {}, "catalog_service_role must be one of")
+        self.check(v, {"catalog_service_role": "primary"}, "catalog_service_role must be one of")
+        self.check(v, {"catalog_service_role": "consumer", "x": 1}, "unknown field(s): x")
+        for bad in (0, -1, True, "60", 1.5):
+            self.check(v, {"catalog_service_role": "consumer", "lifetime_in_seconds": bad}, "lifetime_in_seconds")
+        for bad in (5, "x" * 1025):
+            self.check(v, {"catalog_service_role": "consumer", "note": bad}, "note must be")
+        self.assertEqual(v({"catalog_service_role": "provider"}), ("provider", None, None))
+        self.assertEqual(v({"catalog_service_role": "consumer", "lifetime_in_seconds": 1, "note": "x" * 1024}),
+                         ("consumer", 1, "x" * 1024))
+
+    def test_key_body(self):
+        v = controlplane.validate_bootstrap_key_body
         key = str(uuid.uuid4())
-        out = controlplane.validate_bootstrap_apply({"bootstrap_key": key, "catalog_service_role": "provider"})
-        self.assertEqual(out, {"bootstrap_key": key, "catalog_service_role": "provider"})
-
-
-class MintWithoutContentLengthTests(ServerTestCase):
-    def test_put_without_body_or_content_length_mints(self):
-        token = base64.b64encode(b"rods:rods").decode()
-        data = raw_http(self.fx.port, "PUT /keyserver/bootstrap HTTP/1.0\r\nHost: x\r\nAuthorization: Basic {}\r\n\r\n"
-                        .format(token).encode())
-        self.assertIn("HTTP/1.1 201", data)
-        self.assertEqual(len(self.fx.bootstrap_list()[1]["bootstrap_keys"]), 1)
-
-
-class BootstrapKeyExpiryTests(ServerTestCase):
-    config_overrides = {"keyserver": {"lifetime_of_bootstrap_keys_in_seconds": 1}}
-
-    def test_expired_key_is_refused_and_listed(self):
-        key = self.fx.mint()
-        time.sleep(2.1)
-        _, listing, _ = self.fx.bootstrap_list()
-        self.assertEqual(listing["bootstrap_keys"][0]["status"], "expired")
-        status, body, _ = self.fx.bootstrap_apply(key)
-        self.assertEqual(status, 403)
-        self.assertIn("expired", body["error"])
-        self.assertEqual(self.fx.bootstrap_list()[1]["applications"], [])
+        self.check(v, [], "JSON object")
+        self.check(v, {}, "missing required field: bootstrap_key")
+        self.check(v, {"bootstrap_key": key, "catalog_service_role": "consumer"},
+                   "unknown field(s): catalog_service_role")
+        for bad in ("not-a-uuid", key.upper(), 5):
+            self.check(v, {"bootstrap_key": bad}, "bootstrap_key must be")
+        self.assertEqual(v({"bootstrap_key": key}), key)
 
 
 # ---------------------------------------------------------------------------
 # HTTP: bootstrap
 # ---------------------------------------------------------------------------
 
-class BootstrapApplyTests(ServerTestCase):
-    def test_apply_consumes_key_and_queues(self):
-        key = self.fx.mint()
-        status, body, _ = self.fx.bootstrap_apply(key)
+KEY_FIELDS = {"bootstrap_key", "status", "catalog_service_role", "note", "created_at", "created_by",
+              "expires_at", "redeemed_at", "redeemed_from", "revoked_at", "revoked_by"}
+
+
+class BootstrapCreateTests(ServerTestCase):
+    def test_create_defaults(self):
+        before = controlplane.utc_now()
+        status, body, _ = self.fx.create()
         self.assertEqual(status, 201)
-        self.assertEqual(set(body), {"application_id", "status", "expires_at", "status_url"})
-        self.assertEqual(body["status"], "pending")
-        self.assertEqual(body["status_url"], "/bootstrap/status?application_id=" + body["application_id"])
-        expires = controlplane.from_iso(body["expires_at"])
-        self.assertAlmostEqual((expires - controlplane.utc_now()).total_seconds(), 24 * 3600, delta=5)
-        self.assertNotIn(HOME_ZONE_KEY, json.dumps(body))
-
+        self.assertEqual(set(body), KEY_FIELDS)
+        self.assertRegex(body["bootstrap_key"], UUID_RE)
+        self.assertEqual((body["status"], body["catalog_service_role"], body["note"], body["created_by"]),
+                         ("available", "consumer", None, "rods"))
+        self.assertEqual((body["redeemed_at"], body["redeemed_from"], body["revoked_at"], body["revoked_by"]),
+                         (None, None, None, None))
+        created = controlplane.from_iso(body["created_at"])
+        self.assertLessEqual(abs((created - before).total_seconds()), 5)
+        self.assertEqual(controlplane.from_iso(body["expires_at"]), created + controlplane.datetime.timedelta(hours=1))
         _, listing, _ = self.fx.bootstrap_list()
-        rec = listing["applications"][0]
-        self.assertEqual(rec["application_id"], body["application_id"])
-        self.assertEqual((rec["catalog_service_role"], rec["bootstrap_key"], rec["remote_address"]),
-                         ("consumer", key, "127.0.0.1"))
-        self.assertEqual((rec["judged_at"], rec["judged_by"], rec["decision_note"]), (None, None, None))
-        used = listing["bootstrap_keys"][0]
-        self.assertEqual((used["status"], used["application_id"]), ("used", body["application_id"]))
-        self.assertIsNotNone(used["used_at"])
-        state = self.fx.state()["bootstrap"]
-        self.assertEqual([r["application_id"] for r in state["applications"]], [body["application_id"]])
-        self.assertEqual(state["keys"][0]["status"], "used")
+        self.assertEqual(listing["bootstrap_keys"], [body])
+        self.assertEqual(self.fx.state()["bootstrap"], {"keys": [body]})
+        # creating reconciles the zone key state too
+        self.assertEqual(self.fx.state()["keyserver"]["zone_key"]["value"], HOME_ZONE_KEY)
+        self.assertNotEqual(self.fx.new_key(), self.fx.new_key())
+        self.assertEqual((self.fx.irods.zones, self.fx.hups()), ({}, 0))
 
-        # single use
-        status, again, _ = self.fx.bootstrap_apply(key)
-        self.assertEqual(status, 403)
-        self.assertIn("not valid", again["error"])
-        self.assertEqual(len(self.fx.bootstrap_list()[1]["applications"]), 1)
-
-        # nothing touched in iRODS
-        self.assertEqual(self.fx.irods.zones, {})
-        self.assertEqual(self.fx.hups(), 0)
-        self.assertEqual(self.fx.server_config(), home_server_config())
-
-    def test_unknown_key_is_403_and_consumes_nothing(self):
-        self.fx.mint()
-        status, body, _ = self.fx.bootstrap_apply(str(uuid.uuid4()))
-        self.assertEqual(status, 403)
-        self.assertIn("not valid", body["error"])
-        _, listing, _ = self.fx.bootstrap_list()
-        self.assertEqual(listing["applications"], [])
-        self.assertEqual(listing["bootstrap_keys"][0]["status"], "available")
+    def test_create_with_lifetime_and_note(self):
+        status, body, _ = self.fx.create("provider", lifetime_in_seconds=600, note="server room")
+        self.assertEqual(status, 201)
+        self.assertEqual((body["catalog_service_role"], body["note"]), ("provider", "server room"))
+        self.assertEqual(controlplane.from_iso(body["expires_at"]) - controlplane.from_iso(body["created_at"]),
+                         controlplane.datetime.timedelta(seconds=600))
 
     def test_validation(self):
-        key = self.fx.mint()
+        cases = [
+            ([], "JSON object"),
+            ({}, "catalog_service_role must be one of"),
+            ({"catalog_service_role": "primary"}, "catalog_service_role must be one of"),
+            ({"catalog_service_role": "consumer", "bootstrap_key": "x"}, "unknown field(s): bootstrap_key"),
+            ({"catalog_service_role": "consumer", "lifetime_in_seconds": 0}, "lifetime_in_seconds"),
+            ({"catalog_service_role": "consumer", "note": "x" * 1025}, "note must be"),
+        ]
+        for body, fragment in cases:
+            status, resp, _ = self.fx.request("POST", "/bootstrap/create", body, auth=RODS)
+            self.assertEqual(status, 400, body)
+            self.assertIn(fragment, resp["error"])
+        self.assertEqual(self.fx.request("POST", "/bootstrap/create", raw_body=b"nope", auth=RODS)[0], 400)
+        self.assertEqual(self.fx.request("POST", "/bootstrap/create", raw_body=b"a" * 70000, auth=RODS)[0], 413)
+        self.assertEqual(self.fx.bootstrap_list()[1]["bootstrap_keys"], [])
+
+    def test_auth_and_method(self):
+        self.assertEqual(self.fx.create(auth=None)[0], 401)
+        self.assertEqual(self.fx.create(auth=("alice", "alicepass"))[0], 403)
+        self.assertEqual(self.fx.create(auth=("unreachable", "x"))[0], 502)
+        # the body is parsed before the credentials are checked
+        self.assertEqual(self.fx.request("POST", "/bootstrap/create", raw_body=b"nope")[0], 400)
+        status, _, headers = self.fx.request("GET", "/bootstrap/create", auth=RODS)
+        self.assertEqual((status, headers["Allow"]), (405, "POST"))
+        self.assertEqual(self.fx.bootstrap_list()[1]["bootstrap_keys"], [])
+
+    def test_missing_content_length_is_400(self):
+        token = base64.b64encode(b"rods:rods").decode()
+        data = raw_http(self.fx.port, "POST /bootstrap/create HTTP/1.0\r\nHost: x\r\nAuthorization: Basic {}\r\n\r\n"
+                        .format(token).encode())
+        self.assertIn("HTTP/1.1 400", data)
+        self.assertIn("Content-Length is required", data)
+
+
+class BootstrapRedeemTests(ServerTestCase):
+    def test_redeem_consumer(self):
+        key = self.fx.new_key()
+        before = controlplane.utc_now()
+        status, body, _ = self.fx.redeem(key)
+        self.assertEqual(status, 200)
+        self.assertEqual(set(body), {"zone_facts"})
+        self.assertEqual(body["zone_facts"], expected_facts("consumer"))
+        self.assertEqual(body["zone_facts"]["zone_key"], HOME_ZONE_KEY)
+        self.assertEqual(body["zone_facts"]["negotiation_key"], HOME_NEGOTIATION_KEY)
+        self.assertNotIn("database", body["zone_facts"])
+        self.assertNotIn("db-secret", json.dumps(body))
+
+        _, listing, _ = self.fx.bootstrap_list()
+        rec = listing["bootstrap_keys"][0]
+        self.assertEqual((rec["status"], rec["redeemed_from"]), ("redeemed", "127.0.0.1"))
+        self.assertLessEqual(abs((controlplane.from_iso(rec["redeemed_at"]) - before).total_seconds()), 5)
+        self.assertEqual(self.fx.state()["bootstrap"]["keys"][0]["status"], "redeemed")
+
+        # single use
+        status, again, _ = self.fx.redeem(key)
+        self.assertEqual(status, 403)
+        self.assertIn("not valid", again["error"])
+        self.assertNotIn("zone_facts", again)
+
+        # nothing touched in iRODS
+        self.assertEqual((self.fx.irods.zones, self.fx.hups()), ({}, 0))
+        self.assertEqual(self.fx.server_config(), home_server_config())
+
+    def test_redeem_provider_includes_database(self):
+        status, body, _ = self.fx.redeem(self.fx.new_key("provider"))
+        self.assertEqual(status, 200)
+        self.assertEqual(body["zone_facts"], expected_facts("provider"))
+        self.assertEqual(body["zone_facts"]["database"], HOME_DATABASE)
+        self.assertIn("db-secret", json.dumps(body))
+
+    def test_role_is_fixed_by_the_key(self):
+        key = self.fx.new_key("consumer")
+        status, body, _ = self.fx.request("POST", "/bootstrap/redeem",
+                                          {"bootstrap_key": key, "catalog_service_role": "provider"})
+        self.assertEqual(status, 400)
+        self.assertIn("unknown field(s): catalog_service_role", body["error"])
+        self.assertEqual(self.fx.bootstrap_list()[1]["bootstrap_keys"][0]["status"], "available")
+
+    def test_unknown_key_is_403_and_consumes_nothing(self):
+        self.fx.new_key()
+        with self.assertLogs("controlplane", level="WARNING") as logs:
+            status, body, _ = self.fx.redeem(str(uuid.uuid4()))
+        self.assertEqual(status, 403)
+        self.assertIn("not valid", body["error"])
+        self.assertTrue(any("refused a bootstrap redemption from 127.0.0.1" in line for line in logs.output),
+                        logs.output)
+        self.assertEqual(self.fx.bootstrap_list()[1]["bootstrap_keys"][0]["status"], "available")
+
+    def test_validation(self):
+        key = self.fx.new_key()
         cases = [
             ([], "JSON object"),
             ({}, "missing required field: bootstrap_key"),
-            ({"bootstrap_key": key}, "missing required field: catalog_service_role"),
-            ({"bootstrap_key": key, "catalog_service_role": "primary"}, "catalog_service_role must be one of"),
-            ({"bootstrap_key": "not-a-uuid", "catalog_service_role": "consumer"}, "bootstrap_key must be"),
-            ({"bootstrap_key": key.upper(), "catalog_service_role": "consumer"}, "bootstrap_key must be"),
-            ({"bootstrap_key": 5, "catalog_service_role": "consumer"}, "bootstrap_key must be"),
-            ({"bootstrap_key": key, "catalog_service_role": "consumer", "host": "h"}, "unknown field(s): host"),
-            ({"bootstrap_key": key, "catalog_service_role": "consumer", "name": "x", "email": "a@b"},
-             "unknown field(s): email, name"),
+            ({"bootstrap_key": "not-a-uuid"}, "bootstrap_key must be"),
+            ({"bootstrap_key": key.upper()}, "bootstrap_key must be"),
+            ({"bootstrap_key": 5}, "bootstrap_key must be"),
+            ({"bootstrap_key": key, "note": "x"}, "unknown field(s): note"),
         ]
         for body, fragment in cases:
-            status, resp, _ = self.fx.request("POST", "/bootstrap/apply", body)
+            status, resp, _ = self.fx.request("POST", "/bootstrap/redeem", body)
             self.assertEqual(status, 400, body)
             self.assertIn(fragment, resp["error"])
-        self.assertEqual(self.fx.request("POST", "/bootstrap/apply", raw_body=b"not json")[0], 400)
-        self.assertEqual(self.fx.request("POST", "/bootstrap/apply", raw_body=b"a" * 70000)[0], 413)
-        _, listing, _ = self.fx.bootstrap_list()
-        self.assertEqual(listing["applications"], [])
-        self.assertEqual(listing["bootstrap_keys"][0]["status"], "available")
-
-    def test_no_duplicate_rule(self):
-        self.assertEqual(self.fx.bootstrap_apply()[0], 201)
-        self.assertEqual(self.fx.bootstrap_apply(role="provider")[0], 201)
-        _, listing, _ = self.fx.bootstrap_list()
-        self.assertEqual([r["catalog_service_role"] for r in listing["applications"]], ["consumer", "provider"])
-        self.assertEqual([k["status"] for k in listing["bootstrap_keys"]], ["used", "used"])
+        self.assertEqual(self.fx.request("POST", "/bootstrap/redeem", raw_body=b"not json")[0], 400)
+        self.assertEqual(self.fx.request("POST", "/bootstrap/redeem", raw_body=b"a" * 70000)[0], 413)
+        self.assertEqual(self.fx.request("GET", "/bootstrap/redeem")[0], 405)
+        self.assertEqual(self.fx.bootstrap_list()[1]["bootstrap_keys"][0]["status"], "available")
 
     def test_x_forwarded_for_is_recorded(self):
-        self.fx.request("POST", "/bootstrap/apply", {"bootstrap_key": self.fx.mint(), "catalog_service_role": "consumer"},
-                        headers={"X-Forwarded-For": "203.0.113.9, 10.0.0.1"})
-        self.assertEqual(self.fx.bootstrap_list()[1]["applications"][0]["remote_address"], "203.0.113.9")
+        key = self.fx.new_key()
+        self.assertEqual(self.fx.redeem(key, headers={"X-Forwarded-For": "203.0.113.9, 10.0.0.1"})[0], 200)
+        self.assertEqual(self.fx.bootstrap_list()[1]["bootstrap_keys"][0]["redeemed_from"], "203.0.113.9")
 
-    def test_list_filters_and_auth(self):
-        _, a, _ = self.fx.bootstrap_apply()
-        _, b, _ = self.fx.bootstrap_apply()
-        self.fx.judge(b["application_id"], "reject", feature="bootstrap")
-        _, listing, _ = self.fx.bootstrap_list()
-        self.assertEqual([r["application_id"] for r in listing["applications"]], [a["application_id"]])
-        self.assertEqual(len(listing["bootstrap_keys"]), 2)  # keys are not filtered
-        _, listing, _ = self.fx.bootstrap_list("?status=rejected")
-        self.assertEqual([r["application_id"] for r in listing["applications"]], [b["application_id"]])
-        self.assertEqual(len(listing["bootstrap_keys"]), 2)
-        self.assertEqual(len(self.fx.bootstrap_list("?status=all")[1]["applications"]), 2)
-        self.assertEqual(self.fx.bootstrap_list("?status=bogus")[0], 400)
-        self.assertEqual(self.fx.bootstrap_list(auth=None)[0], 401)
-        self.assertEqual(self.fx.bootstrap_list(auth=("alice", "alicepass"))[0], 403)
-        self.assertEqual(set(listing), {"applications", "bootstrap_keys"})
-        # federation and bootstrap queues are separate
-        self.assertEqual(self.fx.request("GET", "/federation/list?status=all", auth=RODS)[1]["applications"], [])
-
-
-class BootstrapStatusAndJudgeTests(ServerTestCase):
-    def test_status_pending_and_errors(self):
-        _, a, _ = self.fx.bootstrap_apply()
-        status, body, _ = self.fx.bootstrap_status(a["application_id"])
-        self.assertEqual(status, 200)
-        self.assertEqual(set(body), {"application_id", "status", "catalog_service_role", "submitted_at",
-                                     "expires_at", "judged_at", "decision_note"})
-        self.assertEqual((body["status"], body["catalog_service_role"], body["judged_at"]), ("pending", "consumer", None))
-        self.assertEqual(self.fx.bootstrap_status("nope")[0], 404)
-        self.assertEqual(self.fx.request("GET", "/bootstrap/status")[0], 400)
-        self.assertEqual(self.fx.request("GET", "/bootstrap/status?application_id=")[0], 400)
-        self.assertEqual(self.fx.request("GET", "/bootstrap/status?application_id=a&application_id=b")[0], 400)
-        # ids do not cross features
-        _, f, _ = self.fx.apply()
-        self.assertEqual(self.fx.bootstrap_status(f["application_id"])[0], 404)
-        self.assertEqual(self.fx.request("GET", "/federation/status?application_id=" + a["application_id"])[0], 404)
-
-    def test_reject(self):
-        _, a, _ = self.fx.bootstrap_apply()
-        status, body, _ = self.fx.judge(a["application_id"], "reject", note="not now", feature="bootstrap")
-        self.assertEqual(status, 200)
-        self.assertEqual(set(body), {"application"})
-        rec = body["application"]
-        self.assertEqual((rec["status"], rec["judged_by"], rec["decision_note"]), ("rejected", "rods", "not now"))
-        self.assertIsNotNone(rec["judged_at"])
-        _, s, _ = self.fx.bootstrap_status(a["application_id"])
-        self.assertEqual((s["status"], s["decision_note"]), ("rejected", "not now"))
-        self.assertNotIn("zone_facts", s)
-        status, body, _ = self.fx.judge(a["application_id"], "approve", feature="bootstrap")
-        self.assertEqual(status, 409)
-        self.assertIn("already been rejected", body["error"])
-        self.assertEqual(self.fx.bootstrap_list()[1]["bootstrap_keys"][0]["status"], "used")
-        self.assertEqual((self.fx.irods.zones, self.fx.hups()), ({}, 0))
-
-    def test_approve_consumer_facts(self):
-        _, a, _ = self.fx.bootstrap_apply(role="consumer")
-        status, body, _ = self.fx.judge(a["application_id"], "approve", note="welcome", feature="bootstrap")
-        self.assertEqual(status, 200)
-        self.assertEqual(set(body), {"application"})
-        self.assertEqual(body["application"]["status"], "approved")
-        self.assertNotIn("zone_facts", body)
-
-        status, s, _ = self.fx.bootstrap_status(a["application_id"])
-        self.assertEqual(status, 200)
-        self.assertEqual((s["status"], s["decision_note"]), ("approved", "welcome"))
-        home = home_server_config()
-        expected = {"catalog_service_role": "consumer"}
-        expected.update({k: home[k] for k in controlplane.ZONE_FACT_KEYS})
-        self.assertEqual(s["zone_facts"], expected)
-        self.assertEqual(s["zone_facts"]["zone_key"], HOME_ZONE_KEY)
-        self.assertEqual(s["zone_facts"]["negotiation_key"], HOME_NEGOTIATION_KEY)
-        self.assertNotIn("database", s["zone_facts"])
-        self.assertNotIn("db-secret", json.dumps(s))
-
-        # facts are read at request time
+    def test_facts_are_read_at_redeem_time(self):
+        key = self.fx.new_key()
+        self.assertEqual(self.fx.state()["keyserver"]["zone_key"]["value"], HOME_ZONE_KEY)
         cfg = self.fx.server_config()
         cfg["zone_key"] = "ROTATED_BY_HAND"
         write_json(self.fx.server_config_file, cfg)
-        _, s2, _ = self.fx.bootstrap_status(a["application_id"])
-        self.assertEqual(s2["zone_facts"]["zone_key"], "ROTATED_BY_HAND")
+        with self.assertLogs("controlplane", level="WARNING") as logs:
+            status, body, _ = self.fx.redeem(key)
+        self.assertEqual(status, 200)
+        self.assertEqual(body["zone_facts"]["zone_key"], "ROTATED_BY_HAND")
+        self.assertTrue(any("changed by hand" in line for line in logs.output), logs.output)
         self.assertEqual(self.fx.state()["keyserver"]["zone_key"]["value"], "ROTATED_BY_HAND")
 
-        self.assertEqual(self.fx.judge(a["application_id"], "reject", feature="bootstrap")[0], 409)
-        self.assertEqual((self.fx.irods.zones, self.fx.hups()), ({}, 0))
-        self.assertEqual(self.fx.server_config()["federation"], [])
-
-    def test_missing_fact_in_server_config_is_500(self):
-        _, a, _ = self.fx.bootstrap_apply()
-        self.assertEqual(self.fx.judge(a["application_id"], "approve", feature="bootstrap")[0], 200)
+    def test_missing_fact_leaves_key_available(self):
+        key = self.fx.new_key()
         cfg = self.fx.server_config()
         del cfg["encryption"]
         write_json(self.fx.server_config_file, cfg)
-        status, body, _ = self.fx.bootstrap_status(a["application_id"])
+        status, body, _ = self.fx.redeem(key)
         self.assertEqual(status, 500)
         self.assertIn("encryption", body["error"])
+        self.assertEqual(self.fx.bootstrap_list()[1]["bootstrap_keys"][0]["status"], "available")
+        write_json(self.fx.server_config_file, home_server_config())
+        self.assertEqual(self.fx.redeem(key)[0], 200)
 
-    def test_approve_provider_facts_include_database(self):
-        _, a, _ = self.fx.bootstrap_apply(role="provider")
-        self.assertEqual(self.fx.judge(a["application_id"], "approve", feature="bootstrap")[0], 200)
-        _, s, _ = self.fx.bootstrap_status(a["application_id"])
-        self.assertEqual(s["zone_facts"]["catalog_service_role"], "provider")
-        self.assertEqual(s["zone_facts"]["database"], HOME_DATABASE)
-        self.assertIn("db-secret", json.dumps(s))
 
-    def test_judge_validation_and_cross_feature_ids(self):
-        _, f, _ = self.fx.apply()
-        self.assertEqual(self.fx.judge(f["application_id"], "approve", feature="bootstrap")[0], 404)
-        _, b, _ = self.fx.bootstrap_apply()
-        self.assertEqual(self.fx.judge(b["application_id"], "approve")[0], 404)  # federation judge
-        self.assertEqual(self.fx.irods.zones, {})
-        for body, fragment in (([], "JSON object"), ({"application_id": b["application_id"], "decision": "maybe"},
-                                                      "decision must be"),
-                               ({"application_id": b["application_id"], "decision": "approve", "x": 1}, "unknown field")):
-            status, resp, _ = self.fx.request("POST", "/bootstrap/judge", body, auth=RODS)
+class BootstrapRevokeTests(ServerTestCase):
+    def test_revoke(self):
+        key = self.fx.new_key("provider", note="oops")
+        before = controlplane.utc_now()
+        status, body, _ = self.fx.revoke(key)
+        self.assertEqual(status, 200)
+        self.assertEqual(set(body), {"bootstrap_key"})
+        rec = body["bootstrap_key"]
+        self.assertEqual(set(rec), KEY_FIELDS)
+        self.assertEqual((rec["bootstrap_key"], rec["status"], rec["revoked_by"], rec["note"]),
+                         (key, "revoked", "rods", "oops"))
+        self.assertLessEqual(abs((controlplane.from_iso(rec["revoked_at"]) - before).total_seconds()), 5)
+        self.assertEqual((rec["redeemed_at"], rec["redeemed_from"]), (None, None))
+        self.assertEqual(self.fx.bootstrap_list()[1]["bootstrap_keys"], [rec])
+        self.assertEqual(self.fx.state()["bootstrap"]["keys"], [rec])
+        # a revoked key cannot be redeemed, and is not distinguished from an unknown one
+        status, body, _ = self.fx.redeem(key)
+        self.assertEqual(status, 403)
+        self.assertIn("not valid", body["error"])
+        # nor revoked again
+        status, body, _ = self.fx.revoke(key)
+        self.assertEqual(status, 409)
+        self.assertIn("already revoked", body["error"])
+        self.assertEqual((self.fx.irods.zones, self.fx.hups()), ({}, 0))
+
+    def test_redeemed_key_cannot_be_revoked(self):
+        key = self.fx.new_key()
+        self.assertEqual(self.fx.redeem(key)[0], 200)
+        status, body, _ = self.fx.revoke(key)
+        self.assertEqual(status, 409)
+        self.assertIn("already redeemed", body["error"])
+        self.assertEqual(self.fx.bootstrap_list()[1]["bootstrap_keys"][0]["status"], "redeemed")
+
+    def test_unknown_key_is_404(self):
+        status, body, _ = self.fx.revoke(str(uuid.uuid4()))
+        self.assertEqual(status, 404)
+        self.assertIn("no such bootstrap key", body["error"])
+
+    def test_validation_and_auth(self):
+        key = self.fx.new_key()
+        for body, fragment in (([], "JSON object"), ({}, "missing required field"),
+                               ({"bootstrap_key": "nope"}, "bootstrap_key must be"),
+                               ({"bootstrap_key": key, "x": 1}, "unknown field(s): x")):
+            status, resp, _ = self.fx.request("POST", "/bootstrap/revoke", body, auth=RODS)
             self.assertEqual(status, 400, body)
             self.assertIn(fragment, resp["error"])
-        self.assertEqual(self.fx.judge(b["application_id"], "approve", auth=None, feature="bootstrap")[0], 401)
-        self.assertEqual(self.fx.judge(b["application_id"], "approve", auth=("alice", "alicepass"), feature="bootstrap")[0], 403)
-        self.assertEqual(self.fx.bootstrap_status(b["application_id"])[1]["status"], "pending")
+        self.assertEqual(self.fx.revoke(key, auth=None)[0], 401)
+        self.assertEqual(self.fx.revoke(key, auth=("alice", "alicepass"))[0], 403)
+        self.assertEqual(self.fx.revoke(key, auth=("unreachable", "x"))[0], 502)
+        # the body is parsed before the credentials are checked
+        self.assertEqual(self.fx.request("POST", "/bootstrap/revoke", raw_body=b"nope")[0], 400)
+        self.assertEqual(self.fx.request("POST", "/bootstrap/revoke", raw_body=b"a" * 70000, auth=RODS)[0], 413)
+        self.assertEqual(self.fx.request("GET", "/bootstrap/revoke", auth=RODS)[0], 405)
+        self.assertEqual(self.fx.bootstrap_list()[1]["bootstrap_keys"][0]["status"], "available")
 
 
-class BootstrapExpirationTests(ServerTestCase):
-    config_overrides = {"bootstrap": {"application_expiration_in_seconds": 1}}
-
-    def test_expired_application(self):
-        _, a, _ = self.fx.bootstrap_apply()
-        time.sleep(2.1)
-        _, listing, _ = self.fx.bootstrap_list("?status=expired")
-        self.assertEqual([r["application_id"] for r in listing["applications"]], [a["application_id"]])
-        self.assertEqual(listing["bootstrap_keys"][0]["status"], "used")  # a used key stays used
-        status, body, _ = self.fx.judge(a["application_id"], "approve", feature="bootstrap")
-        self.assertEqual(status, 410)
-        self.assertEqual(self.fx.bootstrap_status(a["application_id"])[1]["status"], "expired")
-
-
-class BootstrapQueueFullTests(ServerTestCase):
-    config_overrides = {"bootstrap": {"max_pending_applications": 1}}
-
-    def test_queue_full_is_503_and_keeps_key(self):
-        self.assertEqual(self.fx.bootstrap_apply()[0], 201)
-        key = self.fx.mint()
-        status, body, _ = self.fx.bootstrap_apply(key)
-        self.assertEqual(status, 503)
-        self.assertIn("bootstrap application queue is full", body["error"])
-        self.assertEqual([k["status"] for k in self.fx.bootstrap_list()[1]["bootstrap_keys"]], ["used", "available"])
+class BootstrapListTests(ServerTestCase):
+    def test_filters_order_and_auth(self):
+        a = self.fx.new_key("consumer")
+        time.sleep(1.1)  # distinct created_at seconds
+        b = self.fx.new_key("provider")
+        c = self.fx.new_key("consumer", note="third")
+        self.assertEqual(self.fx.redeem(b)[0], 200)
+        self.assertEqual(self.fx.revoke(c)[0], 200)
+        status, body, _ = self.fx.bootstrap_list()
+        self.assertEqual(status, 200)
+        self.assertEqual(set(body), {"bootstrap_keys"})
+        self.assertEqual([k["bootstrap_key"] for k in body["bootstrap_keys"]], [a, b, c])
+        self.assertEqual([k["status"] for k in body["bootstrap_keys"]], ["available", "redeemed", "revoked"])
+        for wanted, keys in (("available", [a]), ("redeemed", [b]), ("revoked", [c]), ("expired", []),
+                             ("all", [a, b, c])):
+            _, body, _ = self.fx.bootstrap_list("?status=" + wanted)
+            self.assertEqual([k["bootstrap_key"] for k in body["bootstrap_keys"]], keys, wanted)
+        status, body, _ = self.fx.bootstrap_list("?status=pending")
+        self.assertEqual(status, 400)
+        self.assertIn("status must be one of", body["error"])
+        self.assertEqual(self.fx.bootstrap_list("?status=all&status=available")[0], 400)
+        self.assertEqual(self.fx.bootstrap_list(auth=None)[0], 401)
+        self.assertEqual(self.fx.bootstrap_list(auth=("alice", "alicepass"))[0], 403)
         # the federation queue is separate
-        self.assertEqual(self.fx.apply()[0], 201)
+        self.assertEqual(self.fx.request("GET", "/federation/list?status=all", auth=RODS)[1]["applications"], [])
+
+
+class BootstrapKeyExpiryTests(ServerTestCase):
+    config_overrides = {"keyserver": {"lifetime_of_bootstrap_keys_in_seconds": 1}}
+
+    def test_expired_key_is_refused_listed_and_unrevokable(self):
+        key = self.fx.new_key()
+        long_lived = self.fx.new_key(lifetime_in_seconds=3600)
+        time.sleep(2.1)
+        _, listing, _ = self.fx.bootstrap_list()
+        self.assertEqual([k["status"] for k in listing["bootstrap_keys"]], ["expired", "available"])
+        status, body, _ = self.fx.redeem(key)
+        self.assertEqual(status, 403)
+        self.assertIn("expired", body["error"])
+        status, body, _ = self.fx.revoke(key)
+        self.assertEqual(status, 409)
+        self.assertIn("already expired", body["error"])
+        self.assertEqual(self.fx.bootstrap_list("?status=expired")[1]["bootstrap_keys"][0]["bootstrap_key"], key)
+        self.assertEqual(self.fx.redeem(long_lived)[0], 200)
 
 
 class BootstrapConcurrencyTests(ServerTestCase):
     def test_single_use_under_concurrency(self):
-        key = self.fx.mint()
+        key = self.fx.new_key()
         results = []
         barrier = threading.Barrier(16)
 
         def go():
             barrier.wait()
-            results.append(self.fx.bootstrap_apply(key)[0])
+            results.append(self.fx.redeem(key)[0])
         threads = [threading.Thread(target=go) for _ in range(16)]
         for t in threads:
             t.start()
         for t in threads:
             t.join()
-        self.assertEqual(sorted(results), [201] + [403] * 15)
+        self.assertEqual(sorted(results), [200] + [403] * 15)
         _, listing, _ = self.fx.bootstrap_list()
-        self.assertEqual(len(listing["applications"]), 1)
-        self.assertEqual(listing["bootstrap_keys"][0]["application_id"], listing["applications"][0]["application_id"])
+        self.assertEqual([k["status"] for k in listing["bootstrap_keys"]], ["redeemed"])
 
 
 # ---------------------------------------------------------------------------

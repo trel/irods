@@ -13,17 +13,18 @@ provider. It offers three features, each a group of endpoints:
   home-zone side of the federation and hands the applicant everything it
   needs for its own side.
 - **keyserver** — a rodsadmin can read the lifecycle of the home zone's
-  `zone_key` (the current key, its expiry, and the already-minted next key)
-  and can mint single-use *bootstrap keys* to hand to the operator of a new
-  server out of band. The zone-key information is what iRODS servers will
-  later use to rotate the zone key automatically; rotation itself is not
-  performed by this iteration.
-- **bootstrap** — a new server that wants to join the home zone as a catalog
-  consumer or as an additional catalog provider presents a bootstrap key, a
-  rodsadmin approves or rejects, and on approval the service returns the
-  *zone facts* the operator needs to fill in a `json_configuration_file`
-  for `setup_irods.py` and join the zone. Nothing is done inside the home
-  zone's iRODS instance for a bootstrap approval.
+  `zone_key` (the current key, its expiry, and the already-minted next key).
+  The zone-key information is what iRODS servers will later use to rotate
+  the zone key automatically; rotation itself is not performed by this
+  iteration.
+- **bootstrap** — a rodsadmin creates a single-use *bootstrap key* bound to
+  a catalog service role and hands it to the operator of a new server out
+  of band. The operator redeems the key, unauthenticated, within its
+  lifetime and receives in the same response the *zone facts* needed to
+  fill in a `json_configuration_file` for `setup_irods.py` and join the
+  home zone as a catalog consumer or an additional catalog provider.
+  Creating the key is the approval; no one judges a redemption. Nothing is
+  done inside the home zone's iRODS instance for a redemption.
 
 The service assumes it is reached only through a TLS-terminating reverse
 proxy, so the channel to every client is already encrypted. It therefore
@@ -87,8 +88,7 @@ Relative paths resolve against the configuration file's directory.
 | `server_config_file` | string | `/etc/irods/server_config.json` | Home zone server configuration: edited by federation approval, read by keyserver and bootstrap |
 | `server_pid_file` | string | `/var/run/irods/irods-server.pid` | Used to send SIGHUP after a federation approval edits the server config |
 | `federation` | object | `{}` | Section 4.2 |
-| `bootstrap` | object | `{}` | Section 4.3 |
-| `keyserver` | object | `{}` | Section 4.4 |
+| `keyserver` | object | `{}` | Section 4.3 |
 
 ### 4.2 `federation` keys
 
@@ -97,33 +97,25 @@ Relative paths resolve against the configuration file's directory.
 | `application_expiration_in_seconds` | integer > 0 | `604800` (7 days) | Pending federation applications older than this expire |
 | `max_pending_applications` | integer > 0 | `100` | `/federation/apply` returns 503 when this many are pending |
 
-### 4.3 `bootstrap` keys
-
-| Key | Type | Default | Meaning |
-|---|---|---|---|
-| `application_expiration_in_seconds` | integer > 0 | `86400` (1 day) | Pending bootstrap applications older than this expire |
-| `max_pending_applications` | integer > 0 | `100` | `/bootstrap/apply` returns 503 when this many are pending |
-
-### 4.4 `keyserver` keys
+### 4.3 `keyserver` keys
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `lifetime_of_zone_keys_in_seconds` | integer > 0 | `7776000` (90 days) | How long a `zone_key` is meant to stay current before rotation |
-| `lifetime_of_bootstrap_keys_in_seconds` | integer > 0 | `86400` (1 day) | A minted bootstrap key that is not used within this time expires |
+| `lifetime_of_bootstrap_keys_in_seconds` | integer > 0 | `3600` (1 hour) | Default lifetime of a bootstrap key; `/bootstrap/create` may override it per key |
 
-Every bootstrap key is single use; there is no per-key use count.
+Every bootstrap key is single use.
 
-### 4.5 Example
+### 4.4 Example
 
 ```json
 {
   "federation": {"application_expiration_in_seconds": 1209600},
-  "bootstrap": {"application_expiration_in_seconds": 3600},
   "keyserver": {"lifetime_of_bootstrap_keys_in_seconds": 7200}
 }
 ```
 
-### 4.6 iRODS connection information
+### 4.5 iRODS connection information
 
 The service does not take iRODS host, port, zone, or user in its own config.
 It reads the service account's `irods_environment_file` (and the matching
@@ -156,8 +148,8 @@ file is a startup error, not something to silently overwrite.
 {
   "schema_version": 1,
   "federation": {"applications": [ ...5.2... ]},
-  "bootstrap":  {"applications": [ ...5.3... ], "keys": [ ...5.4... ]},
-  "keyserver":  { ...5.5... }
+  "bootstrap":  {"keys": [ ...5.3... ]},
+  "keyserver":  { ...5.4... }
 }
 ```
 
@@ -187,41 +179,29 @@ All timestamps are ISO 8601 in UTC with a `Z` suffix and whole seconds.
 | `judged_by` | service | iRODS username of the admin, null until judged |
 | `decision_note` | admin | free text, optional, max 1024 chars |
 
-### 5.3 Bootstrap application record
-
-| Field | Set by | Notes |
-|---|---|---|
-| `application_id` | service | `uuid4` string, bearer for `status` |
-| `status` | service | `pending`, `approved`, `rejected`, `expired` |
-| `submitted_at` | service | |
-| `expires_at` | service | `submitted_at + bootstrap.application_expiration_in_seconds` |
-| `remote_address` | service | as in 5.2 |
-| `catalog_service_role` | applicant | `consumer` or `provider` |
-| `bootstrap_key` | applicant | the key that authorized this application, stored so `list` shows which key was used |
-| `judged_at` | service | null until judged |
-| `judged_by` | service | null until judged |
-| `decision_note` | admin | optional, max 1024 chars |
-
-A bootstrap application carries no `name`, `email`, or host: the applicant is
-inside the same zone and fills in its own host-specific settings.
-
-### 5.4 Bootstrap key record
+### 5.3 Bootstrap key record
 
 | Field | Set by | Notes |
 |---|---|---|
 | `bootstrap_key` | service | `uuid4` string, the secret handed to the operator out of band |
-| `status` | service | `available`, `used`, `expired` |
+| `status` | service | `available`, `redeemed`, `expired`, `revoked` |
+| `catalog_service_role` | admin | `consumer` or `provider`; decides what `redeem` releases |
+| `note` | admin | free text for the admin's own bookkeeping, optional, max 1024 chars, null when absent |
 | `created_at` | service | |
-| `created_by` | service | iRODS username of the admin who minted it |
-| `expires_at` | service | `created_at + keyserver.lifetime_of_bootstrap_keys_in_seconds` |
-| `used_at` | service | null until used |
-| `application_id` | service | the bootstrap application that consumed it, null until used |
+| `created_by` | service | iRODS username of the admin who created it |
+| `expires_at` | service | `created_at + lifetime`, where lifetime is the `lifetime_in_seconds` given at creation, else `keyserver.lifetime_of_bootstrap_keys_in_seconds` |
+| `redeemed_at` | service | null until redeemed |
+| `redeemed_from` | service | peer IP of the `redeem` request (proxy's `X-Forwarded-For` first value if present, else socket peer), null until redeemed |
+| `revoked_at` | service | null unless revoked |
+| `revoked_by` | service | iRODS username of the admin who revoked it, null unless revoked |
 
-A key is consumed at the moment a bootstrap application is accepted (`201`),
-in the same lock and the same state write. A submission that fails for any
-other reason does not consume the key. A used key is never revived.
+A key is consumed at the moment a redemption succeeds (`200`), in the same
+lock and the same state write that delivers the facts. A redemption that
+fails for any reason, including a home `server_config_file` that cannot be
+read, does not consume the key. A redeemed, expired, or revoked key is
+never revived.
 
-### 5.5 Zone key state
+### 5.4 Zone key state
 
 ```json
 {
@@ -233,7 +213,7 @@ other reason does not consume the key. A used key is never revived.
 `zone_key.value` is always the key currently in `server_config_file`; the
 state records when the service first saw it (`issued_at`) and when it is
 meant to be rotated (`expires_at = issued_at + lifetime_of_zone_keys_in_seconds`).
-`next_zone_key` is minted by the service (section 5.7) and is the key the
+`next_zone_key` is minted by the service (section 5.6) and is the key the
 zone will rotate to; its `expires_at` is `zone_key.expires_at + lifetime`,
 the moment it would in turn be rotated out after becoming current.
 
@@ -255,7 +235,7 @@ The service never writes `zone_key` into `server_config_file` in this
 iteration; rotation is performed elsewhere, later. `negotiation_key` does
 not rotate and is not tracked.
 
-### 5.6 Validation rules
+### 5.5 Validation rules
 
 Derived from `schemas/configuration/v5/server_config.json.in`.
 
@@ -268,11 +248,13 @@ Derived from `schemas/configuration/v5/server_config.json.in`.
 | `negotiation_key` | `^[A-Za-z0-9_]{32}$` |
 | `catalog_service_role` | `consumer` or `provider` |
 | `bootstrap_key` | string in canonical `uuid4` text form, lower case |
+| `lifetime_in_seconds` | integer > 0 |
+| `note` | string ≤ 1024 chars |
 | `decision_note` | string ≤ 1024 chars |
 | `name` | string, 1–256 chars, no other rule |
 | `email` | string, 3–254 chars, exactly one `@` with at least one character on each side, no other rule, never verified |
 
-### 5.7 Key generation
+### 5.6 Key generation
 
 Generated `zone_key`, `negotiation_key`, and `next_zone_key` values use
 `secrets.choice` over the alphabet `A-Za-z0-9_` (64 symbols) and are 32
@@ -325,23 +307,21 @@ is the one to fix.
 | `GET /federation/list` | rodsadmin | 7.1.3 |
 | `POST /federation/judge` | rodsadmin | 7.1.4 |
 | `GET /keyserver/local_zone` | rodsadmin | 7.2.1 |
-| `PUT /keyserver/bootstrap` | rodsadmin | 7.2.2 |
-| `POST /bootstrap/apply` | none | 7.3.1 |
-| `GET /bootstrap/status` | none | 7.3.2 |
-| `GET /bootstrap/list` | rodsadmin | 7.3.3 |
-| `POST /bootstrap/judge` | rodsadmin | 7.3.4 |
+| `POST /bootstrap/create` | rodsadmin | 7.3.1 |
+| `POST /bootstrap/redeem` | none | 7.3.2 |
+| `POST /bootstrap/revoke` | rodsadmin | 7.3.3 |
+| `GET /bootstrap/list` | rodsadmin | 7.3.4 |
 
 ### 7.0 `GET /info` — unauthenticated
 
-Publishes what an applicant needs to know before applying. No iRODS
-connection is made. Response `200`:
+Publishes what a federation applicant needs to know before applying. No
+iRODS connection is made. Response `200`:
 
 ```json
 {
   "service": "controlplane",
   "version": "0.1.0",
-  "federation": {"application_expiration_in_seconds": 604800},
-  "bootstrap": {"application_expiration_in_seconds": 86400}
+  "federation": {"application_expiration_in_seconds": 604800}
 }
 ```
 
@@ -530,8 +510,8 @@ with an `error` naming the step. The admin can retry after fixing the cause.
 
 ### 7.2 Keyserver
 
-Both endpoints require a rodsadmin (section 6). Both reconcile the zone key
-state against `server_config_file` first (5.5).
+The endpoint requires a rodsadmin (section 6) and reconciles the zone key
+state against `server_config_file` first (5.4).
 
 #### 7.2.1 `GET /keyserver/local_zone` — rodsadmin
 
@@ -559,94 +539,75 @@ A server wanting to rotate itself needs `next_zone_key.value` and
 and the channel is the proxy's TLS. No iRODS write is performed. The
 response carries `Cache-Control: no-store`.
 
-#### 7.2.2 `PUT /keyserver/bootstrap` — rodsadmin
+### 7.3 Bootstrap
 
-Mints one single-use bootstrap key for the admin to hand to the operator of
-a new server out of band. The request has no body, or an empty JSON object;
-anything else → `400`. `PUT` is used because the call creates state.
+Every bootstrap endpoint reconciles the zone key state (5.4) first, under
+the lock.
 
-Response `201`:
+#### 7.3.1 `POST /bootstrap/create` — rodsadmin
+
+Creates one single-use bootstrap key for the admin to hand to the operator
+of a new server out of band. Request:
+
+```json
+{
+  "catalog_service_role": "consumer",
+  "lifetime_in_seconds": 3600,
+  "note": "new consumer for the imaging lab"
+}
+```
+
+`catalog_service_role` is required and fixes what the key releases: a
+`provider` key additionally releases the zone's database credentials.
+`lifetime_in_seconds` is optional and defaults to
+`keyserver.lifetime_of_bootstrap_keys_in_seconds`. `note` is optional and
+is shown back to admins by `list`; the service never interprets it.
+
+- Extra keys → `400`. Missing or invalid `catalog_service_role` → `400`.
+  `lifetime_in_seconds` or `note` failing 5.5 → `400`.
+- Otherwise persist and respond `201` with the 5.3 record:
 
 ```json
 {
   "bootstrap_key": "0b2f...-...",
   "status": "available",
+  "catalog_service_role": "consumer",
+  "note": "new consumer for the imaging lab",
   "created_at": "2026-11-01T15:04:05Z",
   "created_by": "rods",
-  "expires_at": "2026-11-02T15:04:05Z",
-  "used_at": null,
-  "application_id": null
+  "expires_at": "2026-11-01T16:04:05Z",
+  "redeemed_at": null,
+  "redeemed_from": null,
+  "revoked_at": null,
+  "revoked_by": null
 }
 ```
 
-The key is a `uuid4` and is stored as a 5.4 record. There is no limit on the
-number of available keys; an admin can see and reason about them in
-`/bootstrap/list`.
+There is no limit on the number of available keys; an admin can see and
+reason about them in `/bootstrap/list`.
 
-### 7.3 Bootstrap
-
-#### 7.3.1 `POST /bootstrap/apply` — unauthenticated
+#### 7.3.2 `POST /bootstrap/redeem` — unauthenticated
 
 Request:
 
 ```json
-{
-  "bootstrap_key": "0b2f...-...",
-  "catalog_service_role": "consumer"
-}
+{ "bootstrap_key": "0b2f...-..." }
 ```
-
-`catalog_service_role` says whether the new server will be a catalog
-consumer or an additional catalog provider of the home zone; a provider
-additionally receives the zone's database credentials on approval.
 
 Behavior:
 
-1. Validate per 5.6. Extra keys → `400`. Missing `bootstrap_key` or
-   `catalog_service_role` → `400`.
-2. If `bootstrap.max_pending_applications` pending bootstrap records exist →
-   `503`.
-3. Look up the bootstrap key. Unknown, already used, or expired → `403` with
-   an error saying the bootstrap key is not valid (used and unknown keys
-   are not distinguished; an expired key says so). Nothing is consumed.
-4. Create the record, mark the key `used` with `used_at` and
-   `application_id`, persist both in one write, respond `201`:
+1. Validate per 5.5. Extra keys → `400`. Missing `bootstrap_key` → `400`.
+2. Look up the key. Unknown, redeemed, or revoked → `403` with an error
+   saying the bootstrap key is not valid (the three are not
+   distinguished); expired → `403` saying so. Nothing is consumed. A
+   refused redemption is logged at WARNING with the remote address.
+3. Read the zone facts for the key's role from `server_config_file`. A
+   failure here → `500`; the key is not consumed.
+4. Mark the key `redeemed` with `redeemed_at` and `redeemed_from`, persist,
+   and respond `200`:
 
 ```json
 {
-  "application_id": "9c41...",
-  "status": "pending",
-  "expires_at": "2026-11-02T15:04:05Z",
-  "status_url": "/bootstrap/status?application_id=9c41..."
-}
-```
-
-Nothing secret is returned at apply time; the facts are released by
-`status` once approved.
-
-`apply` performs no iRODS operations. There is no duplicate rule: two
-operators holding two keys may both apply.
-
-#### 7.3.2 `GET /bootstrap/status?application_id=<uuid>` — unauthenticated
-
-The `application_id` acts as the bearer token.
-
-- Missing, empty, or repeated `application_id` → `400`. Unknown id → `404`.
-- Otherwise `200` with `application_id`, `status`, `catalog_service_role`,
-  `submitted_at`, `expires_at`, `judged_at`, `decision_note`.
-- When `status` is `approved` the response also includes `zone_facts`, read
-  from `server_config_file` at request time after reconciling the zone key
-  state (5.5):
-
-```json
-{
-  "application_id": "9c41...",
-  "status": "approved",
-  "catalog_service_role": "provider",
-  "submitted_at": "2026-11-01T15:04:05Z",
-  "expires_at": "2026-11-02T15:04:05Z",
-  "judged_at": "2026-11-01T16:00:00Z",
-  "decision_note": null,
   "zone_facts": {
     "catalog_service_role": "provider",
     "schema_name": "server_config",
@@ -675,14 +636,17 @@ The `application_id` acts as the bearer token.
 }
 ```
 
+The facts are delivered exactly once. No endpoint returns them again; an
+operator who loses the response asks the admin for a new key.
+
 Rules for `zone_facts`:
 
 - Every value is copied verbatim from the home provider's
   `server_config_file`; nothing is invented or rewritten. `zone_key` is the
   key currently in that file, which is also `zone_key.value` of 7.2.1.
-- `database` is present only when `catalog_service_role` is `provider` and
-  is `plugin_configuration.database` copied whole, including `password`. A
-  consumer never receives it.
+- `database` is present only when the key's `catalog_service_role` is
+  `provider` and is `plugin_configuration.database` copied whole, including
+  `password`. A consumer key never releases it.
 - `database.host` is whatever the home provider uses, which may be
   `localhost`; the operator of a new provider on another machine must
   substitute an address that reaches the same database. The spec calls this
@@ -699,52 +663,53 @@ The admin password of the zone is **not** part of the facts. The service
 cannot reliably recover it (with newer iRODS authentication `.irodsA` is no
 longer reversible), so the operator obtains it out of band for now.
 
-#### 7.3.3 `GET /bootstrap/list?status=<filter>` — rodsadmin
+`redeem` performs no iRODS operations and needs no iRODS connection.
 
-- `status` filters applications exactly as 7.1.3; it does not filter keys.
+#### 7.3.3 `POST /bootstrap/revoke` — rodsadmin
+
+Withdraws a key that has not been redeemed. Request:
+
+```json
+{ "bootstrap_key": "0b2f...-..." }
+```
+
+- Extra keys → `400`. Missing `bootstrap_key` → `400`.
+- Unknown key → `404`.
+- Status `redeemed`, `expired`, or `revoked` → `409` with an error naming
+  the status.
+- Status `available` → set `status=revoked`, `revoked_at`, `revoked_by`;
+  persist; respond `200` with `{"bootstrap_key": {...5.3 record...}}`.
+
+The body is read and parsed before the credentials are checked, as for
+`judge`.
+
+#### 7.3.4 `GET /bootstrap/list?status=<filter>` — rodsadmin
+
+- `status` is one of `available`, `redeemed`, `expired`, `revoked`, `all`
+  (default). Anything else, or a repeated parameter → `400`.
 - Response `200`:
 
 ```json
-{
-  "applications": [ { ...5.3... }, ... ],
-  "bootstrap_keys": [ { ...5.4... }, ... ]
-}
+{ "bootstrap_keys": [ { ...5.3... }, ... ] }
 ```
 
-Applications are ordered by `submitted_at` ascending and returned in full,
-including the `bootstrap_key` each one used. `bootstrap_keys` is every key
-the service has minted, in every status, ordered by `created_at` ascending,
-so the admin can see which are still available and when each expires, which
-were used and by which application, and which expired unused.
-
-#### 7.3.4 `POST /bootstrap/judge` — rodsadmin
-
-Request and validation exactly as 7.1.4: `application_id`, `decision`,
-optional `decision_note`; `400`, `404`, `409`, `410` as there.
-
-**Reject:** set `status=rejected`, `judged_at`, `judged_by`,
-`decision_note`; persist; respond `200` with `{"application": {...record...}}`.
-
-**Approve:** set `status=approved`, `judged_at`, `judged_by`,
-`decision_note`; persist; respond `200` with `{"application": {...record...}}`.
-Nothing is done in the home zone's iRODS instance: a consumer needs no
-catalog registration before `setup_irods.py`, and a provider shares the
-existing database. Approval only releases `zone_facts` to `status`. The
-judge response does not include the facts; the operator retrieves them with
-the `application_id`.
+Ordered by `created_at` ascending. Records are returned in full because the
+caller is a rodsadmin, so the admin can see which keys are still available
+and when each expires, which were redeemed, when, and from which address,
+and which were revoked or expired unused.
 
 ## 8. Expiration
 
 No background thread. At the start of every request, under the lock:
 
-- every `pending` federation or bootstrap application whose `expires_at` is
-  in the past becomes `expired`;
+- every `pending` federation application whose `expires_at` is in the past
+  becomes `expired`;
 - every `available` bootstrap key whose `expires_at` is in the past becomes
   `expired`;
 
 and the state file is persisted if anything changed. Expired records and
 keys remain in the state file indefinitely. Zone keys are not swept; their
-expiry is informational and is reconciled per 5.5.
+expiry is informational and is reconciled per 5.4.
 
 ## 9. Concurrency
 
@@ -753,8 +718,9 @@ listen backlog of 128 so a burst of simultaneous connections is queued
 rather than reset. One process-wide `threading.Lock` guards every
 read-modify-write of the in-memory state and the state file, the whole of
 the federation approve sequence (7.1.4) so two admins cannot approve
-conflicting applications at once, the bootstrap key consumption of 7.3.1
-so one key cannot be used twice, and the zone key reconciliation of 5.5.
+conflicting applications at once, the bootstrap key redemption of 7.3.2
+so one key cannot be redeemed twice, and the zone key reconciliation of
+5.4.
 iRODS connections are per request and are not shared across threads.
 
 ## 10. Logging and signals
@@ -763,10 +729,11 @@ iRODS connections are per request and are not shared across threads.
   status code, and the admin username for authenticated calls. Passwords
   and keys, including bootstrap keys and zone keys, are never logged.
 - Apply log lines say which feature the application is for.
-- Bootstrap key minting and consumption, zone key adoption and rotation
-  detection, approve/reject decisions, and every step of the federation
-  approve sequence are logged at INFO; failures at ERROR with the exception
-  text; a hand-changed zone key at WARNING.
+- Bootstrap key creation, redemption, and revocation, zone key adoption
+  and rotation detection, approve/reject decisions, and every step of the
+  federation approve sequence are logged at INFO; failures at ERROR with
+  the exception text; a hand-changed zone key and a refused redemption at
+  WARNING.
 - `SIGTERM` and `SIGINT` stop the server cleanly after in-flight requests
   finish. The state is always consistent on disk because every change is
   persisted before its response is sent.
@@ -785,10 +752,11 @@ iRODS connections are per request and are not shared across threads.
   an unresolvable remote zone host slows every home zone agent start by
   about 30 seconds. This also means a host must be resolvable from the
   service's host at judge time.
-- The two `apply` endpoints are the only unauthenticated writes; both are
-  bounded by `max_pending_applications`, `max_request_body_bytes`, and
-  strict field validation, federation by its 409 duplicate rule and
-  bootstrap by the single-use key.
+- `/federation/apply` and `/bootstrap/redeem` are the only unauthenticated
+  writes. Both are bounded by `max_request_body_bytes` and strict field
+  validation; `apply` further by `max_pending_applications` and its 409
+  duplicate rule, `redeem` by the single-use key, so a request without a
+  valid key changes nothing.
 - `/federation/status` reveals the home zone's `zone_key` only for approved
   applications and only to a holder of the matching 122-bit random
   `application_id`.
@@ -796,14 +764,18 @@ iRODS connections are per request and are not shared across threads.
   admins as supplied. They are not verified, not used to contact anyone,
   and not returned to applicants.
 - A bootstrap key is a 122-bit random bearer token, single use, with a
-  default one-day lifetime. It authorizes only the submission of an
-  application; a rodsadmin still judges it. Possession of a key reveals
-  nothing until approval.
+  default one-hour lifetime that the creating admin can shorten or extend
+  per key. Creating it is the approval: whoever redeems it within its
+  lifetime receives the zone facts with no further human step, so a key
+  must be handed over as carefully as the secrets it releases.
+  `/bootstrap/revoke` withdraws an unredeemed key at any time, and
+  `/bootstrap/list` shows every redemption with its source address so an
+  unexpected one is visible.
 - `zone_facts` reveals the home zone's own `zone_key` and `negotiation_key`
-  and, for a provider, the database password. These are exactly what a
-  new server in the zone must have, and they are released only for an
-  approved application and only to a holder of the matching
-  `application_id`.
+  and, for a provider key, the database password. These are exactly what a
+  new server in the zone must have. The role is fixed by the admin at
+  creation, not chosen by the redeemer, so a consumer key can never fetch
+  the database password.
 - The federation feature never discloses the home zone's top-level
   `negotiation_key`; the bootstrap feature must, because a server in the
   same zone needs it. The two features are distinct code paths and the
@@ -825,9 +797,9 @@ iRODS connections are per request and are not shared across threads.
   the next key.
 - Rotating `negotiation_key`.
 - Returning the zone's admin password in `zone_facts`.
-- Any iRODS action on bootstrap approval, such as pre-creating a resource.
-- Per-key use counts for bootstrap keys; every key is single use.
-- Revoking a bootstrap key before it expires or is used.
+- Any iRODS action on redemption, such as pre-creating a resource.
+- Returning the zone facts a second time after a lost `redeem` response;
+  the operator asks for a new key.
 - Application-layer encryption of applicant secrets independent of the
   transport; TLS termination is required instead.
 - TLS in-process; refusing to bind a non-loopback address; purging or
@@ -853,21 +825,23 @@ Run the service as the `irods` service account against the local zone with
    and the log says a rotation was detected. Restore the original key the
    same way; call again → the log warns about a hand-changed key and the
    state re-adopts it.
-4. `PUT /keyserver/bootstrap` as `rods` → `201` with a key;
-   `GET /bootstrap/list` shows it as `available`.
-5. `POST /bootstrap/apply` with the key and `catalog_service_role:
-   consumer` → `201`. Submit again with the same key → `403`, the key is
-   used. `GET /bootstrap/list` shows the key `used` with the
-   `application_id`.
-6. `GET /bootstrap/status` → `pending`. `POST /bootstrap/judge` approve as
-   `rods` → `200`. `GET /bootstrap/status` → `approved` with `zone_facts`
-   matching `server_config.json` and no `database`.
-7. Mint a second key, apply as `provider`, approve, and confirm the facts
-   include `database` with the password from `server_config.json`. Confirm
-   `iadmin lz`, `server_config.json`, and the server log are unchanged by
-   all bootstrap steps.
-8. Mint a third key with `lifetime_of_bootstrap_keys_in_seconds: 1`, wait,
-   `GET /bootstrap/list` shows it `expired`, apply with it → `403`.
+4. `POST /bootstrap/create` as `rods` with `catalog_service_role:
+   consumer` → `201` with a key whose `expires_at` is one hour after
+   `created_at`; `GET /bootstrap/list` shows it `available`. Without auth
+   → `401`; as a rodsuser → `403`; with no role → `400`.
+5. `POST /bootstrap/redeem` with the key → `200` with `zone_facts`
+   matching `server_config.json` and no `database`. Redeem again → `403`,
+   the key is not valid. `GET /bootstrap/list` shows the key `redeemed`
+   with `redeemed_at` and `redeemed_from`.
+6. Create a `provider` key with `lifetime_in_seconds: 120` and a `note`,
+   redeem it, and confirm the facts include `database` with the password
+   from `server_config.json`. Confirm `iadmin lz`, `server_config.json`,
+   and the server log are unchanged by all bootstrap steps.
+7. Create a key with `lifetime_in_seconds: 1`, wait, `GET /bootstrap/list`
+   shows it `expired`, redeem it → `403` saying expired.
+8. Create a key and `POST /bootstrap/revoke` it → `200` with status
+   `revoked`; redeem it → `403`; revoke it again → `409`; revoke an unknown
+   key → `404`.
 9. Clean up: stop the service and delete its state file; nothing in iRODS
    needs restoring.
 
@@ -904,10 +878,12 @@ and server_config.json, and a child process that records the SIGHUP it
 receives. It covers the federation feature (validation, expiration,
 authentication, listing, reject, and every approve step with its rollbacks
 and the reload retry), the keyserver (adoption, steady state, rotation
-detection, hand-change warning, state file mode, minting, expiry), the
-bootstrap feature (every validation, key consumption under concurrency,
-used and expired keys, facts for both roles, database only for providers,
-no iRODS writes), the nested configuration, the state file, and `main()`.
+detection, hand-change warning, state file mode), the bootstrap feature
+(creation with the default and an overridden lifetime, every validation,
+redemption under concurrency, redeemed, expired, and revoked keys, facts
+for both roles, database only for provider keys, a missing fact leaving
+the key unconsumed, revocation, listing, no iRODS writes), the nested
+configuration, the state file, and `main()`.
 Live tests run against a real zone only when
 `CONTROLPLANE_LIVE_IRODS_ENV_FILE` and `CONTROLPLANE_LIVE_ADMIN_PASSWORD`
 are set (plus `CONTROLPLANE_LIVE_RODSUSER` and
