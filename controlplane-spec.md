@@ -1,6 +1,6 @@
 # iRODS Control Plane Service — Specification
 
-Status: draft, agreed 2026-11-01.
+Status: draft, agreed 2026-11-05.
 
 ## 1. Purpose
 
@@ -25,6 +25,11 @@ provider. It offers three features, each a group of endpoints:
   for `setup_irods.py` and join the zone. Nothing is done inside the home
   zone's iRODS instance for a bootstrap approval.
 
+The service assumes it is reached only through a TLS-terminating reverse
+proxy, so the channel to every client is already encrypted. It therefore
+does no cryptography of its own: secrets are plain JSON fields in requests
+and responses, and the only use of randomness is generating keys and ids.
+
 The first iteration is a standalone process. A later iteration may have the
 iRODS server keep it alive as a child process. Nothing in this design assumes
 either mode.
@@ -36,29 +41,24 @@ All files live at the top level of the repository.
 - `controlplane.py` — the whole service in one Python file.
 - `controlplane-spec.md` — this document, the authoritative specification.
 - `controlplane-openapi.yaml` — an OpenAPI 3.0.3 description of the HTTP
-  surface (section 16). A companion to this document, not a replacement.
-- `test_controlplane.py` — the automated tests (section 15).
+  surface (section 15). A companion to this document, not a replacement.
+- `test_controlplane.py` — the automated tests (section 14).
 
 ## 3. Runtime requirements
 
 - Python 3.9 or newer.
-- Third-party dependencies are `python-irodsclient` and `cryptography`
-  (packaged as `python3-cryptography`). `cryptography` is used only to parse
-  applicant public keys, to generate the service's own keypair, and to build
-  and open the JWE envelopes of section 6. Everything else is the standard
-  library.
+- The only third-party dependency is `python-irodsclient`. Everything else
+  is the standard library.
 - Runs as the iRODS service account on a catalog provider of the home zone,
   because federation approval edits `/etc/irods/server_config.json` and
   signals the iRODS server, and because the keyserver and bootstrap features
   read that file for the zone's keys and, for a provider bootstrap, its
   database credentials.
-- Speaks plain HTTP only. It should be deployed behind a TLS-terminating
-  reverse proxy; admin credentials travel in HTTP Basic headers. Applicants
-  who supply a public key receive their secrets encrypted end to end, and
-  applicants who encrypt their application to the service's key send their
-  secrets the same way, so the applicant side does not depend on TLS. The
-  encryption may be removed in a later iteration once TLS termination is
-  mandatory.
+- Speaks plain HTTP only and must be deployed behind a TLS-terminating
+  reverse proxy. Admin credentials travel in HTTP Basic headers and every
+  applicant-facing secret travels as a plain JSON field; the proxy's TLS is
+  the only thing protecting them in transit. Exposing the service without a
+  proxy is a misconfiguration (section 11).
 
 ## 4. Invocation and configuration
 
@@ -86,7 +86,6 @@ Relative paths resolve against the configuration file's directory.
 | `irods_environment_file` | string | `$IRODS_ENVIRONMENT_FILE`, else `~/.irods/irods_environment.json` | Service account client environment |
 | `server_config_file` | string | `/etc/irods/server_config.json` | Home zone server configuration: edited by federation approval, read by keyserver and bootstrap |
 | `server_pid_file` | string | `/var/run/irods/irods-server.pid` | Used to send SIGHUP after a federation approval edits the server config |
-| `allowed_encryption_clock_skew_in_seconds` | integer > 0 | `300` | Maximum accepted difference between an encrypted application's `iat` and the server clock, in either direction. Also the replay memory window |
 | `federation` | object | `{}` | Section 4.2 |
 | `bootstrap` | object | `{}` | Section 4.3 |
 | `keyserver` | object | `{}` | Section 4.4 |
@@ -97,8 +96,6 @@ Relative paths resolve against the configuration file's directory.
 |---|---|---|---|
 | `application_expiration_in_seconds` | integer > 0 | `604800` (7 days) | Pending federation applications older than this expire |
 | `max_pending_applications` | integer > 0 | `100` | `/federation/apply` returns 503 when this many are pending |
-| `require_public_key` | boolean | `false` | When true, an application without a `public_key` is rejected, so secrets are never delivered in plaintext |
-| `require_encrypted_apply` | boolean | `false` | When true, a plaintext application body is rejected; applications must be encrypted to the service key (section 6.3) |
 
 ### 4.3 `bootstrap` keys
 
@@ -106,8 +103,6 @@ Relative paths resolve against the configuration file's directory.
 |---|---|---|---|
 | `application_expiration_in_seconds` | integer > 0 | `86400` (1 day) | Pending bootstrap applications older than this expire |
 | `max_pending_applications` | integer > 0 | `100` | `/bootstrap/apply` returns 503 when this many are pending |
-| `require_public_key` | boolean | `true` | As for federation. Defaults to true because the bootstrap payload carries the zone's own keys and, for a provider, database credentials |
-| `require_encrypted_apply` | boolean | `true` | As for federation |
 
 ### 4.4 `keyserver` keys
 
@@ -122,7 +117,7 @@ Every bootstrap key is single use; there is no per-key use count.
 
 ```json
 {
-  "federation": {"require_public_key": false},
+  "federation": {"application_expiration_in_seconds": 1209600},
   "bootstrap": {"application_expiration_in_seconds": 3600},
   "keyserver": {"lifetime_of_bootstrap_keys_in_seconds": 7200}
 }
@@ -137,8 +132,8 @@ It reads the service account's `irods_environment_file` (and the matching
 - `irods_host`, `irods_port`, `irods_zone_name` — used both for the service
   account session and as the target when verifying admin credentials.
 - `irods_user_name` — the service account.
-- Any SSL/encryption settings present are honored as-is; a non-SSL
-  environment is acceptable.
+- Any SSL settings present are honored as-is; a non-SSL environment is
+  acceptable.
 
 The *home zone facts* come from `server_config_file` and are read at request
 time, never cached: `zone_name`, `zone_port`, `zone_user`, `zone_key`,
@@ -146,7 +141,7 @@ time, never cached: `zone_name`, `zone_port`, `zone_user`, `zone_key`,
 `client_server_policy`, `default_hash_scheme`, `match_hash_policy`,
 `encryption`, `schema_name`, `schema_version`, the `federation` array, and
 `plugin_configuration.database`. Which of these each feature uses is stated
-in section 8.
+in section 7.
 
 ## 5. Data model
 
@@ -188,9 +183,6 @@ All timestamps are ISO 8601 in UTC with a `Z` suffix and whole seconds.
 | `negotiation_key` | service | shared key for this federation pair |
 | `name` | applicant | optional, informational only, null when absent |
 | `email` | applicant | optional, informational only, never used to send mail, null when absent |
-| `public_key` | applicant | optional, stored verbatim as supplied, null when absent |
-| `public_key_fingerprint` | service | `SHA256:<base64>` of the DER SubjectPublicKeyInfo, null when no key |
-| `encrypted_application` | service | boolean, true when the application arrived in the encrypted form of 6.3 |
 | `judged_at` | service | null until judged |
 | `judged_by` | service | iRODS username of the admin, null until judged |
 | `decision_note` | admin | free text, optional, max 1024 chars |
@@ -206,9 +198,6 @@ All timestamps are ISO 8601 in UTC with a `Z` suffix and whole seconds.
 | `remote_address` | service | as in 5.2 |
 | `catalog_service_role` | applicant | `consumer` or `provider` |
 | `bootstrap_key` | applicant | the key that authorized this application, stored so `list` shows which key was used |
-| `public_key` | applicant | optional, verbatim, null when absent |
-| `public_key_fingerprint` | service | as in 5.2 |
-| `encrypted_application` | service | as in 5.2 |
 | `judged_at` | service | null until judged |
 | `judged_by` | service | null until judged |
 | `decision_note` | admin | optional, max 1024 chars |
@@ -282,8 +271,6 @@ Derived from `schemas/configuration/v5/server_config.json.in`.
 | `decision_note` | string ≤ 1024 chars |
 | `name` | string, 1–256 chars, no other rule |
 | `email` | string, 3–254 chars, exactly one `@` with at least one character on each side, no other rule, never verified |
-| `public_key` | string ≤ 16384 chars; parses as PEM SubjectPublicKeyInfo (`-----BEGIN PUBLIC KEY-----`) or OpenSSH single-line (`ssh-rsa AAAA...`, trailing comment ignored); must be RSA with modulus ≥ 2048 bits |
-| `iat` | integer seconds since the epoch (RFC 7519 NumericDate); required in an encrypted application, rejected as unknown in a plaintext one |
 
 ### 5.7 Key generation
 
@@ -291,132 +278,7 @@ Generated `zone_key`, `negotiation_key`, and `next_zone_key` values use
 `secrets.choice` over the alphabet `A-Za-z0-9_` (64 symbols) and are 32
 characters long (192 bits). Bootstrap keys and application ids are `uuid4`.
 
-## 6. Encryption
-
-### 6.1 Encrypted payloads
-
-When an application carries a `public_key`, every applicant-facing secret is
-delivered as one JWE compact serialization (RFC 7516) under the field name
-`encrypted_payload`, and the corresponding plaintext fields are omitted.
-
-- Protected header: `{"alg":"RSA-OAEP-256","enc":"A256GCM"}`.
-- Content key: 32 random bytes from `secrets.token_bytes`, wrapped with
-  RSA-OAEP using SHA-256 for both the hash and MGF1.
-- Content: the UTF-8 JSON document described by the endpoint, encrypted with
-  AES-256-GCM, a fresh 96-bit IV, a 128-bit tag, and the base64url-encoded
-  protected header as additional authenticated data, exactly as JWE requires.
-- Serialization: five base64url segments without padding, joined by `.`.
-
-A new content key and IV are generated on every response; the same plaintext
-yields a different ciphertext each time.
-
-The applicant decrypts with any JOSE library, with `step crypto jwe decrypt`,
-or with this `cryptography`-only snippet:
-
-```python
-import base64, json, sys
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import padding
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
-def b64d(s):
-    return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
-
-private_key = serialization.load_pem_private_key(open(sys.argv[1], "rb").read(), None)
-header, enc_key, iv, ciphertext, tag = sys.argv[2].split(".")
-cek = private_key.decrypt(b64d(enc_key), padding.OAEP(
-    padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
-plaintext = AESGCM(cek).decrypt(b64d(iv), b64d(ciphertext) + b64d(tag), header.encode())
-print(json.dumps(json.loads(plaintext), indent=2))
-```
-
-### 6.2 Service keypair
-
-At startup, before the listening socket opens, the service generates an RSA
-3072-bit keypair with `cryptography` and keeps it only in process memory. It
-is never written to disk, never logged, and is discarded when the process
-exits. Every restart therefore produces a new key. The public half is
-published by `/info` (section 8.0), and its fingerprint is logged once at
-startup and included in every `list` response so an admin can confirm it
-with an applicant over another channel.
-
-Consequences, stated so clients are written correctly:
-
-- The key is valid only for the life of the current process. An applicant
-  must fetch `/info` immediately before each `apply` and must not cache the
-  key.
-- A payload encrypted to a retired key fails to open and gets `400` with a
-  message telling the applicant to fetch `/info` again and retry.
-- Several control plane processes would each hold a different key; this
-  design assumes one process per home zone.
-- Captured encrypted applications cannot be decrypted after a restart, by
-  anyone.
-
-Fingerprints are `SHA256:` followed by the SHA-256 of the key's DER-encoded
-SubjectPublicKeyInfo in the standard base64 alphabet (`+` and `/`, not
-base64url) with `=` padding removed. A key supplied in PEM or OpenSSH form
-yields the same fingerprint, and an applicant can confirm the key the
-service holds with:
-
-```
-openssl pkey -pubin -in key.pem -outform DER | openssl dgst -sha256 -binary | base64 | tr -d '='
-```
-
-### 6.3 Encrypted applications
-
-An applicant may encrypt its entire `apply` body, for either feature, to the
-service key from `/info`, using exactly the envelope of 6.1 in the other
-direction. The HTTP body is then:
-
-```json
-{ "encrypted_payload": "eyJhbGciOi..." }
-```
-
-and nothing else. The plaintext is the ordinary `apply` JSON of the endpoint
-with one extra required field, `iat`, per 5.6.
-
-The service rejects the application with `400` when `iat` is missing, not an
-integer, or differs from the server clock by more than
-`allowed_encryption_clock_skew_in_seconds` in either direction. The error
-names the server's current epoch time so a client with a wrong clock can see
-why.
-
-To defeat replay inside that window, the service keeps one in-memory set of
-SHA-256 digests of every encrypted application it has accepted, across both
-features, each remembered for `allowed_encryption_clock_skew_in_seconds`
-seconds past its `iat` and pruned lazily. A repeated ciphertext gets `409`
-with an error saying it was already submitted. The set is empty after a
-restart, which is safe because the key is new too and old ciphertexts no
-longer open.
-
-The response to an encrypted application is encrypted to the applicant's
-`public_key` when the plaintext carries one and is plaintext otherwise; the
-two directions are independent, and each feature's `require_public_key` and
-`require_encrypted_apply` govern them separately.
-
-The applicant-side encrypt, the mirror of the 6.1 decrypt snippet:
-
-```python
-import base64, json, secrets, sys, time
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import padding
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
-def b64e(b):
-    return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
-
-service_key = serialization.load_pem_public_key(open(sys.argv[1], "rb").read())  # from /info
-application = json.load(open(sys.argv[2]))
-application["iat"] = int(time.time())
-header = b64e(b'{"alg":"RSA-OAEP-256","enc":"A256GCM"}')
-cek, iv = secrets.token_bytes(32), secrets.token_bytes(12)
-wrapped = service_key.encrypt(cek, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
-sealed = AESGCM(cek).encrypt(iv, json.dumps(application).encode(), header.encode())
-jwe = ".".join([header, b64e(wrapped), b64e(iv), b64e(sealed[:-16]), b64e(sealed[-16:])])
-print(json.dumps({"encrypted_payload": jwe}))
-```
-
-## 7. Authentication
+## 6. Authentication
 
 Every `list` and `judge` endpoint, and every `/keyserver` endpoint, requires
 HTTP Basic authentication.
@@ -439,7 +301,7 @@ HTTP Basic authentication.
 
 No caching of credentials or sessions between requests.
 
-## 8. Endpoints
+## 7. Endpoints
 
 All request and response bodies are JSON with `Content-Type: application/json`.
 Errors use `{"error": "<human readable message>"}`. Unknown paths → `404`;
@@ -449,59 +311,46 @@ there are no aliases for the feature paths at the top level. Wrong method
 ignored.
 
 Before handling any request, the service runs the lazy expiration sweep
-(section 9).
+(section 8).
 
 The same surface is described machine-readably in `controlplane-openapi.yaml`
-(section 16). Where the two disagree, this document wins and the OpenAPI file
+(section 15). Where the two disagree, this document wins and the OpenAPI file
 is the one to fix.
 
 | Method and path | Auth | Section |
 |---|---|---|
-| `GET /info` | none | 8.0 |
-| `POST /federation/apply` | none | 8.1.1 |
-| `GET /federation/status` | none | 8.1.2 |
-| `GET /federation/list` | rodsadmin | 8.1.3 |
-| `POST /federation/judge` | rodsadmin | 8.1.4 |
-| `GET /keyserver/local_zone` | rodsadmin | 8.2.1 |
-| `PUT /keyserver/bootstrap` | rodsadmin | 8.2.2 |
-| `POST /bootstrap/apply` | none | 8.3.1 |
-| `GET /bootstrap/status` | none | 8.3.2 |
-| `GET /bootstrap/list` | rodsadmin | 8.3.3 |
-| `POST /bootstrap/judge` | rodsadmin | 8.3.4 |
+| `GET /info` | none | 7.0 |
+| `POST /federation/apply` | none | 7.1.1 |
+| `GET /federation/status` | none | 7.1.2 |
+| `GET /federation/list` | rodsadmin | 7.1.3 |
+| `POST /federation/judge` | rodsadmin | 7.1.4 |
+| `GET /keyserver/local_zone` | rodsadmin | 7.2.1 |
+| `PUT /keyserver/bootstrap` | rodsadmin | 7.2.2 |
+| `POST /bootstrap/apply` | none | 7.3.1 |
+| `GET /bootstrap/status` | none | 7.3.2 |
+| `GET /bootstrap/list` | rodsadmin | 7.3.3 |
+| `POST /bootstrap/judge` | rodsadmin | 7.3.4 |
 
-### 8.0 `GET /info` — unauthenticated
+### 7.0 `GET /info` — unauthenticated
 
-Publishes what an applicant needs to talk to this service. No iRODS
+Publishes what an applicant needs to know before applying. No iRODS
 connection is made. Response `200`:
 
 ```json
 {
   "service": "controlplane",
   "version": "0.1.0",
-  "service_public_key": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----\n",
-  "service_public_key_fingerprint": "SHA256:...",
-  "encryption": {"alg": "RSA-OAEP-256", "enc": "A256GCM"},
-  "allowed_encryption_clock_skew_in_seconds": 300,
-  "federation": {
-    "require_public_key": false,
-    "require_encrypted_apply": false,
-    "application_expiration_in_seconds": 604800
-  },
-  "bootstrap": {
-    "require_public_key": true,
-    "require_encrypted_apply": true,
-    "application_expiration_in_seconds": 86400
-  }
+  "federation": {"application_expiration_in_seconds": 604800},
+  "bootstrap": {"application_expiration_in_seconds": 86400}
 }
 ```
 
-The key is the ephemeral process key of 6.2 and may change at any time. The
-home zone's name is deliberately not included. The response carries
+The home zone's name is deliberately not included. The response carries
 `Cache-Control: no-store`.
 
-### 8.1 Federation
+### 7.1 Federation
 
-#### 8.1.1 `POST /federation/apply` — unauthenticated
+#### 7.1.1 `POST /federation/apply` — unauthenticated
 
 Request:
 
@@ -512,40 +361,23 @@ Request:
   "catalog_provider_hosts": ["icat.other.example.org"],
   "zone_key": "OPTIONAL_EXISTING_ZONE_KEY",
   "name": "Optional Human Name",
-  "email": "optional@example.org",
-  "public_key": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----\n"
+  "email": "optional@example.org"
 }
 ```
 
 `name` and `email` are for the reviewing admin only. The service never uses
-them for anything and never sends mail. `public_key` is the applicant's RSA
-public key; when present, every secret returned to the applicant is
-encrypted to it (6.1).
-
-The body may instead be the encrypted form of 6.3, a JSON object whose only
-key is `encrypted_payload`. A body that has `encrypted_payload` together
-with any other key → `400`.
+them for anything and never sends mail.
 
 Behavior:
 
-0. If the body is the encrypted form: open it with the service key (failure
-   → `400` telling the applicant to fetch `/info` again), check `iat`
-   against the clock-skew window (→ `400`), check the ciphertext digest
-   against the replay memory (→ `409`), then continue with the plaintext.
-   If the body is plaintext and `federation.require_encrypted_apply` is
-   true → `400` saying this service requires encrypted applications.
-1. Validate per 5.6. Extra keys → `400`. An unparseable, non-RSA, or
-   too-short `public_key` → `400`.
-2. If `federation.require_public_key` is true and no `public_key` was
-   supplied → `400` with an error saying this service requires one.
-3. If `federation.max_pending_applications` pending federation records
+1. Validate per 5.6. Extra keys → `400`.
+2. If `federation.max_pending_applications` pending federation records
    exist → `503`.
-4. If a `pending` federation record with the same `zone_name` exists →
+3. If a `pending` federation record with the same `zone_name` exists →
    `409`. Approved, rejected, and expired records do not block a new
    application.
-5. Generate `negotiation_key`; generate `zone_key` if not supplied. Record
-   whether the application arrived encrypted.
-6. Persist, then respond `201`. Without a public key:
+4. Generate `negotiation_key`; generate `zone_key` if not supplied.
+5. Persist, then respond `201`:
 
 ```json
 {
@@ -558,23 +390,9 @@ Behavior:
 }
 ```
 
-With a public key, `negotiation_key` and `zone_key` are replaced by one
-field whose plaintext is `{"negotiation_key": "...", "zone_key": "..."}`:
-
-```json
-{
-  "application_id": "6f1c...",
-  "status": "pending",
-  "expires_at": "2026-11-08T15:04:05Z",
-  "public_key_fingerprint": "SHA256:...",
-  "encrypted_payload": "eyJhbGciOi...",
-  "status_url": "/federation/status?application_id=6f1c..."
-}
-```
-
 `apply` performs no iRODS operations and needs no iRODS connection.
 
-#### 8.1.2 `GET /federation/status?application_id=<uuid>` — unauthenticated
+#### 7.1.2 `GET /federation/status?application_id=<uuid>` — unauthenticated
 
 The `application_id` is unguessable and acts as the bearer token.
 
@@ -611,27 +429,22 @@ The home zone's `zone_key`, hosts, name, and port are read from
 `negotiation_key` is never disclosed to a federation applicant; the
 pair-specific key from the record is used.
 
-When the record carries a `public_key`, the two fields above are replaced
-by `public_key_fingerprint` and one `encrypted_payload` whose plaintext is
-the JSON document `{"applicant_federation_entry": {...},
-"applicant_mkzone_command": "..."}` with exactly the content shown above.
+`name` and `email` are never returned by `status`.
 
-`name`, `email`, and the public key itself are never returned by `status`.
-
-#### 8.1.3 `GET /federation/list?status=<filter>` — rodsadmin
+#### 7.1.3 `GET /federation/list?status=<filter>` — rodsadmin
 
 - `status` is one of `pending` (default), `approved`, `rejected`, `expired`,
   `all`. Anything else, or a repeated parameter → `400`.
 - Response `200`:
 
 ```json
-{ "service_public_key_fingerprint": "SHA256:...", "applications": [ { ...5.2... }, ... ] }
+{ "applications": [ { ...5.2... }, ... ] }
 ```
 
 Ordered by `submitted_at` ascending. Records are returned in full because
 the caller is a rodsadmin.
 
-#### 8.1.4 `POST /federation/judge` — rodsadmin
+#### 7.1.4 `POST /federation/judge` — rodsadmin
 
 Request:
 
@@ -715,15 +528,12 @@ with an `error` naming the step. The admin can retry after fixing the cause.
 }
 ```
 
-The judge response is always plaintext, whether or not the applicant
-supplied a public key.
+### 7.2 Keyserver
 
-### 8.2 Keyserver
-
-Both endpoints require a rodsadmin (section 7). Both reconcile the zone key
+Both endpoints require a rodsadmin (section 6). Both reconcile the zone key
 state against `server_config_file` first (5.5).
 
-#### 8.2.1 `GET /keyserver/local_zone` — rodsadmin
+#### 7.2.1 `GET /keyserver/local_zone` — rodsadmin
 
 Returns the lifecycle of the home zone's `zone_key`. Response `200`:
 
@@ -745,11 +555,11 @@ Returns the lifecycle of the home zone's `zone_key`. Response `200`:
 ```
 
 A server wanting to rotate itself needs `next_zone_key.value` and
-`zone_key.expires_at`; both are returned in plaintext because the caller is
-a rodsadmin over the proxy's TLS. No iRODS write is performed. The response
-carries `Cache-Control: no-store`.
+`zone_key.expires_at`; both are returned because the caller is a rodsadmin
+and the channel is the proxy's TLS. No iRODS write is performed. The
+response carries `Cache-Control: no-store`.
 
-#### 8.2.2 `PUT /keyserver/bootstrap` — rodsadmin
+#### 7.2.2 `PUT /keyserver/bootstrap` — rodsadmin
 
 Mints one single-use bootstrap key for the admin to hand to the operator of
 a new server out of band. The request has no body, or an empty JSON object;
@@ -773,39 +583,33 @@ The key is a `uuid4` and is stored as a 5.4 record. There is no limit on the
 number of available keys; an admin can see and reason about them in
 `/bootstrap/list`.
 
-### 8.3 Bootstrap
+### 7.3 Bootstrap
 
-#### 8.3.1 `POST /bootstrap/apply` — unauthenticated
+#### 7.3.1 `POST /bootstrap/apply` — unauthenticated
 
 Request:
 
 ```json
 {
   "bootstrap_key": "0b2f...-...",
-  "catalog_service_role": "consumer",
-  "public_key": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----\n"
+  "catalog_service_role": "consumer"
 }
 ```
 
 `catalog_service_role` says whether the new server will be a catalog
 consumer or an additional catalog provider of the home zone; a provider
-additionally receives the zone's database credentials on approval. The body
-may instead be the encrypted form of 6.3.
+additionally receives the zone's database credentials on approval.
 
 Behavior:
 
-0. Encrypted-form handling exactly as 8.1.1 step 0, governed by
-   `bootstrap.require_encrypted_apply`.
 1. Validate per 5.6. Extra keys → `400`. Missing `bootstrap_key` or
    `catalog_service_role` → `400`.
-2. If `bootstrap.require_public_key` is true and no `public_key` was
-   supplied → `400`.
-3. If `bootstrap.max_pending_applications` pending bootstrap records exist →
+2. If `bootstrap.max_pending_applications` pending bootstrap records exist →
    `503`.
-4. Look up the bootstrap key. Unknown, already used, or expired → `403` with
+3. Look up the bootstrap key. Unknown, already used, or expired → `403` with
    an error saying the bootstrap key is not valid (used and unknown keys
    are not distinguished; an expired key says so). Nothing is consumed.
-5. Create the record, mark the key `used` with `used_at` and
+4. Create the record, mark the key `used` with `used_at` and
    `application_id`, persist both in one write, respond `201`:
 
 ```json
@@ -817,15 +621,13 @@ Behavior:
 }
 ```
 
-With a `public_key` the response additionally carries
-`public_key_fingerprint`. Nothing secret is returned at apply time, so
-there is no `encrypted_payload` in this response; the key is used for the
-`status` response once approved.
+Nothing secret is returned at apply time; the facts are released by
+`status` once approved.
 
 `apply` performs no iRODS operations. There is no duplicate rule: two
 operators holding two keys may both apply.
 
-#### 8.3.2 `GET /bootstrap/status?application_id=<uuid>` — unauthenticated
+#### 7.3.2 `GET /bootstrap/status?application_id=<uuid>` — unauthenticated
 
 The `application_id` acts as the bearer token.
 
@@ -877,7 +679,7 @@ Rules for `zone_facts`:
 
 - Every value is copied verbatim from the home provider's
   `server_config_file`; nothing is invented or rewritten. `zone_key` is the
-  key currently in that file, which is also `zone_key.value` of 8.2.1.
+  key currently in that file, which is also `zone_key.value` of 7.2.1.
 - `database` is present only when `catalog_service_role` is `provider` and
   is `plugin_configuration.database` copied whole, including `password`. A
   consumer never receives it.
@@ -893,22 +695,17 @@ Rules for `zone_facts`:
   operator's to supply. Appendix A maps `zone_facts` onto a
   `json_configuration_file`.
 
-When the record carries a `public_key`, `zone_facts` is replaced by
-`public_key_fingerprint` and one `encrypted_payload` whose plaintext is
-`{"zone_facts": {...}}` with exactly the content above.
-
 The admin password of the zone is **not** part of the facts. The service
 cannot reliably recover it (with newer iRODS authentication `.irodsA` is no
 longer reversible), so the operator obtains it out of band for now.
 
-#### 8.3.3 `GET /bootstrap/list?status=<filter>` — rodsadmin
+#### 7.3.3 `GET /bootstrap/list?status=<filter>` — rodsadmin
 
-- `status` filters applications exactly as 8.1.3; it does not filter keys.
+- `status` filters applications exactly as 7.1.3; it does not filter keys.
 - Response `200`:
 
 ```json
 {
-  "service_public_key_fingerprint": "SHA256:...",
   "applications": [ { ...5.3... }, ... ],
   "bootstrap_keys": [ { ...5.4... }, ... ]
 }
@@ -920,9 +717,9 @@ the service has minted, in every status, ordered by `created_at` ascending,
 so the admin can see which are still available and when each expires, which
 were used and by which application, and which expired unused.
 
-#### 8.3.4 `POST /bootstrap/judge` — rodsadmin
+#### 7.3.4 `POST /bootstrap/judge` — rodsadmin
 
-Request and validation exactly as 8.1.4: `application_id`, `decision`,
+Request and validation exactly as 7.1.4: `application_id`, `decision`,
 optional `decision_note`; `400`, `404`, `409`, `410` as there.
 
 **Reject:** set `status=rejected`, `judged_at`, `judged_by`,
@@ -934,9 +731,9 @@ Nothing is done in the home zone's iRODS instance: a consumer needs no
 catalog registration before `setup_irods.py`, and a provider shares the
 existing database. Approval only releases `zone_facts` to `status`. The
 judge response does not include the facts; the operator retrieves them with
-the `application_id`, encrypted to their key when they supplied one.
+the `application_id`.
 
-## 9. Expiration
+## 8. Expiration
 
 No background thread. At the start of every request, under the lock:
 
@@ -949,25 +746,23 @@ and the state file is persisted if anything changed. Expired records and
 keys remain in the state file indefinitely. Zone keys are not swept; their
 expiry is informational and is reconciled per 5.5.
 
-## 10. Concurrency
+## 9. Concurrency
 
-`http.server.ThreadingHTTPServer` serves requests concurrently. One
-process-wide `threading.Lock` guards every read-modify-write of the
-in-memory state and the state file, the whole of the federation approve
-sequence (8.1.4) so two admins cannot approve conflicting applications at
-once, the bootstrap key consumption of 8.3.1 so one key cannot be used
-twice, the zone key reconciliation of 5.5, and the replay memory of 6.3.
-iRODS connections are per request and are not shared across threads. The
-service private key is read-only after startup and shared freely.
+`http.server.ThreadingHTTPServer` serves requests concurrently, with a
+listen backlog of 128 so a burst of simultaneous connections is queued
+rather than reset. One process-wide `threading.Lock` guards every
+read-modify-write of the in-memory state and the state file, the whole of
+the federation approve sequence (7.1.4) so two admins cannot approve
+conflicting applications at once, the bootstrap key consumption of 7.3.1
+so one key cannot be used twice, and the zone key reconciliation of 5.5.
+iRODS connections are per request and are not shared across threads.
 
-## 11. Logging and signals
+## 10. Logging and signals
 
 - One line per request to stdout: timestamp, remote address, method, path,
   status code, and the admin username for authenticated calls. Passwords
   and keys, including bootstrap keys and zone keys, are never logged.
-- The service public key fingerprint is logged once at startup, and apply
-  log lines say which feature and whether the application arrived
-  encrypted.
+- Apply log lines say which feature the application is for.
 - Bootstrap key minting and consumption, zone key adoption and rotation
   detection, approve/reject decisions, and every step of the federation
   approve sequence are logged at INFO; failures at ERROR with the exception
@@ -976,8 +771,16 @@ service private key is read-only after startup and shared freely.
   finish. The state is always consistent on disk because every change is
   persisted before its response is sent.
 
-## 12. Security notes
+## 11. Security notes
 
+- TLS termination in front of the service is a deployment requirement, not
+  an option. Admin passwords, bootstrap keys, zone and negotiation keys,
+  and database credentials all cross the wire as plain HTTP content and
+  are protected in transit only by the proxy's TLS. Binding to `0.0.0.0`
+  on plain HTTP without a proxy exposes every one of them. The service
+  does nothing to protect itself from that misconfiguration; a later
+  iteration may refuse to bind a non-loopback address without an explicit
+  opt-in.
 - Federation approval refuses applicant hosts that do not resolve, because
   an unresolvable remote zone host slows every home zone agent start by
   about 30 seconds. This also means a host must be resolvable from the
@@ -989,30 +792,9 @@ service private key is read-only after startup and shared freely.
 - `/federation/status` reveals the home zone's `zone_key` only for approved
   applications and only to a holder of the matching 122-bit random
   `application_id`.
-- When an applicant supplies an RSA public key, every secret it is sent,
-  for either feature, travels only inside a JWE encrypted to that key, so a
-  plaintext HTTP path does not expose it. Without a key the secrets travel
-  in plaintext, and each feature's `require_public_key` lets a deployment
-  forbid that.
 - `name` and `email` on federation applications are stored and shown to
   admins as supplied. They are not verified, not used to contact anyone,
   and not returned to applicants.
-- An applicant who encrypts its application to the service key (6.3)
-  keeps its own `zone_key`, identity, bootstrap key, and response key off
-  a plaintext path. Each feature's `require_encrypted_apply` lets a
-  deployment forbid plaintext applications.
-- The service key is ephemeral and in memory only. There is no key file to
-  protect, and nothing captured in one process lifetime can be opened in
-  the next.
-- Without TLS, an active attacker who can rewrite traffic can substitute
-  its own key in `/info` and read what the applicant encrypts. The service
-  does not sign or pin its key. The mitigation is out of band: the admin
-  reads the current fingerprint from the startup log or a `list` response
-  and confirms it with the applicant before the applicant applies.
-- Replay of a captured encrypted application is limited by the `iat`
-  window and refused outright within it by the ciphertext digest memory.
-  Outside the window the ciphertext is stale by `iat`, and after a restart
-  it no longer opens.
 - A bootstrap key is a 122-bit random bearer token, single use, with a
   default one-day lifetime. It authorizes only the submission of an
   application; a rodsadmin still judges it. Possession of a key reveals
@@ -1021,27 +803,21 @@ service private key is read-only after startup and shared freely.
   and, for a provider, the database password. These are exactly what a
   new server in the zone must have, and they are released only for an
   approved application and only to a holder of the matching
-  `application_id`. By default the bootstrap feature requires an applicant
-  public key, so the facts never travel in plaintext even without TLS, and
-  requires encrypted applications, so the bootstrap key never does either.
-  A deployment that has mandatory TLS termination may relax both.
+  `application_id`.
 - The federation feature never discloses the home zone's top-level
   `negotiation_key`; the bootstrap feature must, because a server in the
   same zone needs it. The two features are distinct code paths and the
   federation path reads only the pair-specific key from its record.
-- `/keyserver/local_zone` returns the current and next zone keys in
-  plaintext to a rodsadmin. The state file holding them is mode `0600` and
-  lives beside the configuration file; the service account's home directory
-  is the intended place.
+- `/keyserver/local_zone` returns the current and next zone keys to a
+  rodsadmin. The state file holding them is mode `0600` and lives beside
+  the configuration file; the service account's home directory is the
+  intended place.
 - The service never writes the zone key into `server_config.json` and never
   sends a reload for keyserver or bootstrap operations; only federation
   approval touches the iRODS server.
 - Admin passwords are verified against iRODS on every call and never stored.
-- TLS is the reverse proxy's job. Binding to `0.0.0.0` on plain HTTP without
-  a proxy exposes admin passwords, the keyserver responses, and any
-  plaintext applicant secrets.
 
-## 13. Out of scope for this iteration
+## 12. Out of scope for this iteration
 
 - Performing zone key rotation: writing `next_zone_key` into
   `server_config.json` on expiry and reloading, and coordinating that
@@ -1052,18 +828,20 @@ service private key is read-only after startup and shared freely.
 - Any iRODS action on bootstrap approval, such as pre-creating a resource.
 - Per-key use counts for bootstrap keys; every key is single use.
 - Revoking a bootstrap key before it expires or is used.
-- TLS in-process; purging or redacting old records; per-IP rate limiting;
-  notifying applicants; non-RSA applicant keys; signing or pinning the
-  service key; more than one control plane process per home zone;
-  unfederating; supervision by the iRODS server.
+- Application-layer encryption of applicant secrets independent of the
+  transport; TLS termination is required instead.
+- TLS in-process; refusing to bind a non-loopback address; purging or
+  redacting old records; per-IP rate limiting; notifying applicants; more
+  than one control plane process per home zone; unfederating; supervision
+  by the iRODS server.
 
-## 14. Smoke test plan
+## 13. Smoke test plan
 
 Run the service as the `irods` service account against the local zone with
 `{"port": 9200}`.
 
-1. `GET /info` → `200` showing `service: controlplane`, both feature
-   blocks, and the fingerprint from the startup log.
+1. `GET /info` → `200` showing `service: controlplane` and both feature
+   blocks.
 2. `GET /keyserver/local_zone` without auth → `401`; as a rodsuser → `403`;
    as `rods` → `200` whose `zone_key.value` equals the `zone_key` in
    `/etc/irods/server_config.json`, with `issued_at` about now and a
@@ -1077,20 +855,17 @@ Run the service as the `irods` service account against the local zone with
    state re-adopts it.
 4. `PUT /keyserver/bootstrap` as `rods` → `201` with a key;
    `GET /bootstrap/list` shows it as `available`.
-5. `POST /bootstrap/apply` plaintext with the key → `400` because
-   encryption is required by default. Encrypt `{"bootstrap_key": ...,
-   "catalog_service_role": "consumer", "public_key": <RSA key>, "iat": ...}`
-   to the `/info` key and submit → `201`. Submit the same ciphertext again
-   → `409`. Re-encrypt and submit again → `403`, the key is used.
-   `GET /bootstrap/list` shows the key `used` with the `application_id`.
+5. `POST /bootstrap/apply` with the key and `catalog_service_role:
+   consumer` → `201`. Submit again with the same key → `403`, the key is
+   used. `GET /bootstrap/list` shows the key `used` with the
+   `application_id`.
 6. `GET /bootstrap/status` → `pending`. `POST /bootstrap/judge` approve as
-   `rods` → `200`. `GET /bootstrap/status` → `approved` with
-   `encrypted_payload`; decrypt with the 6.1 snippet and confirm
-   `zone_facts` matches `server_config.json` and has no `database`.
-7. Mint a second key, apply as `provider` with the same key pair, approve,
-   and confirm the decrypted facts include `database` with the password
-   from `server_config.json`. Confirm `iadmin lz`, `server_config.json`,
-   and the server log are unchanged by all bootstrap steps.
+   `rods` → `200`. `GET /bootstrap/status` → `approved` with `zone_facts`
+   matching `server_config.json` and no `database`.
+7. Mint a second key, apply as `provider`, approve, and confirm the facts
+   include `database` with the password from `server_config.json`. Confirm
+   `iadmin lz`, `server_config.json`, and the server log are unchanged by
+   all bootstrap steps.
 8. Mint a third key with `lifetime_of_bootstrap_keys_in_seconds: 1`, wait,
    `GET /bootstrap/list` shows it `expired`, apply with it → `403`.
 9. Clean up: stop the service and delete its state file; nothing in iRODS
@@ -1099,59 +874,48 @@ Run the service as the `irods` service account against the local zone with
 Federation, against the same instance:
 
 10. `POST /federation/apply` for a fake zone; expect `201` and both keys.
-    Repeat with a `name`, `email`, and an RSA public key generated with
-    `openssl genrsa -out key.pem 2048 && openssl rsa -in key.pem -pubout`;
-    expect `201` with `encrypted_payload` and no plaintext keys, and
-    decrypt it with the snippet in 6.1. Repeat with a 1024-bit key and with
-    garbage; expect `400`.
-11. Encrypt an application to the `/info` key with the 6.3 snippet and
-    `POST /federation/apply`; expect `201`, and `GET /federation/list`
-    shows `encrypted_application: true`. Submit the same ciphertext again →
-    `409`. Edit `iat` to an hour ago, re-encrypt, submit → `400`. Restart
-    the service and submit a ciphertext made for the old key → `400`
-    mentioning `/info`.
-12. `GET /federation/list` without auth → `401`; with a rodsuser → `403`;
-    with `rods` → `200` showing the pending record and
-    `service_public_key_fingerprint`.
-13. `GET /federation/status` → `pending`.
-14. `POST /federation/judge` approve as `rods`; expect `200`, `iadmin lz`
+    Repeat for a second fake zone with a `name` and `email`; expect `201`.
+    Repeat with an unknown field and with a malformed `email`; expect `400`.
+11. `GET /federation/list` without auth → `401`; with a rodsuser → `403`;
+    with `rods` → `200` showing both pending records, one with the name and
+    email as supplied.
+12. `GET /federation/status` → `pending`.
+13. `POST /federation/judge` approve as `rods`; expect `200`, `iadmin lz`
     shows the new zone, `/etc/irods/server_config.json` has the new
     federation entry, and the server log shows the reload. Use a
     resolvable applicant hostname (`localhost` or an IP literal); the
     reload briefly refuses connections while the agent factory restarts.
-15. `GET /federation/status` → `approved` with `applicant_federation_entry`;
-    for the keyed application, `encrypted_payload` instead, decrypting to
-    the same entry. `GET /federation/list` shows name, email, and the
-    fingerprint matching `openssl` output.
-16. `POST /federation/judge` again on the same id → `409`.
-17. Apply with a 1-second federation expiration config, wait,
+14. `GET /federation/status` → `approved` with `applicant_federation_entry`
+    whose `zone_key` matches `server_config.json` and whose
+    `negotiation_key` matches the one returned at apply time.
+15. `POST /federation/judge` again on the same id → `409`.
+16. Apply with a 1-second federation expiration config, wait,
     `GET /federation/list?status=expired` shows it,
     `POST /federation/judge` → `410`.
-18. Clean up: `iadmin rmzone`, restore `server_config.json` from the
+17. Clean up: `iadmin rmzone`, restore `server_config.json` from the
     backup, `kill -HUP` the server.
 
-## 15. Automated tests
+## 14. Automated tests
 
 `test_controlplane.py` (top level) is a `unittest` suite, also runnable
 under pytest. It starts the real server in-process on an ephemeral port
 against a fake iRODS, with temp copies of the config, environment, state,
 and server_config.json, and a child process that records the SIGHUP it
-receives. It covers the federation feature (validation, both encryption
-directions, replay, expiration, authentication, listing, reject, and every
-approve step with its rollbacks and the reload retry), the keyserver
-(adoption, steady state, rotation detection, hand-change warning, state
-file mode, minting, expiry), the bootstrap feature (every validation, key
-consumption under concurrency, used and expired keys, facts for both roles,
-database only for providers, encryption required by default, per-feature
-flags, no iRODS writes), the nested configuration, the state file, and
-`main()`. Live tests run against a real zone only when
+receives. It covers the federation feature (validation, expiration,
+authentication, listing, reject, and every approve step with its rollbacks
+and the reload retry), the keyserver (adoption, steady state, rotation
+detection, hand-change warning, state file mode, minting, expiry), the
+bootstrap feature (every validation, key consumption under concurrency,
+used and expired keys, facts for both roles, database only for providers,
+no iRODS writes), the nested configuration, the state file, and `main()`.
+Live tests run against a real zone only when
 `CONTROLPLANE_LIVE_IRODS_ENV_FILE` and `CONTROLPLANE_LIVE_ADMIN_PASSWORD`
 are set (plus `CONTROLPLANE_LIVE_RODSUSER` and
 `CONTROLPLANE_LIVE_RODSUSER_PASSWORD` for the 403 case); they must run as
 the iRODS service account so python-irodsclient can find `.irodsA`.
 
 The suite also needs PyYAML and jsonschema (Ubuntu packages `python3-yaml`
-and `python3-jsonschema`) for the contract checks of section 16.
+and `python3-jsonschema`) for the contract checks of section 15.
 
 ```
 PYTHONPATH=/src/python-irodsclient python3 -m pytest -q test_controlplane.py
@@ -1159,18 +923,15 @@ PYTHONPATH=/src/python-irodsclient python3 -m coverage run --branch --include=co
 python3 -m coverage report -m
 ```
 
-## 16. OpenAPI description
+## 15. OpenAPI description
 
-`controlplane-openapi.yaml` describes sections 7 and 8 as an OpenAPI 3.0.3
+`controlplane-openapi.yaml` describes sections 6 and 7 as an OpenAPI 3.0.3
 document: every path, method, request body, response body, status code,
 and header; the HTTP Basic security scheme on the rodsadmin operations;
-named schemas for every object that crosses the wire, including the
-plaintexts that travel only inside a JWE (`ApplySecrets`,
-`ApprovedApplicantPayload`, `ZoneFactsPayload`, and the two encrypted-apply
-plaintexts); worked examples with real keys; and operations grouped by the
-tags `service`, `federation`, `keyserver`, and `bootstrap`. 3.0.3 was
-chosen over 3.1.0 for the widest tooling support; the only 3.0 idiom used
-is `nullable: true`.
+named schemas for every object that crosses the wire; worked examples; and
+operations grouped by the tags `service`, `federation`, `keyserver`, and
+`bootstrap`. 3.0.3 was chosen over 3.1.0 for the widest tooling support;
+the only 3.0 idiom used is `nullable: true`.
 
 The file is validated with `openapi-spec-validator` and is enforced by the
 test suite rather than merely shipped beside it. Every request the suite
@@ -1182,10 +943,10 @@ be present, the JSON body must validate against the declared schema, and
 for a 2xx response the request body and query parameters must validate
 against the declared request. Separate tests check that the declared
 operations are exactly the routes the service serves, that every `$ref`
-resolves, that every example validates against its own schema, that every
-declared operation reaches a handler, and that decrypted payloads match the
-plaintext schemas. A new status code or field in `controlplane.py`
-therefore fails the suite until the OpenAPI file describes it.
+resolves, that every example validates against its own schema, and that
+every declared operation reaches a handler. A new status code or field in
+`controlplane.py` therefore fails the suite until the OpenAPI file
+describes it.
 
 The YAML file is the single source. A JSON rendering, when a tool wants one,
 is a lossless one-liner:

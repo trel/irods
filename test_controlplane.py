@@ -58,7 +58,6 @@ import copy
 import http.client
 import json
 import os
-import re
 import signal
 import socket
 import subprocess
@@ -72,9 +71,6 @@ from urllib.parse import parse_qs, urlsplit
 
 import jsonschema
 import yaml
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 import controlplane
 
@@ -92,73 +88,6 @@ HUP_CHILD = (
     "while True:\n"
     "    time.sleep(0.05)\n"
 )
-
-
-# ---------------------------------------------------------------------------
-# Applicant keys (generated once per run)
-# ---------------------------------------------------------------------------
-
-def _pem_public(key):
-    return key.public_key().public_bytes(
-        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo).decode()
-
-
-RSA_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-RSA_PUB_PEM = _pem_public(RSA_KEY)
-RSA_PUB_SSH = RSA_KEY.public_key().public_bytes(
-    serialization.Encoding.OpenSSH, serialization.PublicFormat.OpenSSH).decode() + " applicant@example.org"
-RSA_SMALL_PUB_PEM = _pem_public(rsa.generate_private_key(public_exponent=65537, key_size=1024))
-EC_PUB_PEM = _pem_public(ec.generate_private_key(ec.SECP256R1()))
-
-# One service key shared by every fixture; generating 3072-bit keys per test
-# would triple the suite's run time. Per-process uniqueness is tested
-# separately with a fixture that lets the service generate its own.
-SERVICE_KEY = controlplane.generate_service_key()
-
-
-def b64e(b):
-    return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
-
-
-def encrypt_application(service_pem, application, iat="now", private_key=None):
-    """The applicant-side encrypt from controlplane-spec.md section 6.3, with iat controllable."""
-    service_key = serialization.load_pem_public_key(service_pem.encode())
-    if isinstance(application, dict):
-        application = dict(application)
-        if iat == "now":
-            application["iat"] = int(time.time())
-        elif iat is not None:
-            application["iat"] = iat
-    header = b64e(b'{"alg":"RSA-OAEP-256","enc":"A256GCM"}')
-    cek, iv = secrets_token(32), secrets_token(12)
-    wrapped = service_key.encrypt(cek, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
-    sealed = AESGCM(cek).encrypt(iv, json.dumps(application).encode(), header.encode())
-    return ".".join([header, b64e(wrapped), b64e(iv), b64e(sealed[:-16]), b64e(sealed[-16:])])
-
-
-def secrets_token(n):
-    return os.urandom(n)
-
-
-def b64d(s):
-    return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
-
-
-def decrypt_payload(jwe, private_key=RSA_KEY):
-    """The applicant-side decrypt from controlplane-spec.md section 6.1."""
-    header, enc_key, iv, ciphertext, tag = jwe.split(".")
-    cek = private_key.decrypt(b64d(enc_key), padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
-    plaintext = AESGCM(cek).decrypt(b64d(iv), b64d(ciphertext) + b64d(tag), header.encode())
-    return json.loads(plaintext)
-
-
-def openssl_fingerprint(pem):
-    """The applicant-side fingerprint recipe from controlplane-spec.md section 6.1."""
-    der = subprocess.run(["openssl", "pkey", "-pubin", "-outform", "DER"], input=pem.encode(),
-                         capture_output=True, check=True).stdout
-    digest = subprocess.run(["openssl", "dgst", "-sha256", "-binary"], input=der,
-                            capture_output=True, check=True).stdout
-    return "SHA256:" + base64.b64encode(digest).decode().rstrip("=")
 
 
 # ---------------------------------------------------------------------------
@@ -246,7 +175,7 @@ HTTP_METHODS = ("get", "put", "post", "delete", "options", "head", "patch", "tra
 
 
 class OpenAPIContract:
-    """Checks live traffic against controlplane-openapi.yaml (spec section 16).
+    """Checks live traffic against controlplane-openapi.yaml (spec section 15).
 
     OpenAPI 3.0 schemas are JSON Schema draft 4 plus `nullable`, so the
     document is translated once: `nullable: true` becomes a `null` member
@@ -365,7 +294,7 @@ HOME_DATABASE = {"technology": "postgres", "host": "localhost", "port": 5432, "n
 
 
 def home_server_config():
-    """A server_config.json with everything the zone facts of spec 8.3.2 copy."""
+    """A server_config.json with everything the zone facts of spec 7.3.2 copy."""
     return {
         "schema_name": "server_config", "schema_version": "v5",
         "zone_name": HOME_ZONE, "zone_key": HOME_ZONE_KEY, "zone_port": 1247, "zone_user": "rods",
@@ -383,7 +312,7 @@ def home_server_config():
 class Fixture:
     """Temp directory with config, env, server_config, HUP child, and running server."""
 
-    def __init__(self, config_overrides=None, start_server=True, own_service_key=False):
+    def __init__(self, config_overrides=None, start_server=True):
         self.tmp = tempfile.TemporaryDirectory(prefix="controlplane-test-")
         d = self.tmp.name
         self.server_config_file = os.path.join(d, "server_config.json")
@@ -415,8 +344,6 @@ class Fixture:
         self.app = controlplane.App(self.config)
         self.irods = FakeIRODS()
         self.app.irods = self.irods
-        if not own_service_key:
-            self.app.service_private_key = SERVICE_KEY
         self.app.start()
 
         self.server = None
@@ -472,16 +399,6 @@ class Fixture:
         body.update(extra)
         return self.request("POST", "/federation/apply", body)
 
-    def service_pem(self):
-        return self.request("GET", "/info")[1]["service_public_key"]
-
-    def apply_encrypted(self, application=None, iat="now", service_pem=None, **extra):
-        application = dict(application or {"zone_name": "otherZone", "zone_port": 1247,
-                                           "catalog_provider_hosts": ["localhost"]})
-        application.update(extra)
-        jwe = encrypt_application(service_pem or self.service_pem(), application, iat=iat)
-        return self.request("POST", "/federation/apply", {"encrypted_payload": jwe}), jwe
-
     def judge(self, application_id, decision, note=None, auth=("rods", "rods"), feature="federation"):
         body = {"application_id": application_id, "decision": decision}
         if note is not None:
@@ -506,12 +423,6 @@ class Fixture:
         body = {"bootstrap_key": bootstrap_key or self.mint(), "catalog_service_role": role}
         body.update(extra)
         return self.request("POST", "/bootstrap/apply", body)
-
-    def bootstrap_apply_encrypted(self, bootstrap_key=None, role="consumer", iat="now", service_pem=None, **extra):
-        application = {"bootstrap_key": bootstrap_key or self.mint(), "catalog_service_role": role}
-        application.update(extra)
-        jwe = encrypt_application(service_pem or self.service_pem(), application, iat=iat)
-        return self.request("POST", "/bootstrap/apply", {"encrypted_payload": jwe}), jwe
 
     def bootstrap_list(self, query="", auth=("rods", "rods")):
         return self.request("GET", "/bootstrap/list" + query, auth=auth)
@@ -590,30 +501,26 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(cfg["port"], 1248)
         self.assertEqual(cfg["bind_address"], "0.0.0.0")
         self.assertEqual(cfg["max_request_body_bytes"], 65536)
-        self.assertEqual(cfg["allowed_encryption_clock_skew_in_seconds"], 300)
         self.assertEqual(cfg["state_file"], os.path.join(self.tmp.name, "s.json"))
         self.assertEqual(cfg["server_config_file"], "/etc/irods/server_config.json")
         self.assertEqual(cfg["server_pid_file"], "/var/run/irods/irods-server.pid")
         self.assertTrue(cfg["irods_environment_file"].endswith("/.irods/irods_environment.json"))
         self.assertTrue(os.path.isabs(cfg["irods_environment_file"]))
         self.assertEqual(cfg["federation"], {"application_expiration_in_seconds": 7 * 24 * 3600,
-                                             "max_pending_applications": 100,
-                                             "require_public_key": False, "require_encrypted_apply": False})
+                                             "max_pending_applications": 100})
         self.assertEqual(cfg["bootstrap"], {"application_expiration_in_seconds": 24 * 3600,
-                                            "max_pending_applications": 100,
-                                            "require_public_key": True, "require_encrypted_apply": True})
+                                            "max_pending_applications": 100})
         self.assertEqual(cfg["keyserver"], {"lifetime_of_zone_keys_in_seconds": 90 * 24 * 3600,
                                             "lifetime_of_bootstrap_keys_in_seconds": 24 * 3600})
 
     def test_nested_overrides_merge_with_defaults(self):
-        cfg = self.load({"port": 1, "federation": {"require_public_key": True},
-                         "bootstrap": {"require_encrypted_apply": False, "max_pending_applications": 3},
+        cfg = self.load({"port": 1, "federation": {"application_expiration_in_seconds": 60},
+                         "bootstrap": {"max_pending_applications": 3},
                          "keyserver": {"lifetime_of_bootstrap_keys_in_seconds": 5}})
-        self.assertIs(cfg["federation"]["require_public_key"], True)
-        self.assertEqual(cfg["federation"]["max_pending_applications"], 100)
-        self.assertIs(cfg["bootstrap"]["require_encrypted_apply"], False)
-        self.assertIs(cfg["bootstrap"]["require_public_key"], True)
-        self.assertEqual(cfg["bootstrap"]["max_pending_applications"], 3)
+        self.assertEqual(cfg["federation"], {"application_expiration_in_seconds": 60,
+                                             "max_pending_applications": 100})
+        self.assertEqual(cfg["bootstrap"], {"application_expiration_in_seconds": 24 * 3600,
+                                            "max_pending_applications": 3})
         self.assertEqual(cfg["keyserver"], {"lifetime_of_zone_keys_in_seconds": 90 * 24 * 3600,
                                             "lifetime_of_bootstrap_keys_in_seconds": 5})
 
@@ -645,9 +552,6 @@ class ConfigTests(unittest.TestCase):
             ({"port": 1, "keyserver": []}, "keyserver must be a JSON object"),
             ({"port": 1, "bind_address": ""}, "bind_address"),
             ({"port": 1, "state_file": 7}, "state_file"),
-            ({"port": 1, "federation": {"require_public_key": "yes"}}, "require_public_key"),
-            ({"port": 1, "bootstrap": {"require_encrypted_apply": 1}}, "require_encrypted_apply"),
-            ({"port": 1, "allowed_encryption_clock_skew_in_seconds": 0}, "allowed_encryption_clock_skew"),
             ([1, 2], "JSON object"),
             ("not json", "not valid JSON"),
         ]
@@ -773,14 +677,12 @@ class ValidateFederationApplyTests(unittest.TestCase):
             {"zone_name": "a.b_c", "zone_port": 0, "catalog_provider_hosts": ["h", "10.0.0.1"]})
         self.assertEqual(out, {"zone_name": "a.b_c", "zone_port": 0,
                                "catalog_provider_hosts": ["h", "10.0.0.1"], "zone_key": None,
-                               "name": None, "email": None, "public_key": None,
-                               "public_key_fingerprint": None})
+                               "name": None, "email": None})
         out = controlplane.validate_federation_apply(
             {"zone_name": "a", "zone_port": 65535, "catalog_provider_hosts": ["h"], "zone_key": "K_1",
-             "name": "Ada", "email": "ada@example.org", "public_key": RSA_PUB_PEM})
+             "name": "Ada", "email": "ada@example.org"})
         self.assertEqual(out["zone_key"], "K_1")
-        self.assertEqual((out["name"], out["email"], out["public_key"]), ("Ada", "ada@example.org", RSA_PUB_PEM))
-        self.assertEqual(out["public_key_fingerprint"], openssl_fingerprint(RSA_PUB_PEM))
+        self.assertEqual((out["name"], out["email"]), ("Ada", "ada@example.org"))
 
     def test_name_and_email_rules(self):
         base = {"zone_name": "z", "zone_port": 1247, "catalog_provider_hosts": ["h"]}
@@ -791,77 +693,6 @@ class ValidateFederationApplyTests(unittest.TestCase):
             self.check(dict(base, email=bad), "email must be")
         out = controlplane.validate_federation_apply(dict(base, name="x" * 256, email="a@b"))
         self.assertEqual((len(out["name"]), out["email"]), (256, "a@b"))
-
-    def test_public_key_rules(self):
-        base = {"zone_name": "z", "zone_port": 1247, "catalog_provider_hosts": ["h"]}
-        self.check(dict(base, public_key=""), "non-empty string")
-        self.check(dict(base, public_key=5), "non-empty string")
-        self.check(dict(base, public_key="x" * 16385), "at most 16384")
-        self.check(dict(base, public_key="not a key"), "PEM (BEGIN PUBLIC KEY) or OpenSSH")
-        self.check(dict(base, public_key="-----BEGIN PUBLIC KEY-----\ngarbage\n-----END PUBLIC KEY-----"),
-                   "PEM (BEGIN PUBLIC KEY) or OpenSSH")
-        self.check(dict(base, public_key=EC_PUB_PEM), "must be an RSA key")
-        self.check(dict(base, public_key=RSA_SMALL_PUB_PEM), "at least 2048 bits")
-        pem = controlplane.validate_federation_apply(dict(base, public_key=RSA_PUB_PEM))
-        ssh = controlplane.validate_federation_apply(dict(base, public_key=RSA_PUB_SSH))
-        self.assertEqual(pem["public_key_fingerprint"], ssh["public_key_fingerprint"])
-        self.assertEqual(ssh["public_key"], RSA_PUB_SSH)
-
-
-class EncryptedPayloadTests(unittest.TestCase):
-    def test_jwe_structure_and_roundtrip(self):
-        jwe = controlplane.encrypt_payload(RSA_PUB_PEM, {"zone_key": "z", "negotiation_key": "n"})
-        parts = jwe.split(".")
-        self.assertEqual(len(parts), 5)
-        self.assertNotIn("=", jwe)
-        self.assertEqual(json.loads(b64d(parts[0])), {"alg": "RSA-OAEP-256", "enc": "A256GCM"})
-        self.assertEqual(len(b64d(parts[1])), 256)  # 2048-bit RSA
-        self.assertEqual(len(b64d(parts[2])), 12)
-        self.assertEqual(len(b64d(parts[4])), 16)
-        self.assertEqual(decrypt_payload(jwe), {"zone_key": "z", "negotiation_key": "n"})
-        self.assertEqual(decrypt_payload(controlplane.encrypt_payload(RSA_PUB_SSH, {"a": 1})), {"a": 1})
-
-    def test_fresh_key_and_iv_each_time(self):
-        a = controlplane.encrypt_payload(RSA_PUB_PEM, {"x": 1})
-        b = controlplane.encrypt_payload(RSA_PUB_PEM, {"x": 1})
-        self.assertNotEqual(a, b)
-        self.assertNotEqual(a.split(".")[2], b.split(".")[2])
-
-    def test_wrong_private_key_cannot_decrypt(self):
-        other = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        jwe = controlplane.encrypt_payload(RSA_PUB_PEM, {"x": 1})
-        with self.assertRaises(ValueError):
-            decrypt_payload(jwe, other)
-
-    def test_tampered_ciphertext_is_rejected(self):
-        parts = controlplane.encrypt_payload(RSA_PUB_PEM, {"x": 1}).split(".")
-        ct = bytearray(b64d(parts[3]))
-        ct[0] ^= 0xFF
-        parts[3] = controlplane.b64url(bytes(ct))
-        with self.assertRaises(Exception):
-            decrypt_payload(".".join(parts))
-
-    def test_decrypt_payload_roundtrip_and_errors(self):
-        pem = controlplane.public_key_pem(SERVICE_KEY.public_key())
-        jwe = encrypt_application(pem, {"x": 1}, iat=None)
-        self.assertEqual(controlplane.decrypt_payload(SERVICE_KEY, jwe), {"x": 1})
-        parts = jwe.split(".")
-        bad_header = ".".join([b64e(b'{"alg":"RSA1_5","enc":"A256GCM"}')] + parts[1:])
-        other_key = controlplane.public_key_pem(RSA_KEY.public_key())
-        for bad in (5, "", "a.b", "a.b.c.d.e", "!.!.!.!.!", bad_header,
-                    encrypt_application(other_key, {"x": 1}, iat=None),
-                    ".".join(parts[:3] + [b64e(b"tampered"), parts[4]])):
-            with self.assertRaises(controlplane.HTTPError, msg=repr(bad)[:40]) as cm:
-                controlplane.decrypt_payload(SERVICE_KEY, bad)
-            self.assertEqual(cm.exception.status, 400)
-            self.assertIn("/info", cm.exception.message)
-
-    def test_fingerprint_matches_openssl(self):
-        key = controlplane.parse_public_key(RSA_PUB_PEM)
-        fp = controlplane.public_key_fingerprint(key)
-        self.assertRegex(fp, r"^SHA256:[A-Za-z0-9+/]{43}$")
-        self.assertEqual(fp, openssl_fingerprint(RSA_PUB_PEM))
-
 
 # ---------------------------------------------------------------------------
 # HTTP: apply and status
@@ -947,100 +778,46 @@ class ApplyTests(ServerTestCase):
         self.assertEqual(self.fx.request("GET", "/federation/list/", auth=("rods", "rods"))[0], 200)
 
 
-class PublicKeyApplyTests(ServerTestCase):
-    def test_apply_with_key_encrypts_secrets(self):
-        status, body, _ = self.fx.apply(name="Ada Lovelace", email="ada@example.org", public_key=RSA_PUB_PEM)
+class NameAndEmailTests(ServerTestCase):
+    def test_shown_to_admins_only(self):
+        status, body, _ = self.fx.apply(name="Ada Lovelace", email="ada@example.org")
         self.assertEqual(status, 201)
-        self.assertNotIn("negotiation_key", body)
-        self.assertNotIn("zone_key", body)
         self.assertNotIn("name", body)
         self.assertNotIn("email", body)
-        self.assertEqual(body["public_key_fingerprint"], openssl_fingerprint(RSA_PUB_PEM))
-        secrets_ = decrypt_payload(body["encrypted_payload"])
-        self.assertEqual(set(secrets_), {"negotiation_key", "zone_key"})
-        self.assertRegex(secrets_["negotiation_key"], r"^[A-Za-z0-9_]{32}$")
+        aid = body["application_id"]
 
-        # the admin sees everything in plaintext
         _, listing, _ = self.fx.request("GET", "/federation/list", auth=("rods", "rods"))
         rec = listing["applications"][0]
-        self.assertEqual(rec["negotiation_key"], secrets_["negotiation_key"])
-        self.assertEqual(rec["zone_key"], secrets_["zone_key"])
-        self.assertEqual(rec["name"], "Ada Lovelace")
-        self.assertEqual(rec["email"], "ada@example.org")
-        self.assertEqual(rec["public_key"], RSA_PUB_PEM)
-        self.assertEqual(rec["public_key_fingerprint"], body["public_key_fingerprint"])
+        self.assertEqual((rec["name"], rec["email"]), ("Ada Lovelace", "ada@example.org"))
+        self.assertEqual((rec["negotiation_key"], rec["zone_key"]), (body["negotiation_key"], body["zone_key"]))
 
-        # the raw response never carried the secrets
-        self.assertNotIn(secrets_["negotiation_key"], json.dumps(body))
-        self.assertNotIn(secrets_["zone_key"], json.dumps(body))
+        _, pending, _ = self.fx.request("GET", "/federation/status?application_id=" + aid)
+        self.assertNotIn("name", pending)
+        self.assertNotIn("email", pending)
 
-    def test_apply_with_openssh_key_and_supplied_zone_key(self):
-        status, body, _ = self.fx.apply(public_key=RSA_PUB_SSH, zone_key="MY_KEY")
-        self.assertEqual(status, 201)
-        self.assertEqual(decrypt_payload(body["encrypted_payload"])["zone_key"], "MY_KEY")
-        self.assertNotIn("MY_KEY", json.dumps(body))
+        status, judged, _ = self.fx.judge(aid, "approve")
+        self.assertEqual(status, 200)
+        self.assertEqual((judged["application"]["name"], judged["application"]["email"]),
+                         ("Ada Lovelace", "ada@example.org"))
 
-    def test_apply_without_key_is_plaintext_and_records_nulls(self):
-        status, body, _ = self.fx.apply()
-        self.assertEqual(status, 201)
-        self.assertIn("zone_key", body)
-        self.assertNotIn("encrypted_payload", body)
+        _, approved, _ = self.fx.request("GET", "/federation/status?application_id=" + aid)
+        self.assertEqual(approved["status"], "approved")
+        self.assertNotIn("name", approved)
+        self.assertNotIn("email", approved)
+        self.assertNotIn("Ada", json.dumps(approved))
+        self.assertEqual(approved["applicant_federation_entry"]["zone_key"], HOME_ZONE_KEY)
+
+    def test_absent_fields_are_recorded_as_null(self):
+        self.assertEqual(self.fx.apply()[0], 201)
         _, listing, _ = self.fx.request("GET", "/federation/list", auth=("rods", "rods"))
         rec = listing["applications"][0]
-        self.assertEqual((rec["name"], rec["email"], rec["public_key"], rec["public_key_fingerprint"]),
-                         (None, None, None, None))
+        self.assertEqual((rec["name"], rec["email"]), (None, None))
 
-    def test_bad_keys_are_400(self):
-        for key, fragment in ((RSA_SMALL_PUB_PEM, "2048"), (EC_PUB_PEM, "RSA"), ("garbage", "PEM")):
-            status, body, _ = self.fx.apply(public_key=key)
-            self.assertEqual(status, 400, key[:20])
-            self.assertIn(fragment, body["error"])
+    def test_bad_name_or_email_is_400(self):
         self.assertEqual(self.fx.apply(email="nope")[0], 400)
         self.assertEqual(self.fx.apply(name="")[0], 400)
         _, listing, _ = self.fx.request("GET", "/federation/list", auth=("rods", "rods"))
         self.assertEqual(listing["applications"], [])
-
-    def test_status_after_approval_is_encrypted(self):
-        _, a, _ = self.fx.apply(name="Ada", email="ada@example.org", public_key=RSA_PUB_PEM,
-                                hosts=["localhost"], port=1248)
-        aid = a["application_id"]
-        _, pending, _ = self.fx.request("GET", "/federation/status?application_id=" + aid)
-        self.assertNotIn("encrypted_payload", pending)
-        self.assertNotIn("public_key_fingerprint", pending)
-
-        status, judged, _ = self.fx.judge(aid, "approve")
-        self.assertEqual(status, 200)
-        # judge response stays plaintext and carries the identity fields
-        self.assertEqual(judged["applicant_federation_entry"]["zone_key"], HOME_ZONE_KEY)
-        self.assertEqual(judged["application"]["name"], "Ada")
-        self.assertEqual(judged["application"]["email"], "ada@example.org")
-        self.assertNotIn("encrypted_payload", judged)
-
-        status, body, _ = self.fx.request("GET", "/federation/status?application_id=" + aid)
-        self.assertEqual(status, 200)
-        self.assertEqual(body["status"], "approved")
-        self.assertNotIn("applicant_federation_entry", body)
-        self.assertNotIn("applicant_mkzone_command", body)
-        self.assertNotIn("name", body)
-        self.assertNotIn("email", body)
-        self.assertNotIn(HOME_ZONE_KEY, json.dumps(body))
-        self.assertEqual(body["public_key_fingerprint"], a["public_key_fingerprint"])
-        payload = decrypt_payload(body["encrypted_payload"])
-        self.assertEqual(set(payload), {"applicant_federation_entry", "applicant_mkzone_command"})
-        self.assertEqual(payload["applicant_federation_entry"], judged["applicant_federation_entry"])
-        self.assertEqual(payload["applicant_mkzone_command"], judged["applicant_mkzone_command"])
-
-        # a second poll is encrypted afresh but decrypts to the same thing
-        _, again, _ = self.fx.request("GET", "/federation/status?application_id=" + aid)
-        self.assertNotEqual(again["encrypted_payload"], body["encrypted_payload"])
-        self.assertEqual(decrypt_payload(again["encrypted_payload"]), payload)
-
-    def test_rejected_keyed_application_has_no_payload(self):
-        _, a, _ = self.fx.apply(public_key=RSA_PUB_PEM)
-        self.fx.judge(a["application_id"], "reject")
-        _, body, _ = self.fx.request("GET", "/federation/status?application_id=" + a["application_id"])
-        self.assertEqual(body["status"], "rejected")
-        self.assertNotIn("encrypted_payload", body)
 
 
 class InfoTests(ServerTestCase):
@@ -1048,176 +825,23 @@ class InfoTests(ServerTestCase):
         status, body, headers = self.fx.request("GET", "/info")
         self.assertEqual(status, 200)
         self.assertEqual(headers["Cache-Control"], "no-store")
-        self.assertEqual(set(body), {"service", "version", "service_public_key", "service_public_key_fingerprint",
-                                     "encryption", "allowed_encryption_clock_skew_in_seconds",
-                                     "federation", "bootstrap"})
+        self.assertEqual(set(body), {"service", "version", "federation", "bootstrap"})
         self.assertEqual((body["service"], body["version"]), ("controlplane", controlplane.VERSION))
-        self.assertEqual(body["encryption"], {"alg": "RSA-OAEP-256", "enc": "A256GCM"})
-        self.assertEqual(body["allowed_encryption_clock_skew_in_seconds"], 300)
-        self.assertEqual(body["federation"], {"require_public_key": False, "require_encrypted_apply": False,
-                                              "application_expiration_in_seconds": 7 * 24 * 3600})
-        self.assertEqual(body["bootstrap"], {"require_public_key": True, "require_encrypted_apply": True,
-                                             "application_expiration_in_seconds": 24 * 3600})
+        self.assertEqual(body["federation"], {"application_expiration_in_seconds": 7 * 24 * 3600})
+        self.assertEqual(body["bootstrap"], {"application_expiration_in_seconds": 24 * 3600})
         self.assertNotIn("zone_name", json.dumps(body))
         self.assertNotIn(HOME_ZONE, json.dumps(body))
-        key = serialization.load_pem_public_key(body["service_public_key"].encode())
-        self.assertIsInstance(key, rsa.RSAPublicKey)
-        self.assertEqual(key.key_size, controlplane.SERVICE_KEY_BITS)
-        self.assertEqual(body["service_public_key_fingerprint"], openssl_fingerprint(body["service_public_key"]))
         self.assertEqual(self.fx.request("POST", "/info", raw_body=b"")[0], 405)
 
-    def test_list_carries_service_fingerprint(self):
-        _, info, _ = self.fx.request("GET", "/info")
-        _, listing, _ = self.fx.request("GET", "/federation/list", auth=("rods", "rods"))
-        self.assertEqual(listing["service_public_key_fingerprint"], info["service_public_key_fingerprint"])
 
-    def test_key_is_per_process(self):
-        own = Fixture(own_service_key=True)
-        try:
-            _, a, _ = self.fx.request("GET", "/info")
-            _, b, _ = own.request("GET", "/info")
-            self.assertNotEqual(a["service_public_key"], b["service_public_key"])
-            self.assertNotEqual(a["service_public_key_fingerprint"], b["service_public_key_fingerprint"])
-            # a payload for one service does not open at the other
-            (status, body, _), _ = own.apply_encrypted(service_pem=a["service_public_key"])
-            self.assertEqual(status, 400)
-            self.assertIn("/info", body["error"])
-        finally:
-            own.close()
+class InfoReflectsConfigTests(ServerTestCase):
+    config_overrides = {"federation": {"application_expiration_in_seconds": 60},
+                        "bootstrap": {"application_expiration_in_seconds": 3600}}
 
-
-class EncryptedApplyTests(ServerTestCase):
-    def test_encrypted_apply_happy_path(self):
-        (status, body, _), jwe = self.fx.apply_encrypted(zone_key="MY_SECRET_ZONE_KEY", name="Ada",
-                                                         email="ada@example.org")
-        self.assertEqual(status, 201)
-        self.assertEqual(body["zone_key"], "MY_SECRET_ZONE_KEY")  # no applicant key: plaintext response
-        self.assertNotIn("MY_SECRET_ZONE_KEY", jwe)
-        _, listing, _ = self.fx.request("GET", "/federation/list", auth=("rods", "rods"))
-        rec = listing["applications"][0]
-        self.assertTrue(rec["encrypted_application"])
-        self.assertEqual((rec["zone_key"], rec["name"], rec["email"]), ("MY_SECRET_ZONE_KEY", "Ada", "ada@example.org"))
-        self.assertNotIn("iat", rec)
-        queue = json.load(open(self.fx.config["state_file"]))["federation"]
-        self.assertTrue(queue["applications"][0]["encrypted_application"])
-
-    def test_plaintext_apply_records_false(self):
-        self.fx.apply()
-        _, listing, _ = self.fx.request("GET", "/federation/list", auth=("rods", "rods"))
-        self.assertFalse(listing["applications"][0]["encrypted_application"])
-
-    def test_both_directions_encrypted(self):
-        (status, body, _), _ = self.fx.apply_encrypted(public_key=RSA_PUB_PEM, zone_key="BOTH_WAYS")
-        self.assertEqual(status, 201)
-        self.assertNotIn("zone_key", body)
-        self.assertEqual(decrypt_payload(body["encrypted_payload"])["zone_key"], "BOTH_WAYS")
-        self.assertNotIn("BOTH_WAYS", json.dumps(body))
-
-    def test_replay_is_409(self):
-        (status, _, _), jwe = self.fx.apply_encrypted()
-        self.assertEqual(status, 201)
-        status, body, _ = self.fx.request("POST", "/federation/apply", {"encrypted_payload": jwe})
-        self.assertEqual(status, 409)
-        self.assertIn("already submitted", body["error"])
-        # also after the first application is rejected, so a replay cannot re-queue it
-        _, listing, _ = self.fx.request("GET", "/federation/list", auth=("rods", "rods"))
-        self.fx.judge(listing["applications"][0]["application_id"], "reject")
-        self.assertEqual(self.fx.request("POST", "/federation/apply", {"encrypted_payload": jwe})[0], 409)
-        _, listing, _ = self.fx.request("GET", "/federation/list", auth=("rods", "rods"))
-        self.assertEqual(listing["applications"], [])
-
-    def test_rejected_application_is_not_remembered(self):
-        # an encrypted application that fails validation does not burn its digest
-        (status, _, _), jwe = self.fx.apply_encrypted(zone_name="bad zone")
-        self.assertEqual(status, 400)
-        self.assertEqual(self.fx.app.replay_memory, {})
-
-    def test_iat_rules(self):
-        now = int(time.time())
-        for iat, fragment in ((None, "must carry iat"), ("123", "must carry iat"), (True, "must carry iat"),
-                              (now - 301, "from server time"), (now + 301, "from server time")):
-            (status, body, _), _ = self.fx.apply_encrypted(iat=iat)
-            self.assertEqual(status, 400, repr(iat))
-            self.assertIn(fragment, body["error"])
-            reported = int(re.search(r"server time (?:is )?(\d+)", body["error"]).group(1))
-            self.assertLessEqual(abs(reported - now), 5)  # server time is reported
-        for iat in (now - 290, now + 290):
-            (status, _, _), _ = self.fx.apply_encrypted(zone_name="z{}".format(abs(iat)), iat=iat)
-            self.assertEqual(status, 201, iat)
-        # iat is not accepted in a plaintext application
-        status, body, _ = self.fx.apply(iat=now)
-        self.assertEqual(status, 400)
-        self.assertIn("unknown field(s): iat", body["error"])
-
-    def test_malformed_encrypted_bodies(self):
-        pem = self.fx.service_pem()
-        good = encrypt_application(pem, {"zone_name": "z", "zone_port": 1, "catalog_provider_hosts": ["localhost"]})
-        cases = [
-            ({"encrypted_payload": good, "zone_name": "z"}, 400, "nothing else"),
-            ({"encrypted_payload": 5}, 400, "/info"),
-            ({"encrypted_payload": "not.a.jwe"}, 400, "/info"),
-            ({"encrypted_payload": encrypt_application(controlplane.public_key_pem(RSA_KEY.public_key()),
-                                                       {"zone_name": "z"})}, 400, "/info"),
-            ({"encrypted_payload": encrypt_application(pem, [1, 2], iat=None)}, 400, "JSON object"),
-            ({"encrypted_payload": encrypt_application(pem, {"zone_name": "z"})}, 400, "missing required field"),
-        ]
-        for body, expected, fragment in cases:
-            status, resp, _ = self.fx.request("POST", "/federation/apply", body)
-            self.assertEqual(status, expected, body)
-            self.assertIn(fragment, resp["error"])
-        self.assertEqual(self.fx.request("POST", "/federation/apply", [1])[0], 400)
-
-    def test_duplicate_zone_rule_applies_to_encrypted_too(self):
-        self.assertEqual(self.fx.apply()[0], 201)
-        (status, body, _), _ = self.fx.apply_encrypted()
-        self.assertEqual(status, 409)
-        self.assertIn("already pending", body["error"])
-
-
-class ReplayMemoryPruningTests(ServerTestCase):
-    config_overrides = {"allowed_encryption_clock_skew_in_seconds": 1}
-
-    def test_memory_is_pruned_and_old_iat_rejected(self):
-        _, info, _ = self.fx.request("GET", "/info")
-        self.assertEqual(info["allowed_encryption_clock_skew_in_seconds"], 1)
-        (status, _, _), jwe = self.fx.apply_encrypted()
-        self.assertEqual(status, 201)
-        self.assertEqual(len(self.fx.app.replay_memory), 1)
-        time.sleep(2.5)
-        status, body, _ = self.fx.request("POST", "/federation/apply", {"encrypted_payload": jwe})
-        self.assertEqual(status, 400)  # stale iat, not 409: the digest is no longer needed
-        self.assertIn("from server time", body["error"])
-        # a fresh encrypted application triggers pruning of the stale digest
-        (status, _, _), _ = self.fx.apply_encrypted(zone_name="another")
-        self.assertEqual(status, 201)
-        self.assertEqual(len(self.fx.app.replay_memory), 1)
-
-
-class RequireEncryptedApplyTests(ServerTestCase):
-    config_overrides = {"federation": {"require_encrypted_apply": True}}
-
-    def test_plaintext_refused(self):
-        status, body, _ = self.fx.apply()
-        self.assertEqual(status, 400)
-        self.assertIn("requires encrypted federation applications", body["error"])
-        _, info, _ = self.fx.request("GET", "/info")
-        self.assertTrue(info["federation"]["require_encrypted_apply"])
-        (status, _, _), _ = self.fx.apply_encrypted()
-        self.assertEqual(status, 201)
-
-
-class RequirePublicKeyTests(ServerTestCase):
-    config_overrides = {"federation": {"require_public_key": True}}
-
-    def test_key_required(self):
-        status, body, _ = self.fx.apply()
-        self.assertEqual(status, 400)
-        self.assertIn("requires a public_key for federation applications", body["error"])
-        _, listing, _ = self.fx.request("GET", "/federation/list", auth=("rods", "rods"))
-        self.assertEqual(listing["applications"], [])
-        status, body, _ = self.fx.apply(public_key=RSA_PUB_PEM)
-        self.assertEqual(status, 201)
-        self.assertIn("encrypted_payload", body)
+    def test_info_reports_configured_expirations(self):
+        _, body, _ = self.fx.request("GET", "/info")
+        self.assertEqual(body["federation"]["application_expiration_in_seconds"], 60)
+        self.assertEqual(body["bootstrap"]["application_expiration_in_seconds"], 3600)
 
 
 class QueueFullTests(ServerTestCase):
@@ -1458,6 +1082,18 @@ class ApproveTests(ServerTestCase):
         _, s, _ = self.fx.request("GET", "/federation/status?application_id=" + a["application_id"])
         self.assertEqual(s["status"], "pending")
 
+    def test_other_federation_entries_are_left_alone(self):
+        cfg = self.fx.server_config()
+        other = {"zone_name": "unrelatedZone", "zone_key": "k", "negotiation_key": "n" * 32,
+                 "catalog_provider_hosts": ["elsewhere"], "zone_port": 1}
+        cfg["federation"].append(other)
+        write_json(self.fx.server_config_file, cfg)
+        _, a, _ = self.fx.apply()
+        status, body, _ = self.fx.judge(a["application_id"], "approve")
+        self.assertEqual(status, 200)
+        self.assertEqual(self.fx.server_config()["federation"], [other, body["home_federation_entry"]])
+        self.wait_for_hup(1)
+
     def test_zone_already_in_catalog_is_409(self):
         self.fx.irods.zones["otherZone"] = "elsewhere:1247"
         _, a, _ = self.fx.apply()
@@ -1649,7 +1285,7 @@ class OpenAPIContractTests(ServerTestCase):
         for where, example, schema in CONTRACT.examples():
             CONTRACT.validate(example, schema, where)
             seen += 1
-        self.assertGreater(seen, 60)
+        self.assertGreater(seen, 50)
 
     def test_every_operation_is_served(self):
         # a declared operation must reach a handler: never 404 (unknown path) or 405 (wrong method)
@@ -1675,54 +1311,11 @@ class OpenAPIContractTests(ServerTestCase):
         with self.assertRaises(AssertionError):
             CONTRACT.check("POST", "/info", 405, {"error": "x"}, {"Content-Type": "application/json"})
 
-    def test_encrypted_plaintexts_match_their_schemas(self):
-        schemas = CONTRACT.root["components"]["schemas"]
-        application = {"zone_name": "otherZone", "zone_port": 1247, "catalog_provider_hosts": ["localhost"],
-                       "public_key": RSA_PUB_PEM, "iat": int(time.time())}
-        CONTRACT.validate(application, schemas["EncryptedFederationApplyPlaintext"],
-                          "EncryptedFederationApplyPlaintext")
-        (status, body, _), _ = self.fx.apply_encrypted(application, iat=None)
-        self.assertEqual(status, 201)
-        CONTRACT.validate(decrypt_payload(body["encrypted_payload"]), schemas["ApplySecrets"], "ApplySecrets")
-
-        status, judged, _ = self.fx.judge(body["application_id"], "approve")
-        self.assertEqual(status, 200)
-        _, shown, _ = self.fx.request("GET", body["status_url"])
-        payload = decrypt_payload(shown["encrypted_payload"])
-        CONTRACT.validate(payload, schemas["ApprovedApplicantPayload"], "ApprovedApplicantPayload")
-        self.assertEqual(payload["applicant_federation_entry"], judged["applicant_federation_entry"])
-
-    def test_bootstrap_plaintexts_match_their_schemas(self):
-        schemas = CONTRACT.root["components"]["schemas"]
-        key = self.fx.mint()
-        application = {"bootstrap_key": key, "catalog_service_role": "provider", "public_key": RSA_PUB_PEM,
-                       "iat": int(time.time())}
-        CONTRACT.validate(application, schemas["EncryptedBootstrapApplyPlaintext"], "EncryptedBootstrapApplyPlaintext")
-        (status, body, _), _ = self.fx.bootstrap_apply_encrypted(key, role="provider", public_key=RSA_PUB_PEM)
-        self.assertEqual(status, 201)
-        self.assertEqual(self.fx.judge(body["application_id"], "approve", feature="bootstrap")[0], 200)
-        _, shown, _ = self.fx.bootstrap_status(body["application_id"])
-        CONTRACT.validate(decrypt_payload(shown["encrypted_payload"]), schemas["ZoneFactsPayload"], "ZoneFactsPayload")
-
-    def test_bootstrap_plaintexts_match_their_schemas(self):
-        schemas = CONTRACT.root["components"]["schemas"]
-        key = self.fx.mint()
-        application = {"bootstrap_key": key, "catalog_service_role": "provider", "public_key": RSA_PUB_PEM,
-                       "iat": int(time.time())}
-        CONTRACT.validate(application, schemas["EncryptedBootstrapApplyPlaintext"], "EncryptedBootstrapApplyPlaintext")
-        (status, body, _), _ = self.fx.bootstrap_apply_encrypted(key, role="provider", public_key=RSA_PUB_PEM)
-        self.assertEqual(status, 201)
-        self.assertEqual(self.fx.judge(body["application_id"], "approve", feature="bootstrap")[0], 200)
-        _, shown, _ = self.fx.bootstrap_status(body["application_id"])
-        CONTRACT.validate(decrypt_payload(shown["encrypted_payload"]), schemas["ZoneFactsPayload"], "ZoneFactsPayload")
-
-
 # ---------------------------------------------------------------------------
 # HTTP: keyserver
 # ---------------------------------------------------------------------------
 
 RODS = ("rods", "rods")
-PLAINTEXT_BOOTSTRAP = {"require_public_key": False, "require_encrypted_apply": False}
 UUID_RE = r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
 
 
@@ -1829,10 +1422,8 @@ class ValidateBootstrapApplyTests(unittest.TestCase):
             self.assertEqual(cm.exception.status, 400)
             self.assertIn(fragment, cm.exception.message)
         key = str(uuid.uuid4())
-        out = controlplane.validate_bootstrap_apply({"bootstrap_key": key, "catalog_service_role": "provider",
-                                                     "public_key": RSA_PUB_SSH})
-        self.assertEqual(out, {"bootstrap_key": key, "catalog_service_role": "provider", "public_key": RSA_PUB_SSH,
-                               "public_key_fingerprint": openssl_fingerprint(RSA_PUB_PEM)})
+        out = controlplane.validate_bootstrap_apply({"bootstrap_key": key, "catalog_service_role": "provider"})
+        self.assertEqual(out, {"bootstrap_key": key, "catalog_service_role": "provider"})
 
 
 class MintWithoutContentLengthTests(ServerTestCase):
@@ -1845,7 +1436,7 @@ class MintWithoutContentLengthTests(ServerTestCase):
 
 
 class BootstrapKeyExpiryTests(ServerTestCase):
-    config_overrides = {"keyserver": {"lifetime_of_bootstrap_keys_in_seconds": 1}, "bootstrap": PLAINTEXT_BOOTSTRAP}
+    config_overrides = {"keyserver": {"lifetime_of_bootstrap_keys_in_seconds": 1}}
 
     def test_expired_key_is_refused_and_listed(self):
         key = self.fx.mint()
@@ -1863,8 +1454,6 @@ class BootstrapKeyExpiryTests(ServerTestCase):
 # ---------------------------------------------------------------------------
 
 class BootstrapApplyTests(ServerTestCase):
-    config_overrides = {"bootstrap": PLAINTEXT_BOOTSTRAP}
-
     def test_apply_consumes_key_and_queues(self):
         key = self.fx.mint()
         status, body, _ = self.fx.bootstrap_apply(key)
@@ -1881,8 +1470,6 @@ class BootstrapApplyTests(ServerTestCase):
         self.assertEqual(rec["application_id"], body["application_id"])
         self.assertEqual((rec["catalog_service_role"], rec["bootstrap_key"], rec["remote_address"]),
                          ("consumer", key, "127.0.0.1"))
-        self.assertEqual((rec["public_key"], rec["public_key_fingerprint"], rec["encrypted_application"]),
-                         (None, None, False))
         self.assertEqual((rec["judged_at"], rec["judged_by"], rec["decision_note"]), (None, None, None))
         used = listing["bootstrap_keys"][0]
         self.assertEqual((used["status"], used["application_id"]), ("used", body["application_id"]))
@@ -1924,8 +1511,6 @@ class BootstrapApplyTests(ServerTestCase):
             ({"bootstrap_key": key, "catalog_service_role": "consumer", "host": "h"}, "unknown field(s): host"),
             ({"bootstrap_key": key, "catalog_service_role": "consumer", "name": "x", "email": "a@b"},
              "unknown field(s): email, name"),
-            ({"bootstrap_key": key, "catalog_service_role": "consumer", "public_key": "garbage"}, "PEM"),
-            ({"bootstrap_key": key, "catalog_service_role": "consumer", "public_key": RSA_SMALL_PUB_PEM}, "2048"),
         ]
         for body, fragment in cases:
             status, resp, _ = self.fx.request("POST", "/bootstrap/apply", body)
@@ -1936,14 +1521,6 @@ class BootstrapApplyTests(ServerTestCase):
         _, listing, _ = self.fx.bootstrap_list()
         self.assertEqual(listing["applications"], [])
         self.assertEqual(listing["bootstrap_keys"][0]["status"], "available")
-
-    def test_public_key_gives_fingerprint_only(self):
-        status, body, _ = self.fx.bootstrap_apply(public_key=RSA_PUB_PEM)
-        self.assertEqual(status, 201)
-        self.assertEqual(body["public_key_fingerprint"], openssl_fingerprint(RSA_PUB_PEM))
-        self.assertNotIn("encrypted_payload", body)
-        rec = self.fx.bootstrap_list()[1]["applications"][0]
-        self.assertEqual((rec["public_key"], rec["public_key_fingerprint"]), (RSA_PUB_PEM, body["public_key_fingerprint"]))
 
     def test_no_duplicate_rule(self):
         self.assertEqual(self.fx.bootstrap_apply()[0], 201)
@@ -1971,15 +1548,12 @@ class BootstrapApplyTests(ServerTestCase):
         self.assertEqual(self.fx.bootstrap_list("?status=bogus")[0], 400)
         self.assertEqual(self.fx.bootstrap_list(auth=None)[0], 401)
         self.assertEqual(self.fx.bootstrap_list(auth=("alice", "alicepass"))[0], 403)
-        _, info, _ = self.fx.request("GET", "/info")
-        self.assertEqual(listing["service_public_key_fingerprint"], info["service_public_key_fingerprint"])
+        self.assertEqual(set(listing), {"applications", "bootstrap_keys"})
         # federation and bootstrap queues are separate
         self.assertEqual(self.fx.request("GET", "/federation/list?status=all", auth=RODS)[1]["applications"], [])
 
 
 class BootstrapStatusAndJudgeTests(ServerTestCase):
-    config_overrides = {"bootstrap": PLAINTEXT_BOOTSTRAP}
-
     def test_status_pending_and_errors(self):
         _, a, _ = self.fx.bootstrap_apply()
         status, body, _ = self.fx.bootstrap_status(a["application_id"])
@@ -2045,6 +1619,16 @@ class BootstrapStatusAndJudgeTests(ServerTestCase):
         self.assertEqual((self.fx.irods.zones, self.fx.hups()), ({}, 0))
         self.assertEqual(self.fx.server_config()["federation"], [])
 
+    def test_missing_fact_in_server_config_is_500(self):
+        _, a, _ = self.fx.bootstrap_apply()
+        self.assertEqual(self.fx.judge(a["application_id"], "approve", feature="bootstrap")[0], 200)
+        cfg = self.fx.server_config()
+        del cfg["encryption"]
+        write_json(self.fx.server_config_file, cfg)
+        status, body, _ = self.fx.bootstrap_status(a["application_id"])
+        self.assertEqual(status, 500)
+        self.assertIn("encryption", body["error"])
+
     def test_approve_provider_facts_include_database(self):
         _, a, _ = self.fx.bootstrap_apply(role="provider")
         self.assertEqual(self.fx.judge(a["application_id"], "approve", feature="bootstrap")[0], 200)
@@ -2071,7 +1655,7 @@ class BootstrapStatusAndJudgeTests(ServerTestCase):
 
 
 class BootstrapExpirationTests(ServerTestCase):
-    config_overrides = {"bootstrap": dict(PLAINTEXT_BOOTSTRAP, application_expiration_in_seconds=1)}
+    config_overrides = {"bootstrap": {"application_expiration_in_seconds": 1}}
 
     def test_expired_application(self):
         _, a, _ = self.fx.bootstrap_apply()
@@ -2085,7 +1669,7 @@ class BootstrapExpirationTests(ServerTestCase):
 
 
 class BootstrapQueueFullTests(ServerTestCase):
-    config_overrides = {"bootstrap": dict(PLAINTEXT_BOOTSTRAP, max_pending_applications=1)}
+    config_overrides = {"bootstrap": {"max_pending_applications": 1}}
 
     def test_queue_full_is_503_and_keeps_key(self):
         self.assertEqual(self.fx.bootstrap_apply()[0], 201)
@@ -2098,63 +1682,7 @@ class BootstrapQueueFullTests(ServerTestCase):
         self.assertEqual(self.fx.apply()[0], 201)
 
 
-class BootstrapPolicyTests(ServerTestCase):
-    """Defaults: bootstrap requires both encryption directions, federation requires neither."""
-
-    def test_plaintext_refused_by_default(self):
-        key = self.fx.mint()
-        status, body, _ = self.fx.bootstrap_apply(key)
-        self.assertEqual(status, 400)
-        self.assertIn("requires encrypted bootstrap applications", body["error"])
-        (status, body, _), _ = self.fx.bootstrap_apply_encrypted(key)
-        self.assertEqual(status, 400)
-        self.assertIn("requires a public_key for bootstrap applications", body["error"])
-        self.assertEqual(self.fx.bootstrap_list()[1]["bootstrap_keys"][0]["status"], "available")
-        (status, body, _), jwe = self.fx.bootstrap_apply_encrypted(key, public_key=RSA_PUB_PEM)
-        self.assertEqual(status, 201)
-        self.assertEqual(body["public_key_fingerprint"], openssl_fingerprint(RSA_PUB_PEM))
-        self.assertNotIn(key, jwe)
-        _, listing, _ = self.fx.bootstrap_list()
-        self.assertEqual(listing["bootstrap_keys"][0]["status"], "used")
-        self.assertTrue(listing["applications"][0]["encrypted_application"])
-        # replay shares the memory with federation and is refused
-        status, body, _ = self.fx.request("POST", "/bootstrap/apply", {"encrypted_payload": jwe})
-        self.assertEqual(status, 409)
-        self.assertIn("already submitted", body["error"])
-        # federation is still permitted in plaintext
-        self.assertEqual(self.fx.apply()[0], 201)
-
-    def test_stale_iat_does_not_consume_key(self):
-        key = self.fx.mint()
-        (status, body, _), _ = self.fx.bootstrap_apply_encrypted(key, public_key=RSA_PUB_PEM, iat=int(time.time()) - 400)
-        self.assertEqual(status, 400)
-        self.assertIn("from server time", body["error"])
-        self.assertEqual(self.fx.bootstrap_list()[1]["bootstrap_keys"][0]["status"], "available")
-        self.assertEqual(self.fx.app.replay_memory, {})
-
-    def test_approved_status_is_encrypted(self):
-        (status, body, _), _ = self.fx.bootstrap_apply_encrypted(role="provider", public_key=RSA_PUB_PEM)
-        self.assertEqual(status, 201)
-        self.assertEqual(self.fx.judge(body["application_id"], "approve", feature="bootstrap")[0], 200)
-        _, s, _ = self.fx.bootstrap_status(body["application_id"])
-        self.assertEqual(s["status"], "approved")
-        self.assertNotIn("zone_facts", s)
-        self.assertNotIn("db-secret", json.dumps(s))
-        self.assertNotIn(HOME_ZONE_KEY, json.dumps(s))
-        self.assertNotIn(HOME_NEGOTIATION_KEY, json.dumps(s))
-        self.assertEqual(s["public_key_fingerprint"], body["public_key_fingerprint"])
-        payload = decrypt_payload(s["encrypted_payload"])
-        self.assertEqual(set(payload), {"zone_facts"})
-        self.assertEqual(payload["zone_facts"]["database"], HOME_DATABASE)
-        self.assertEqual(payload["zone_facts"]["zone_key"], HOME_ZONE_KEY)
-        _, again, _ = self.fx.bootstrap_status(body["application_id"])
-        self.assertNotEqual(again["encrypted_payload"], s["encrypted_payload"])
-        self.assertEqual(decrypt_payload(again["encrypted_payload"]), payload)
-
-
 class BootstrapConcurrencyTests(ServerTestCase):
-    config_overrides = {"bootstrap": PLAINTEXT_BOOTSTRAP}
-
     def test_single_use_under_concurrency(self):
         key = self.fx.mint()
         results = []
@@ -2286,7 +1814,6 @@ class MainTests(unittest.TestCase):
                 out, _ = proc.communicate(timeout=20)
             self.assertEqual(proc.returncode, 0, out)
             self.assertIn("serving plain HTTP", out)
-            self.assertIn("service public key fingerprint SHA256:", out)
             self.assertIn("received signal", out)
             self.assertIn("stopped", out)
         finally:

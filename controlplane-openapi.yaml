@@ -6,8 +6,8 @@ openapi: 3.0.3
 # authoritative specification. It describes only the HTTP surface: paths,
 # methods, bodies, status codes, headers, and authentication. Configuration,
 # the federation approve sequence, the zone key lifecycle rules, expiration,
-# concurrency, and the JWE recipes live in the markdown spec and are
-# referenced by section number below.
+# and concurrency live in the markdown spec and are referenced by section
+# number below.
 #
 # test_controlplane.py loads this file and validates every request the suite
 # sends and every response it receives against it, so the document and
@@ -38,18 +38,14 @@ info:
     failure answers `500`. A trailing slash on a path is ignored.
 
     Before handling any request the service runs the lazy expiration sweep
-    of spec section 9, so a `pending` application or an `available`
+    of spec section 8, so a `pending` application or an `available`
     bootstrap key whose `expires_at` has passed is `expired` by the time
     any endpoint reports on it.
 
-    The service speaks plain HTTP and is meant to run behind a
-    TLS-terminating proxy. Secrets can nevertheless be protected end to end
-    in both directions: an applicant may supply an RSA public key so every
-    secret the service returns is a JWE encrypted to it (spec 6.1), and may
-    encrypt its whole application to the service's ephemeral key published
-    by `/info` (spec 6.3). Each feature's `require_public_key` and
-    `require_encrypted_apply` govern this separately; bootstrap defaults
-    both to true.
+    The service speaks plain HTTP and must run behind a TLS-terminating
+    proxy. It assumes the channel to every client is already encrypted:
+    admin credentials travel in HTTP Basic headers and every secret in a
+    response travels as a plain JSON field.
   contact:
     name: iRODS Consortium
     url: https://irods.org
@@ -72,35 +68,29 @@ tags:
   - name: service
     description: Unauthenticated description of this service.
   - name: federation
-    description: Zone-to-zone federation applications (spec 8.1).
+    description: Zone-to-zone federation applications (spec 7.1).
   - name: keyserver
-    description: Zone key lifecycle and bootstrap key minting, rodsadmin only (spec 8.2).
+    description: Zone key lifecycle and bootstrap key minting, rodsadmin only (spec 7.2).
   - name: bootstrap
-    description: New servers joining the home zone (spec 8.3).
+    description: New servers joining the home zone (spec 7.3).
 
 paths:
   /info:
     get:
       tags: [service]
       operationId: getInfo
-      summary: Describe this service and publish its ephemeral public key
+      summary: Describe this service
       description: |
-        Spec section 8.0. Publishes what an applicant needs in order to talk
-        to this service: the service's ephemeral RSA public key, its
-        fingerprint, the fixed JWE algorithms, the two policy flags, the
-        clock-skew window for encrypted applications, and the application
-        expiration. No iRODS connection is made.
-
-        The key belongs to the current process only and changes at every
-        restart. An applicant must fetch it immediately before each `apply`
-        and must not cache it. The home zone's name is deliberately not
-        published.
+        Spec section 7.0. Publishes what an applicant needs to know before
+        applying: the service name and version and each feature's
+        application expiration. No iRODS connection is made. The home
+        zone's name is deliberately not published.
       responses:
         "200":
           description: Service description.
           headers:
             Cache-Control:
-              description: Always `no-store`, because the key is ephemeral.
+              description: Always `no-store`.
               schema:
                 type: string
                 enum: [no-store]
@@ -111,30 +101,9 @@ paths:
               example:
                 service: controlplane
                 version: 0.1.0
-                service_public_key: |
-                  -----BEGIN PUBLIC KEY-----
-                  MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAvcrC1sJpHOVFcKCGnyLv
-                  Z7iE+ZLEeIjM5ZRTM6AXVFOWc5VAITA4qb0Qyebnun+QWKNs92IihYK8HT6j3b8k
-                  UTczgZvdpsCHUtQtpu2bc/nh4fr1/2EOXyY7Lti8sxuzjnh/iGuPLlBsb1KWv+j6
-                  JP6NYQlKb0nRdjTQ7jWBdLX7x6Sm4et7jveHy6ZJn7frVMDR/PwN7xjQL9/poWjM
-                  1sWj92OYRVIj39r3LCpJAnB3iRbg3UyhUInGjHJN+ktdrED8q7vHR91azDxkag/o
-                  Y260jgOEGOevY/qeUy5fR2fXuqeIBjsEvbE9bk393+9qU7cVbW1jW/2O2+aMinup
-                  jjn1KLaQmO5nAnPmc4lzdgJAhdbEQ66+iQVjCxJJWRrr4FhFLCdacxJP3MggJCSd
-                  B34hOhzmrfp459QG9ccXHM1oAqIlhkN5D3wTNOokgMsZEVldZ6jfq/jALoX3duez
-                  n/DIgx1ylhwK170HUogW/6oit4GgP/mI6f0RNpun3rqBAgMBAAE=
-                  -----END PUBLIC KEY-----
-                service_public_key_fingerprint: SHA256:zINWTqSL/4khQtF09iOOIVSVJTlgLyGqaw7vsVCudUs
-                encryption:
-                  alg: RSA-OAEP-256
-                  enc: A256GCM
-                allowed_encryption_clock_skew_in_seconds: 300
                 federation:
-                  require_public_key: false
-                  require_encrypted_apply: false
                   application_expiration_in_seconds: 604800
                 bootstrap:
-                  require_public_key: true
-                  require_encrypted_apply: true
                   application_expiration_in_seconds: 86400
         "500":
           $ref: "#/components/responses/InternalError"
@@ -145,34 +114,19 @@ paths:
       operationId: federationApply
       summary: Submit a federation application
       description: |
-        Spec section 8.1.1. The body is either the plaintext `FederationApplyRequest`
-        or the `EncryptedApplyRequest`, a JSON object whose only key is
-        `encrypted_payload` holding a JWE compact serialization (spec 6.3)
-        whose plaintext is an `EncryptedFederationApplyPlaintext`.
+        Spec section 7.1.1. The body is a `FederationApplyRequest`.
 
         Processing order, each step answering as shown when it fails:
 
-        0. An encrypted body is opened with the service key (`400` telling
-           the applicant to fetch `/info` again when it does not open), its
-           `iat` is checked against the clock-skew window (`400`, naming
-           the server's current epoch time), and its ciphertext digest is
-           checked against the replay memory (`409`). A plaintext body is
-           refused with `400` when `require_encrypted_apply` is set.
-        1. The application is validated (spec 6.3). Unknown fields and an
-           unparseable, non-RSA, or too-short `public_key` answer `400`.
-        2. `require_public_key` without a `public_key` answers `400`.
-        3. A full queue (`max_pending_applications` pending records)
+        1. The application is validated (spec 5.6). Unknown fields answer
+           `400`.
+        2. A full queue (`max_pending_applications` pending records)
            answers `503`.
-        4. A `pending` application for the same `zone_name` answers `409`.
+        3. A `pending` application for the same `zone_name` answers `409`.
            Approved, rejected, and expired records do not block.
-        5. The service generates `negotiation_key`, and `zone_key` when the
+        4. The service generates `negotiation_key`, and `zone_key` when the
            applicant did not supply one, persists the record, and answers
-           `201`.
-
-        Without a `public_key` the `201` body carries both keys in
-        plaintext. With one, the keys are replaced by `public_key_fingerprint`
-        and one `encrypted_payload` whose plaintext is an `ApplySecrets`
-        object. The two encryption directions are independent.
+           `201` with both keys.
 
         `apply` performs no iRODS operations. `name` and `email` are shown
         to the reviewing admin only and are never used for anything else.
@@ -181,12 +135,10 @@ paths:
         content:
           application/json:
             schema:
-              oneOf:
-                - $ref: "#/components/schemas/FederationApplyRequest"
-                - $ref: "#/components/schemas/EncryptedApplyRequest"
+              $ref: "#/components/schemas/FederationApplyRequest"
             examples:
-              plaintext:
-                summary: Plaintext application with an applicant public key
+              full:
+                summary: Application with the optional fields
                 value:
                   zone_name: otherZone
                   zone_port: 1247
@@ -194,81 +146,38 @@ paths:
                   zone_key: OPTIONAL_EXISTING_ZONE_KEY
                   name: Optional Human Name
                   email: optional@example.org
-                  public_key: |
-                    -----BEGIN PUBLIC KEY-----
-                    MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkJv4C2kUfrhBq9FzE3uI
-                    wgqTwjrAQp+fsHFxSKwMluCPfXUQzOb+5gsVXorBfgjgb4Qyb4njyy2N3jI+3X6t
-                    bJpKluXCwNIuGrF6lTolBB1P2Q8TTRC1QNyaE2633GAietjP9DBeU8X9F+FDTUg2
-                    AZTFrZFhHqRk2AI0rFBczM+xJG9OWjFO/dCX75JVE6mKIUFPNd8mfvHwoWydMTfg
-                    YclY6cnl4h+u/H8LForzbx4NXlkni8iFOFpZL+EKMlQ17Xtl1AyJkNLz7RFsb8yk
-                    wJFbQ4N7kFqEl6+Ngcx9sZMQ75MC92ViljoaNRlm6Z40WkOH9K4FsjByezE1X0DH
-                    dQIDAQAB
-                    -----END PUBLIC KEY-----
               minimal:
-                summary: Smallest valid plaintext application
+                summary: Smallest valid application
                 value:
                   zone_name: otherZone
                   zone_port: 1247
                   catalog_provider_hosts: [icat.other.example.org]
-              encrypted:
-                summary: Application encrypted to the service key from /info
-                value:
-                  encrypted_payload: eyJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMjU2R0NNIn0.UGF5bG9hZA.SXYxMjM0NTY3ODkw.Q2lwaGVydGV4dA.VGFnMTIzNDU2Nzg5MDEy
       responses:
         "201":
           description: Application accepted and queued as `pending`.
           content:
             application/json:
               schema:
-                oneOf:
-                  - $ref: "#/components/schemas/FederationApplyResponse"
-                  - $ref: "#/components/schemas/EncryptedFederationApplyResponse"
-              examples:
-                plaintext:
-                  summary: No applicant public key, keys in plaintext
-                  value:
-                    application_id: 6f1c2a8e-4b1d-4c0e-9a7f-2d3e4f5a6b7c
-                    status: pending
-                    expires_at: "2026-11-07T15:04:05Z"
-                    negotiation_key: a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6
-                    zone_key: OPTIONAL_EXISTING_ZONE_KEY
-                    status_url: /federation/status?application_id=6f1c2a8e-4b1d-4c0e-9a7f-2d3e4f5a6b7c
-                encrypted:
-                  summary: Applicant public key supplied, keys encrypted to it
-                  value:
-                    application_id: 6f1c2a8e-4b1d-4c0e-9a7f-2d3e4f5a6b7c
-                    status: pending
-                    expires_at: "2026-11-07T15:04:05Z"
-                    public_key_fingerprint: SHA256:+17pjAXo9K+BHktv6cbsTbtAWe0Tv31CivV5iA6CHis
-                    encrypted_payload: eyJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMjU2R0NNIn0.UGF5bG9hZA.SXYxMjM0NTY3ODkw.Q2lwaGVydGV4dA.VGFnMTIzNDU2Nzg5MDEy
-                    status_url: /federation/status?application_id=6f1c2a8e-4b1d-4c0e-9a7f-2d3e4f5a6b7c
+                $ref: "#/components/schemas/FederationApplyResponse"
+              example:
+                application_id: 6f1c2a8e-4b1d-4c0e-9a7f-2d3e4f5a6b7c
+                status: pending
+                expires_at: "2026-11-07T15:04:05Z"
+                negotiation_key: a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6
+                zone_key: OPTIONAL_EXISTING_ZONE_KEY
+                status_url: /federation/status?application_id=6f1c2a8e-4b1d-4c0e-9a7f-2d3e4f5a6b7c
         "400":
           description: |
-            Malformed JSON, a validation failure (spec 6.3), unknown fields,
-            `zone_name` equal to the home zone's name, an `encrypted_payload`
-            that does not open with the current service key, a missing,
-            non-integer, or out-of-window `iat`, a plaintext body when
-            `require_encrypted_apply` is set, or no `public_key` when
-            `require_public_key` is set.
+            Malformed JSON, a validation failure (spec 5.6), unknown fields,
+            or `zone_name` equal to the home zone's name.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-              examples:
-                validation:
-                  value:
-                    error: "zone_port must be an integer in [0, 65535]"
-                stale_key:
-                  value:
-                    error: "encrypted_payload could not be opened with the current service key: fetch /info again and re-encrypt"
-                skew:
-                  value:
-                    error: "iat 1761900000 is more than 300 seconds from server time 1761903600"
+              example:
+                error: "zone_port must be an integer in [0, 65535]"
         "409":
-          description: |
-            A `pending` application for the same `zone_name` already exists,
-            or this exact encrypted application was already submitted
-            (replay).
+          description: A `pending` application for the same `zone_name` already exists.
           content:
             application/json:
               schema:
@@ -294,7 +203,7 @@ paths:
       operationId: federationStatus
       summary: Retrieve the state of one federation application
       description: |
-        Spec section 8.1.2. The `application_id` is unguessable and acts as
+        Spec section 7.1.2. The `application_id` is unguessable and acts as
         the bearer token; no other authentication is required.
 
         While the application is `pending`, `rejected`, or `expired` the
@@ -302,14 +211,11 @@ paths:
         the response also carries `applicant_federation_entry`, the object
         to append to the `federation` array of the applicant's
         `server_config.json`, and `applicant_mkzone_command`, the
-        `iadmin mkzone` command the applicant must run. When the
-        application carried a `public_key` those two fields are replaced by
-        `public_key_fingerprint` and one `encrypted_payload` whose plaintext
-        is an `ApprovedApplicantPayload`.
+        `iadmin mkzone` command the applicant must run.
 
         The home zone's own top-level `negotiation_key` is never disclosed;
-        the pair-specific key from the record is used. `name`, `email`, and
-        the public key itself are never returned here.
+        the pair-specific key from the record is used. `name` and `email`
+        are never returned here.
       parameters:
         - name: application_id
           in: query
@@ -326,7 +232,6 @@ paths:
                 oneOf:
                   - $ref: "#/components/schemas/FederationStatusResponse"
                   - $ref: "#/components/schemas/ApprovedFederationStatusResponse"
-                  - $ref: "#/components/schemas/EncryptedApprovedFederationStatusResponse"
               examples:
                 pending:
                   value:
@@ -352,16 +257,6 @@ paths:
                       zone_name: homeZone
                       zone_port: 1247
                     applicant_mkzone_command: iadmin mkzone homeZone remote icat.home.example.org:1247
-                approved_encrypted:
-                  value:
-                    application_id: 6f1c2a8e-4b1d-4c0e-9a7f-2d3e4f5a6b7c
-                    status: approved
-                    submitted_at: "2026-10-31T15:04:05Z"
-                    expires_at: "2026-11-07T15:04:05Z"
-                    judged_at: "2026-11-01T09:00:00Z"
-                    decision_note: null
-                    public_key_fingerprint: SHA256:+17pjAXo9K+BHktv6cbsTbtAWe0Tv31CivV5iA6CHis
-                    encrypted_payload: eyJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMjU2R0NNIn0.UGF5bG9hZA.SXYxMjM0NTY3ODkw.Q2lwaGVydGV4dA.VGFnMTIzNDU2Nzg5MDEy
         "400":
           description: "`application_id` missing, empty, or given more than once."
           content:
@@ -381,12 +276,9 @@ paths:
       operationId: federationList
       summary: List federation applications
       description: |
-        Spec section 8.1.3. Returns full application records, including keys,
-        `name`, `email`, `public_key`, `public_key_fingerprint`, and
-        `encrypted_application`, ordered by `submitted_at` ascending. The
-        caller is a rodsadmin, so nothing is redacted. The response also
-        carries the fingerprint of the current service key so the admin can
-        confirm it with an applicant over another channel.
+        Spec section 7.1.3. Returns full application records, including
+        keys, `name`, and `email`, ordered by `submitted_at` ascending. The
+        caller is a rodsadmin, so nothing is redacted.
       security:
         - rodsadminBasic: []
       parameters:
@@ -406,7 +298,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/FederationListResponse"
               example:
-                service_public_key_fingerprint: SHA256:zINWTqSL/4khQtF09iOOIVSVJTlgLyGqaw7vsVCudUs
                 applications:
                   - application_id: 6f1c2a8e-4b1d-4c0e-9a7f-2d3e4f5a6b7c
                     status: pending
@@ -421,18 +312,6 @@ paths:
                     negotiation_key: a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6
                     name: Optional Human Name
                     email: optional@example.org
-                    public_key: |
-                      -----BEGIN PUBLIC KEY-----
-                      MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkJv4C2kUfrhBq9FzE3uI
-                      wgqTwjrAQp+fsHFxSKwMluCPfXUQzOb+5gsVXorBfgjgb4Qyb4njyy2N3jI+3X6t
-                      bJpKluXCwNIuGrF6lTolBB1P2Q8TTRC1QNyaE2633GAietjP9DBeU8X9F+FDTUg2
-                      AZTFrZFhHqRk2AI0rFBczM+xJG9OWjFO/dCX75JVE6mKIUFPNd8mfvHwoWydMTfg
-                      YclY6cnl4h+u/H8LForzbx4NXlkni8iFOFpZL+EKMlQ17Xtl1AyJkNLz7RFsb8yk
-                      wJFbQ4N7kFqEl6+Ngcx9sZMQ75MC92ViljoaNRlm6Z40WkOH9K4FsjByezE1X0DH
-                      dQIDAQAB
-                      -----END PUBLIC KEY-----
-                    public_key_fingerprint: SHA256:+17pjAXo9K+BHktv6cbsTbtAWe0Tv31CivV5iA6CHis
-                    encrypted_application: true
                     judged_at: null
                     judged_by: null
                     decision_note: null
@@ -459,7 +338,7 @@ paths:
       operationId: federationJudge
       summary: Approve or reject a federation application
       description: |
-        Spec section 8.1.4. The request body is read and parsed before the
+        Spec section 7.1.4. The request body is read and parsed before the
         credentials are checked, so a malformed or oversized body answers
         `400` or `413` even without valid credentials.
 
@@ -479,9 +358,6 @@ paths:
         reload is the one case not rolled back: the catalog zone and the
         federation entry are correct and only the reload is outstanding, so
         judging again re-sends only the `SIGHUP`.
-
-        The judge response is always plaintext, whether or not the
-        applicant supplied a public key.
       security:
         - rodsadminBasic: []
       requestBody:
@@ -495,7 +371,7 @@ paths:
                 value:
                   application_id: 6f1c2a8e-4b1d-4c0e-9a7f-2d3e4f5a6b7c
                   decision: approve
-                  decision_note: fingerprint confirmed by phone
+                  decision_note: applicant confirmed by phone
               reject:
                 value:
                   application_id: 6f1c2a8e-4b1d-4c0e-9a7f-2d3e4f5a6b7c
@@ -527,12 +403,9 @@ paths:
                       negotiation_key: a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6
                       name: null
                       email: null
-                      public_key: null
-                      public_key_fingerprint: null
-                      encrypted_application: false
                       judged_at: "2026-11-01T09:00:00Z"
                       judged_by: rods
-                      decision_note: fingerprint confirmed by phone
+                      decision_note: applicant confirmed by phone
                     home_federation_entry:
                       catalog_provider_hosts: [icat.other.example.org]
                       negotiation_key: a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6
@@ -564,9 +437,6 @@ paths:
                       negotiation_key: a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6
                       name: null
                       email: null
-                      public_key: null
-                      public_key_fingerprint: null
-                      encrypted_application: false
                       judged_at: "2026-11-01T09:00:00Z"
                       judged_by: rods
                       decision_note: unknown applicant
@@ -640,7 +510,7 @@ paths:
       operationId: keyserverLocalZone
       summary: Read the lifecycle of the home zone's zone_key
       description: |
-        Spec section 8.2.1. Reconciles the stored zone key state against
+        Spec section 7.2.1. Reconciles the stored zone key state against
         `server_config.json` first (spec 5.5): on first use the key found
         there is adopted and a next key is minted; a file that now holds the
         next key is treated as a rotation; a file that holds neither is
@@ -687,7 +557,7 @@ paths:
       operationId: keyserverMintBootstrapKey
       summary: Mint a single-use bootstrap key
       description: |
-        Spec section 8.2.2. Mints one `uuid4` bootstrap key for the admin to
+        Spec section 7.2.2. Mints one `uuid4` bootstrap key for the admin to
         hand to the operator of a new server out of band. The key is single
         use and expires after `lifetime_of_bootstrap_keys_in_seconds`. The
         request has no body or an empty JSON object; anything else answers
@@ -743,41 +613,25 @@ paths:
       operationId: bootstrapApply
       summary: Apply to join the home zone with a bootstrap key
       description: |
-        Spec section 8.3.1. The body is either the plaintext
-        `BootstrapApplyRequest` or the `EncryptedApplyRequest`, whose
-        plaintext is an `EncryptedBootstrapApplyPlaintext`. By default the
-        bootstrap feature requires both the encrypted form and a
-        `public_key`, so the bootstrap key never travels in the clear and
-        the zone facts never leave encrypted.
+        Spec section 7.3.1. The body is a `BootstrapApplyRequest`.
 
-        Processing order: encrypted-form handling as for `/federation/apply`
-        (`400`, `409` replay); validation (`400`); `require_public_key`
-        (`400`); a full queue (`503`); then the bootstrap key is looked up.
-        An unknown, used, or expired key answers `403` and nothing is
-        consumed. Otherwise the record is created and the key marked `used`
-        in one state write, and the answer is `201`. No secrets are
-        returned at apply time, so the response is never encrypted; a
-        supplied key is used for the `status` response once approved.
-        There is no duplicate rule: two operators holding two keys may both
-        apply. No iRODS operation is performed.
+        Processing order: validation (`400`); a full queue (`503`); then
+        the bootstrap key is looked up. An unknown, used, or expired key
+        answers `403` and nothing is consumed. Otherwise the record is
+        created and the key marked `used` in one state write, and the
+        answer is `201`. No secrets are returned at apply time; the zone
+        facts are released by `status` once approved. There is no
+        duplicate rule: two operators holding two keys may both apply. No
+        iRODS operation is performed.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              oneOf:
-                - $ref: "#/components/schemas/BootstrapApplyRequest"
-                - $ref: "#/components/schemas/EncryptedApplyRequest"
-            examples:
-              plaintext:
-                summary: Plaintext application (only when the feature allows it)
-                value:
-                  bootstrap_key: 0b2f6c1e-7d3a-4f8b-9e21-5c4d3b2a1f00
-                  catalog_service_role: consumer
-              encrypted:
-                summary: Application encrypted to the service key from /info
-                value:
-                  encrypted_payload: eyJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMjU2R0NNIn0.UGF5bG9hZA.SXYxMjM0NTY3ODkw.Q2lwaGVydGV4dA.VGFnMTIzNDU2Nzg5MDEy
+              $ref: "#/components/schemas/BootstrapApplyRequest"
+            example:
+              bootstrap_key: 0b2f6c1e-7d3a-4f8b-9e21-5c4d3b2a1f00
+              catalog_service_role: consumer
       responses:
         "201":
           description: Application accepted and queued as `pending`; the bootstrap key is now used.
@@ -785,42 +639,21 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BootstrapApplyResponse"
-              examples:
-                plain:
-                  value:
-                    application_id: 9c41d2e7-3f5a-4b6c-8d7e-1a2b3c4d5e6f
-                    status: pending
-                    expires_at: "2026-11-02T15:04:05Z"
-                    status_url: /bootstrap/status?application_id=9c41d2e7-3f5a-4b6c-8d7e-1a2b3c4d5e6f
-                with_key:
-                  value:
-                    application_id: 9c41d2e7-3f5a-4b6c-8d7e-1a2b3c4d5e6f
-                    status: pending
-                    expires_at: "2026-11-02T15:04:05Z"
-                    public_key_fingerprint: SHA256:+17pjAXo9K+BHktv6cbsTbtAWe0Tv31CivV5iA6CHis
-                    status_url: /bootstrap/status?application_id=9c41d2e7-3f5a-4b6c-8d7e-1a2b3c4d5e6f
+              example:
+                application_id: 9c41d2e7-3f5a-4b6c-8d7e-1a2b3c4d5e6f
+                status: pending
+                expires_at: "2026-11-02T15:04:05Z"
+                status_url: /bootstrap/status?application_id=9c41d2e7-3f5a-4b6c-8d7e-1a2b3c4d5e6f
         "400":
-          description: |
-            Malformed JSON, a validation failure, unknown fields, an
-            `encrypted_payload` that does not open, a bad `iat`, a plaintext
-            body when `require_encrypted_apply` is set, or no `public_key`
-            when `require_public_key` is set.
+          description: Malformed JSON, a validation failure, or unknown fields.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
               example:
-                error: "this service requires encrypted bootstrap applications: encrypt the application to the service key from /info and send it as encrypted_payload"
+                error: catalog_service_role must be one of consumer, provider
         "403":
           $ref: "#/components/responses/BootstrapKeyRefused"
-        "409":
-          description: This exact encrypted application was already submitted (replay).
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              example:
-                error: this encrypted application was already submitted
         "413":
           $ref: "#/components/responses/BodyTooLarge"
         "500":
@@ -840,17 +673,14 @@ paths:
       operationId: bootstrapStatus
       summary: Retrieve the state of one bootstrap application
       description: |
-        Spec section 8.3.2. The `application_id` acts as the bearer token.
+        Spec section 7.3.2. The `application_id` acts as the bearer token.
         Once `approved` the response carries `zone_facts`, read verbatim
         from the home provider's `server_config.json` at request time:
         zone identity, the zone's current `zone_key` and `negotiation_key`,
         the catalog provider hosts, and zone-wide hashing, policy, and
         encryption settings. For a `provider` role it also carries the
-        `database` credentials. When the application carried a
-        `public_key`, `zone_facts` is replaced by `public_key_fingerprint`
-        and one `encrypted_payload` whose plaintext is a `ZoneFactsPayload`.
-        The zone's admin password is not included; the operator obtains it
-        out of band.
+        `database` credentials. The zone's admin password is not included;
+        the operator obtains it out of band.
       parameters:
         - name: application_id
           in: query
@@ -867,7 +697,6 @@ paths:
                 oneOf:
                   - $ref: "#/components/schemas/BootstrapStatusResponse"
                   - $ref: "#/components/schemas/ApprovedBootstrapStatusResponse"
-                  - $ref: "#/components/schemas/EncryptedApprovedBootstrapStatusResponse"
               examples:
                 pending:
                   value:
@@ -914,17 +743,6 @@ paths:
                         odbc_driver: PostgreSQL ANSI
                         username: irods
                         password: the-database-password
-                approved_encrypted:
-                  value:
-                    application_id: 9c41d2e7-3f5a-4b6c-8d7e-1a2b3c4d5e6f
-                    status: approved
-                    catalog_service_role: consumer
-                    submitted_at: "2026-11-01T15:04:05Z"
-                    expires_at: "2026-11-02T15:04:05Z"
-                    judged_at: "2026-11-01T16:00:00Z"
-                    decision_note: null
-                    public_key_fingerprint: SHA256:+17pjAXo9K+BHktv6cbsTbtAWe0Tv31CivV5iA6CHis
-                    encrypted_payload: eyJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMjU2R0NNIn0.UGF5bG9hZA.SXYxMjM0NTY3ODkw.Q2lwaGVydGV4dA.VGFnMTIzNDU2Nzg5MDEy
         "400":
           description: "`application_id` missing, empty, or given more than once."
           content:
@@ -944,7 +762,7 @@ paths:
       operationId: bootstrapList
       summary: List bootstrap applications and bootstrap keys
       description: |
-        Spec section 8.3.3. Applications are filtered by `status` and
+        Spec section 7.3.3. Applications are filtered by `status` and
         ordered by `submitted_at` ascending; `bootstrap_keys` is every key
         the service has minted, in every status, ordered by `created_at`,
         so the admin can see which are still available, which were used and
@@ -968,7 +786,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/BootstrapListResponse"
               example:
-                service_public_key_fingerprint: SHA256:zINWTqSL/4khQtF09iOOIVSVJTlgLyGqaw7vsVCudUs
                 applications:
                   - application_id: 9c41d2e7-3f5a-4b6c-8d7e-1a2b3c4d5e6f
                     status: pending
@@ -977,9 +794,6 @@ paths:
                     remote_address: 203.0.113.9
                     catalog_service_role: consumer
                     bootstrap_key: 0b2f6c1e-7d3a-4f8b-9e21-5c4d3b2a1f00
-                    public_key: null
-                    public_key_fingerprint: null
-                    encrypted_application: true
                     judged_at: null
                     judged_by: null
                     decision_note: null
@@ -1021,7 +835,7 @@ paths:
       operationId: bootstrapJudge
       summary: Approve or reject a bootstrap application
       description: |
-        Spec section 8.3.4. Same request and validation as
+        Spec section 7.3.4. Same request and validation as
         `/federation/judge`. Both decisions only mark the record and
         persist it; nothing is done in the home zone's iRODS instance.
         Approval releases `zone_facts` to `/bootstrap/status`; the judge
@@ -1053,9 +867,6 @@ paths:
                   remote_address: 203.0.113.9
                   catalog_service_role: consumer
                   bootstrap_key: 0b2f6c1e-7d3a-4f8b-9e21-5c4d3b2a1f00
-                  public_key: null
-                  public_key_fingerprint: null
-                  encrypted_application: false
                   judged_at: "2026-11-01T16:00:00Z"
                   judged_by: rods
                   decision_note: null
@@ -1102,7 +913,7 @@ components:
       type: http
       scheme: basic
       description: |
-        Spec section 7. The username is a plain home-zone username; a
+        Spec section 6. The username is a plain home-zone username; a
         `user#zone` form is refused with `401`. The password is verified by
         opening a real python-irodsclient session to the home zone, and the
         user must be of type `rodsadmin` or the answer is `403`. The session
@@ -1224,8 +1035,8 @@ components:
       type: array
       description: |
         Spec 5.6. Each entry is an RFC 1123 hostname or an IPv4/IPv6
-        literal. Approval refuses hosts that do not resolve from the The control plane
-        host.
+        literal. Approval refuses hosts that do not resolve from the control
+        plane host.
       minItems: 1
       uniqueItems: true
       items:
@@ -1245,43 +1056,6 @@ components:
       description: Spec 5.6, 5.4. Exactly 32 characters from `A-Za-z0-9_`.
       pattern: "^[A-Za-z0-9_]{32}$"
       example: a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6
-
-    PublicKey:
-      type: string
-      description: |
-        Spec 5.6. An RSA public key of at least 2048 bits as PEM
-        SubjectPublicKeyInfo (`-----BEGIN PUBLIC KEY-----`) or a single
-        OpenSSH line (`ssh-rsa AAAA...`, trailing comment ignored).
-      minLength: 1
-      maxLength: 16384
-      example: |
-        -----BEGIN PUBLIC KEY-----
-        MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkJv4C2kUfrhBq9FzE3uI
-        wgqTwjrAQp+fsHFxSKwMluCPfXUQzOb+5gsVXorBfgjgb4Qyb4njyy2N3jI+3X6t
-        bJpKluXCwNIuGrF6lTolBB1P2Q8TTRC1QNyaE2633GAietjP9DBeU8X9F+FDTUg2
-        AZTFrZFhHqRk2AI0rFBczM+xJG9OWjFO/dCX75JVE6mKIUFPNd8mfvHwoWydMTfg
-        YclY6cnl4h+u/H8LForzbx4NXlkni8iFOFpZL+EKMlQ17Xtl1AyJkNLz7RFsb8yk
-        wJFbQ4N7kFqEl6+Ngcx9sZMQ75MC92ViljoaNRlm6Z40WkOH9K4FsjByezE1X0DH
-        dQIDAQAB
-        -----END PUBLIC KEY-----
-
-    PublicKeyFingerprint:
-      type: string
-      description: |
-        Spec 6.1. `SHA256:` followed by the SHA-256 of the key's DER
-        SubjectPublicKeyInfo in the standard base64 alphabet without
-        padding.
-      pattern: "^SHA256:[A-Za-z0-9+/]{43}$"
-      example: SHA256:+17pjAXo9K+BHktv6cbsTbtAWe0Tv31CivV5iA6CHis
-
-    JWE:
-      type: string
-      description: |
-        Spec 6.1. A JWE compact serialization: five unpadded base64url
-        segments joined by `.`, protected header
-        `{"alg":"RSA-OAEP-256","enc":"A256GCM"}`.
-      pattern: "^[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+){4}$"
-      example: eyJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMjU2R0NNIn0.UGF5bG9hZA.SXYxMjM0NTY3ODkw.Q2lwaGVydGV4dA.VGFnMTIzNDU2Nzg5MDEy
 
     FederationEntry:
       type: object
@@ -1315,15 +1089,7 @@ components:
 
     InfoResponse:
       type: object
-      required:
-        - service
-        - version
-        - service_public_key
-        - service_public_key_fingerprint
-        - encryption
-        - allowed_encryption_clock_skew_in_seconds
-        - federation
-        - bootstrap
+      required: [service, version, federation, bootstrap]
       additionalProperties: false
       properties:
         service:
@@ -1333,28 +1099,6 @@ components:
           type: string
           description: Version of the running service.
           example: 0.1.0
-        service_public_key:
-          type: string
-          description: PEM SubjectPublicKeyInfo of the ephemeral RSA 3072-bit process key.
-          pattern: "^-----BEGIN PUBLIC KEY-----\n[A-Za-z0-9+/=\n]+-----END PUBLIC KEY-----\n$"
-        service_public_key_fingerprint:
-          $ref: "#/components/schemas/PublicKeyFingerprint"
-        encryption:
-          type: object
-          description: The fixed JWE algorithms used in both directions.
-          required: [alg, enc]
-          additionalProperties: false
-          properties:
-            alg:
-              type: string
-              enum: [RSA-OAEP-256]
-            enc:
-              type: string
-              enum: [A256GCM]
-        allowed_encryption_clock_skew_in_seconds:
-          type: integer
-          minimum: 1
-          description: How far an encrypted application's `iat` may differ from the server clock, in either direction.
         federation:
           $ref: "#/components/schemas/FeaturePolicy"
         bootstrap:
@@ -1362,16 +1106,10 @@ components:
 
     FeaturePolicy:
       type: object
-      description: The per-feature policy of spec 4.2 and 4.3 as `/info` publishes it.
-      required: [require_public_key, require_encrypted_apply, application_expiration_in_seconds]
+      description: The per-feature settings of spec 4.2 and 4.3 that `/info` publishes.
+      required: [application_expiration_in_seconds]
       additionalProperties: false
       properties:
-        require_public_key:
-          type: boolean
-          description: When true, `apply` refuses applications without a `public_key`.
-        require_encrypted_apply:
-          type: boolean
-          description: When true, `apply` refuses plaintext applications.
         application_expiration_in_seconds:
           type: integer
           minimum: 1
@@ -1379,7 +1117,7 @@ components:
 
     FederationApplyRequest:
       type: object
-      description: Plaintext federation application, spec 8.1.1.
+      description: Federation application, spec 7.1.1.
       required: [zone_name, zone_port, catalog_provider_hosts]
       additionalProperties: false
       properties:
@@ -1404,60 +1142,10 @@ components:
             mail.
           minLength: 3
           maxLength: 254
-        public_key:
-          $ref: "#/components/schemas/PublicKey"
-
-    EncryptedApplyRequest:
-      type: object
-      description: |
-        Encrypted application, spec 6.3. The JWE is encrypted to the
-        service key from `/info`; its plaintext is an
-        `EncryptedFederationApplyPlaintext`. No other key may be present.
-      required: [encrypted_payload]
-      additionalProperties: false
-      properties:
-        encrypted_payload:
-          $ref: "#/components/schemas/JWE"
-
-    EncryptedFederationApplyPlaintext:
-      type: object
-      description: |
-        The JSON document an applicant encrypts into
-        `EncryptedApplyRequest.encrypted_payload`. It is the `FederationApplyRequest`
-        plus the required `iat`. This object never travels in the clear.
-      required: [zone_name, zone_port, catalog_provider_hosts, iat]
-      additionalProperties: false
-      properties:
-        zone_name:
-          $ref: "#/components/schemas/ZoneName"
-        zone_port:
-          $ref: "#/components/schemas/ZonePort"
-        catalog_provider_hosts:
-          $ref: "#/components/schemas/CatalogProviderHosts"
-        zone_key:
-          $ref: "#/components/schemas/ZoneKey"
-        name:
-          type: string
-          minLength: 1
-          maxLength: 256
-        email:
-          type: string
-          minLength: 3
-          maxLength: 254
-        public_key:
-          $ref: "#/components/schemas/PublicKey"
-        iat:
-          type: integer
-          description: |
-            Seconds since 1970-01-01T00:00:00Z as RFC 7519 NumericDate.
-            Rejected when it differs from the server clock by more than
-            `allowed_encryption_clock_skew_in_seconds`. Not allowed in a
-            plaintext `FederationApplyRequest`.
-          example: 1761903600
 
     FederationApplyResponse:
       type: object
-      description: "`201` body when the application carried no `public_key`."
+      description: "`201` body of `/federation/apply`."
       required: [application_id, status, expires_at, negotiation_key, zone_key, status_url]
       additionalProperties: false
       properties:
@@ -1475,44 +1163,11 @@ components:
         status_url:
           $ref: "#/components/schemas/StatusUrl"
 
-    EncryptedFederationApplyResponse:
-      type: object
-      description: |
-        `201` body when the application carried a `public_key`. The
-        plaintext of `encrypted_payload` is an `ApplySecrets` object.
-      required: [application_id, status, expires_at, public_key_fingerprint, encrypted_payload, status_url]
-      additionalProperties: false
-      properties:
-        application_id:
-          $ref: "#/components/schemas/ApplicationId"
-        status:
-          type: string
-          enum: [pending]
-        expires_at:
-          $ref: "#/components/schemas/Timestamp"
-        public_key_fingerprint:
-          $ref: "#/components/schemas/PublicKeyFingerprint"
-        encrypted_payload:
-          $ref: "#/components/schemas/JWE"
-        status_url:
-          $ref: "#/components/schemas/StatusUrl"
-
     StatusUrl:
       type: string
       description: Relative URL of this application's `status` endpoint.
       pattern: "^/(federation|bootstrap)/status\\?application_id=[0-9a-f-]{36}$"
       example: /federation/status?application_id=6f1c2a8e-4b1d-4c0e-9a7f-2d3e4f5a6b7c
-
-    ApplySecrets:
-      type: object
-      description: Plaintext of `EncryptedFederationApplyResponse.encrypted_payload`. Never travels in the clear.
-      required: [negotiation_key, zone_key]
-      additionalProperties: false
-      properties:
-        negotiation_key:
-          $ref: "#/components/schemas/NegotiationKey"
-        zone_key:
-          $ref: "#/components/schemas/ZoneKey"
 
     FederationStatusResponse:
       type: object
@@ -1542,7 +1197,7 @@ components:
 
     ApprovedFederationStatusResponse:
       type: object
-      description: "`status` body for an approved application that carried no `public_key`."
+      description: "`status` body for an approved application."
       required:
         - application_id
         - status
@@ -1574,59 +1229,11 @@ components:
         applicant_mkzone_command:
           $ref: "#/components/schemas/MkzoneCommand"
 
-    EncryptedApprovedFederationStatusResponse:
-      type: object
-      description: |
-        `status` body for an approved application that carried a
-        `public_key`. The plaintext of `encrypted_payload` is an
-        `ApprovedApplicantPayload`.
-      required:
-        - application_id
-        - status
-        - submitted_at
-        - expires_at
-        - judged_at
-        - decision_note
-        - public_key_fingerprint
-        - encrypted_payload
-      additionalProperties: false
-      properties:
-        application_id:
-          $ref: "#/components/schemas/ApplicationId"
-        status:
-          type: string
-          enum: [approved]
-        submitted_at:
-          $ref: "#/components/schemas/Timestamp"
-        expires_at:
-          $ref: "#/components/schemas/Timestamp"
-        judged_at:
-          $ref: "#/components/schemas/Timestamp"
-        decision_note:
-          type: string
-          nullable: true
-          maxLength: 1024
-        public_key_fingerprint:
-          $ref: "#/components/schemas/PublicKeyFingerprint"
-        encrypted_payload:
-          $ref: "#/components/schemas/JWE"
-
     MkzoneCommand:
       type: string
       description: The `iadmin mkzone` command the applicant runs to add the home zone to its own catalog.
       pattern: "^iadmin mkzone [A-Za-z0-9_.]{1,63} remote [^ ]+:[0-9]{1,5}$"
       example: iadmin mkzone homeZone remote icat.home.example.org:1247
-
-    ApprovedApplicantPayload:
-      type: object
-      description: Plaintext of `EncryptedApprovedFederationStatusResponse.encrypted_payload`. Never travels in the clear.
-      required: [applicant_federation_entry, applicant_mkzone_command]
-      additionalProperties: false
-      properties:
-        applicant_federation_entry:
-          $ref: "#/components/schemas/FederationEntry"
-        applicant_mkzone_command:
-          $ref: "#/components/schemas/MkzoneCommand"
 
     FederationApplicationRecord:
       type: object
@@ -1645,9 +1252,6 @@ components:
         - negotiation_key
         - name
         - email
-        - public_key
-        - public_key_fingerprint
-        - encrypted_application
         - judged_at
         - judged_by
         - decision_note
@@ -1688,19 +1292,6 @@ components:
           nullable: true
           minLength: 3
           maxLength: 254
-        public_key:
-          type: string
-          nullable: true
-          minLength: 1
-          maxLength: 16384
-          description: Stored verbatim as supplied.
-        public_key_fingerprint:
-          type: string
-          nullable: true
-          pattern: "^SHA256:[A-Za-z0-9+/]{43}$"
-        encrypted_application:
-          type: boolean
-          description: True when the application arrived in the encrypted form of spec 6.3.
         judged_at:
           type: string
           nullable: true
@@ -1717,11 +1308,9 @@ components:
 
     FederationListResponse:
       type: object
-      required: [service_public_key_fingerprint, applications]
+      required: [applications]
       additionalProperties: false
       properties:
-        service_public_key_fingerprint:
-          $ref: "#/components/schemas/PublicKeyFingerprint"
         applications:
           type: array
           description: Ordered by `submitted_at` ascending.
@@ -1784,7 +1373,7 @@ components:
 
     LocalZoneResponse:
       type: object
-      description: Spec 8.2.1 and 5.5.
+      description: Spec 7.2.1 and 5.5.
       required: [zone_name, lifetime_of_zone_keys_in_seconds, zone_key, next_zone_key]
       additionalProperties: false
       properties:
@@ -1849,7 +1438,7 @@ components:
 
     BootstrapApplyRequest:
       type: object
-      description: Plaintext bootstrap application, spec 8.3.1.
+      description: Bootstrap application, spec 7.3.1.
       required: [bootstrap_key, catalog_service_role]
       additionalProperties: false
       properties:
@@ -1857,33 +1446,10 @@ components:
           $ref: "#/components/schemas/BootstrapKey"
         catalog_service_role:
           $ref: "#/components/schemas/CatalogServiceRole"
-        public_key:
-          $ref: "#/components/schemas/PublicKey"
-
-    EncryptedBootstrapApplyPlaintext:
-      type: object
-      description: |
-        The JSON document an applicant encrypts into
-        `EncryptedApplyRequest.encrypted_payload` for `/bootstrap/apply`:
-        the `BootstrapApplyRequest` plus the required `iat`. Never travels
-        in the clear.
-      required: [bootstrap_key, catalog_service_role, iat]
-      additionalProperties: false
-      properties:
-        bootstrap_key:
-          $ref: "#/components/schemas/BootstrapKey"
-        catalog_service_role:
-          $ref: "#/components/schemas/CatalogServiceRole"
-        public_key:
-          $ref: "#/components/schemas/PublicKey"
-        iat:
-          type: integer
-          description: Seconds since the epoch as RFC 7519 NumericDate; see `EncryptedFederationApplyPlaintext`.
-          example: 1761903600
 
     BootstrapApplyResponse:
       type: object
-      description: "`201` body of `/bootstrap/apply`. Carries no secrets, so it is never encrypted."
+      description: "`201` body of `/bootstrap/apply`. Carries no secrets."
       required: [application_id, status, expires_at, status_url]
       additionalProperties: false
       properties:
@@ -1894,8 +1460,6 @@ components:
           enum: [pending]
         expires_at:
           $ref: "#/components/schemas/Timestamp"
-        public_key_fingerprint:
-          $ref: "#/components/schemas/PublicKeyFingerprint"
         status_url:
           $ref: "#/components/schemas/StatusUrl"
 
@@ -1927,7 +1491,7 @@ components:
 
     ApprovedBootstrapStatusResponse:
       type: object
-      description: "`/bootstrap/status` body for an approved application that carried no `public_key`."
+      description: "`/bootstrap/status` body for an approved application."
       required: [application_id, status, catalog_service_role, submitted_at, expires_at, judged_at, decision_note, zone_facts]
       additionalProperties: false
       properties:
@@ -1951,41 +1515,10 @@ components:
         zone_facts:
           $ref: "#/components/schemas/ZoneFacts"
 
-    EncryptedApprovedBootstrapStatusResponse:
-      type: object
-      description: |
-        `/bootstrap/status` body for an approved application that carried a
-        `public_key`. The plaintext of `encrypted_payload` is a
-        `ZoneFactsPayload`.
-      required: [application_id, status, catalog_service_role, submitted_at, expires_at, judged_at, decision_note, public_key_fingerprint, encrypted_payload]
-      additionalProperties: false
-      properties:
-        application_id:
-          $ref: "#/components/schemas/ApplicationId"
-        status:
-          type: string
-          enum: [approved]
-        catalog_service_role:
-          $ref: "#/components/schemas/CatalogServiceRole"
-        submitted_at:
-          $ref: "#/components/schemas/Timestamp"
-        expires_at:
-          $ref: "#/components/schemas/Timestamp"
-        judged_at:
-          $ref: "#/components/schemas/Timestamp"
-        decision_note:
-          type: string
-          nullable: true
-          maxLength: 1024
-        public_key_fingerprint:
-          $ref: "#/components/schemas/PublicKeyFingerprint"
-        encrypted_payload:
-          $ref: "#/components/schemas/JWE"
-
     ZoneFacts:
       type: object
       description: |
-        Spec 8.3.2. Every value is copied verbatim from the home provider's
+        Spec 7.3.2. Every value is copied verbatim from the home provider's
         `server_config.json`. `database` is present only for the `provider`
         role, and its `host` is whatever the home provider uses, possibly
         `localhost`. Appendix A of the spec maps these onto a
@@ -2072,15 +1605,6 @@ components:
         password:
           type: string
 
-    ZoneFactsPayload:
-      type: object
-      description: Plaintext of `EncryptedApprovedBootstrapStatusResponse.encrypted_payload`. Never travels in the clear.
-      required: [zone_facts]
-      additionalProperties: false
-      properties:
-        zone_facts:
-          $ref: "#/components/schemas/ZoneFacts"
-
     BootstrapApplicationRecord:
       type: object
       description: The full stored record, spec 5.3. Returned only to rodsadmins.
@@ -2092,9 +1616,6 @@ components:
         - remote_address
         - catalog_service_role
         - bootstrap_key
-        - public_key
-        - public_key_fingerprint
-        - encrypted_application
         - judged_at
         - judged_by
         - decision_note
@@ -2114,17 +1635,6 @@ components:
           $ref: "#/components/schemas/CatalogServiceRole"
         bootstrap_key:
           $ref: "#/components/schemas/BootstrapKey"
-        public_key:
-          type: string
-          nullable: true
-          minLength: 1
-          maxLength: 16384
-        public_key_fingerprint:
-          type: string
-          nullable: true
-          pattern: "^SHA256:[A-Za-z0-9+/]{43}$"
-        encrypted_application:
-          type: boolean
         judged_at:
           type: string
           nullable: true
@@ -2140,11 +1650,9 @@ components:
 
     BootstrapListResponse:
       type: object
-      required: [service_public_key_fingerprint, applications, bootstrap_keys]
+      required: [applications, bootstrap_keys]
       additionalProperties: false
       properties:
-        service_public_key_fingerprint:
-          $ref: "#/components/schemas/PublicKeyFingerprint"
         applications:
           type: array
           description: Ordered by `submitted_at` ascending.

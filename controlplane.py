@@ -22,17 +22,13 @@ Usage:
 
     python3 controlplane.py /path/to/controlplane.json
 
-The service speaks plain HTTP only and should be deployed behind a
-TLS-terminating reverse proxy: admin credentials travel in HTTP Basic
-headers. An applicant that supplies an RSA public key receives its secrets as
-a JWE (RSA-OAEP-256 + A256GCM) encrypted to that key, and an applicant may
-encrypt its whole application to the service's own ephemeral key published by
-/info, so the applicant side does not depend on TLS. Each feature's
-"require_public_key" and "require_encrypted_apply" refuse plaintext in either
-direction; bootstrap defaults both to true. The service key lives only in
-memory and changes at every restart.
+The service speaks plain HTTP only and must be deployed behind a
+TLS-terminating reverse proxy. It assumes the channel to every client is
+already encrypted: admin credentials travel in HTTP Basic headers and every
+applicant-facing secret travels as a plain JSON field. The service does no
+cryptography of its own beyond generating random keys and ids.
 
-Dependencies: python-irodsclient and cryptography.
+Dependencies: python-irodsclient.
 
 Endpoints:
 
@@ -53,7 +49,6 @@ See controlplane-spec.md for the full specification.
 
 import base64
 import datetime
-import hashlib
 import ipaddress
 import json
 import logging
@@ -72,10 +67,6 @@ from urllib.parse import parse_qs, urlsplit
 
 import irods.exception
 import irods.session
-from cryptography.exceptions import UnsupportedAlgorithm
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import padding, rsa
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from irods.api_number import api_number
 from irods.message import GeneralAdminRequest, iRODSMessage
 
@@ -114,11 +105,6 @@ ROLES = ("consumer", "provider")
 DECISION_NOTE_MAX_LENGTH = 1024
 NAME_MAX_LENGTH = 256
 EMAIL_MAX_LENGTH = 254
-PUBLIC_KEY_MAX_LENGTH = 16384
-RSA_MIN_BITS = 2048
-
-JWE_PROTECTED_HEADER = {"alg": "RSA-OAEP-256", "enc": "A256GCM"}
-SERVICE_KEY_BITS = 3072
 
 STATE_SCHEMA_VERSION = 1
 
@@ -139,28 +125,22 @@ CONFIG_DEFAULTS = {
     "irods_environment_file": None,  # resolved from env var / ~/.irods
     "server_config_file": "/etc/irods/server_config.json",
     "server_pid_file": "/var/run/irods/irods-server.pid",
-    "allowed_encryption_clock_skew_in_seconds": 300,
 }
-CONFIG_REQUIRED = ()
 FEATURE_DEFAULTS = {
     "federation": {
         "application_expiration_in_seconds": 7 * 24 * 60 * 60,
         "max_pending_applications": 100,
-        "require_public_key": False,
-        "require_encrypted_apply": False,
     },
     "bootstrap": {
         "application_expiration_in_seconds": 24 * 60 * 60,
         "max_pending_applications": 100,
-        "require_public_key": True,
-        "require_encrypted_apply": True,
     },
     "keyserver": {
         "lifetime_of_zone_keys_in_seconds": 90 * 24 * 60 * 60,
         "lifetime_of_bootstrap_keys_in_seconds": 24 * 60 * 60,
     },
 }
-CONFIG_KNOWN_KEYS = set(CONFIG_DEFAULTS) | set(CONFIG_REQUIRED) | set(FEATURE_DEFAULTS)
+CONFIG_KNOWN_KEYS = set(CONFIG_DEFAULTS) | set(FEATURE_DEFAULTS)
 
 log = logging.getLogger("controlplane")
 
@@ -255,9 +235,6 @@ def load_config(path):
     unknown = sorted(set(raw) - CONFIG_KNOWN_KEYS)
     if unknown:
         raise ConfigError("unknown configuration key(s): {}".format(", ".join(unknown)))
-    for key in CONFIG_REQUIRED:
-        if key not in raw:
-            raise ConfigError("missing required configuration key: {}".format(key))
 
     cfg = dict(CONFIG_DEFAULTS)
     cfg.update({k: v for k, v in raw.items() if k not in FEATURE_DEFAULTS})
@@ -278,20 +255,13 @@ def load_config(path):
         if not is_int(v) or v <= 0 or (maximum is not None and v > maximum):
             raise ConfigError("{} must be an integer in [1, {}]".format(key, maximum or "inf"))
 
-    def boolean(section, key):
-        if not isinstance(section[key], bool):
-            raise ConfigError("{} must be true or false".format(key))
-
     positive_int(cfg, "port", 65535)
     positive_int(cfg, "max_request_body_bytes")
-    positive_int(cfg, "allowed_encryption_clock_skew_in_seconds")
     if not isinstance(cfg["bind_address"], str) or not cfg["bind_address"]:
         raise ConfigError("bind_address must be a non-empty string")
     for feature in ("federation", "bootstrap"):
         positive_int(cfg[feature], "application_expiration_in_seconds")
         positive_int(cfg[feature], "max_pending_applications")
-        boolean(cfg[feature], "require_public_key")
-        boolean(cfg[feature], "require_encrypted_apply")
     positive_int(cfg["keyserver"], "lifetime_of_zone_keys_in_seconds")
     positive_int(cfg["keyserver"], "lifetime_of_bootstrap_keys_in_seconds")
 
@@ -326,99 +296,6 @@ def load_irods_environment(path):
         if key not in env:
             raise ConfigError("iRODS environment file is missing {}".format(key))
     return env
-
-
-# ---------------------------------------------------------------------------
-# Applicant public keys and encrypted payloads (spec section 6)
-# ---------------------------------------------------------------------------
-
-def b64url(data):
-    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
-
-
-def parse_public_key(text):
-    """Parse a PEM SubjectPublicKeyInfo or OpenSSH public key. Must be RSA >= 2048 bits.
-
-    Raises HTTPError(400) on anything else.
-    """
-    if not isinstance(text, str) or not text.strip():
-        raise HTTPError(400, "public_key must be a non-empty string")
-    if len(text) > PUBLIC_KEY_MAX_LENGTH:
-        raise HTTPError(400, "public_key must be at most {} characters".format(PUBLIC_KEY_MAX_LENGTH))
-    raw = text.strip().encode("utf-8")
-    key = None
-    for loader in (serialization.load_pem_public_key, serialization.load_ssh_public_key):
-        try:
-            key = loader(raw)
-            break
-        except (ValueError, TypeError, UnsupportedAlgorithm):
-            continue
-    if key is None:
-        raise HTTPError(400, "public_key must be a PEM (BEGIN PUBLIC KEY) or OpenSSH (ssh-rsa) public key")
-    if not isinstance(key, rsa.RSAPublicKey):
-        raise HTTPError(400, "public_key must be an RSA key")
-    if key.key_size < RSA_MIN_BITS:
-        raise HTTPError(400, "public_key must be at least {} bits".format(RSA_MIN_BITS))
-    return key
-
-
-def public_key_fingerprint(key):
-    """SHA256:<standard base64, unpadded> of the DER SubjectPublicKeyInfo."""
-    der = key.public_bytes(serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo)
-    return "SHA256:" + base64.b64encode(hashlib.sha256(der).digest()).rstrip(b"=").decode("ascii")
-
-
-def b64url_decode(text):
-    if not isinstance(text, str) or not re.match(r"^[A-Za-z0-9_-]*$", text):
-        raise ValueError("not base64url")
-    return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
-
-
-def decrypt_payload(private_key, jwe):
-    """Open a JWE compact serialization made for private_key. Returns the parsed JSON.
-
-    Raises HTTPError(400) for anything that does not open, with a hint to
-    fetch /info again, since the usual cause is a key from a previous process.
-    """
-    hint = "cannot open encrypted_payload: it must be a JWE compact serialization encrypted to the " \
-           "current service key from /info; fetch /info again and retry"
-    try:
-        if not isinstance(jwe, str):
-            raise ValueError("not a string")
-        parts = jwe.split(".")
-        if len(parts) != 5:
-            raise ValueError("expected five segments")
-        protected, encrypted_key, iv, ciphertext, tag = parts
-        if json.loads(b64url_decode(protected)) != JWE_PROTECTED_HEADER:
-            raise ValueError("unsupported protected header")
-        cek = private_key.decrypt(b64url_decode(encrypted_key),
-                                  padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
-        plaintext = AESGCM(cek).decrypt(b64url_decode(iv), b64url_decode(ciphertext) + b64url_decode(tag),
-                                        protected.encode("ascii"))
-        return json.loads(plaintext.decode("utf-8"))
-    except Exception as e:  # cryptography raises several types; none carry secrets
-        raise HTTPError(400, "{} ({})".format(hint, e.__class__.__name__))
-
-
-def generate_service_key():
-    return rsa.generate_private_key(public_exponent=65537, key_size=SERVICE_KEY_BITS)
-
-
-def public_key_pem(key):
-    return key.public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo).decode("ascii")
-
-
-def encrypt_payload(public_key_text, obj):
-    """Return obj as a JWE compact serialization, RSA-OAEP-256 + A256GCM, for the given key."""
-    key = parse_public_key(public_key_text)
-    protected = b64url(json.dumps(JWE_PROTECTED_HEADER, separators=(",", ":")).encode("utf-8"))
-    cek = secrets.token_bytes(32)
-    iv = secrets.token_bytes(12)
-    encrypted_key = key.encrypt(cek, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
-    plaintext = json.dumps(obj, sort_keys=True).encode("utf-8")
-    ciphertext_and_tag = AESGCM(cek).encrypt(iv, plaintext, protected.encode("ascii"))
-    ciphertext, tag = ciphertext_and_tag[:-16], ciphertext_and_tag[-16:]
-    return ".".join([protected, b64url(encrypted_key), b64url(iv), b64url(ciphertext), b64url(tag)])
 
 
 # ---------------------------------------------------------------------------
@@ -608,12 +485,11 @@ class HomeZoneConfig:
         }
 
     def zone_facts(self, role):
-        """Zone-wide facts for a new server of the given role (spec 8.3.2), copied verbatim."""
+        """Zone-wide facts for a new server of the given role (spec 7.3.2), copied verbatim."""
         cfg = self.read()
         facts = {"catalog_service_role": role}
         for key in ZONE_FACT_KEYS:
-            if key in cfg:
-                facts[key] = cfg[key]
+            facts[key] = cfg[key]
         if role == "provider":
             facts["database"] = cfg["plugin_configuration"]["database"]
         return facts
@@ -655,18 +531,10 @@ class HomeZoneConfig:
 # Request validation
 # ---------------------------------------------------------------------------
 
-def validate_public_key_field(body):
-    """Return (public_key text or None, fingerprint or None)."""
-    public_key = body.get("public_key")
-    if public_key is None:
-        return None, None
-    return public_key, public_key_fingerprint(parse_public_key(public_key))
-
-
 def validate_federation_apply(body):
     if not isinstance(body, dict):
         raise HTTPError(400, "request body must be a JSON object")
-    allowed = {"zone_name", "zone_port", "catalog_provider_hosts", "zone_key", "name", "email", "public_key"}
+    allowed = {"zone_name", "zone_port", "catalog_provider_hosts", "zone_key", "name", "email"}
     unknown = sorted(set(body) - allowed)
     if unknown:
         raise HTTPError(400, "unknown field(s): {}".format(", ".join(unknown)))
@@ -707,7 +575,6 @@ def validate_federation_apply(body):
             raise HTTPError(400, "email must be a string of at most {} characters with exactly one @".format(
                 EMAIL_MAX_LENGTH))
 
-    public_key, fingerprint = validate_public_key_field(body)
     return {
         "zone_name": zone_name,
         "zone_port": zone_port,
@@ -715,15 +582,13 @@ def validate_federation_apply(body):
         "zone_key": zone_key,
         "name": name,
         "email": email,
-        "public_key": public_key,
-        "public_key_fingerprint": fingerprint,
     }
 
 
 def validate_bootstrap_apply(body):
     if not isinstance(body, dict):
         raise HTTPError(400, "request body must be a JSON object")
-    allowed = {"bootstrap_key", "catalog_service_role", "public_key"}
+    allowed = {"bootstrap_key", "catalog_service_role"}
     unknown = sorted(set(body) - allowed)
     if unknown:
         raise HTTPError(400, "unknown field(s): {}".format(", ".join(unknown)))
@@ -736,12 +601,9 @@ def validate_bootstrap_apply(body):
     role = body["catalog_service_role"]
     if role not in ROLES:
         raise HTTPError(400, "catalog_service_role must be one of {}".format(", ".join(ROLES)))
-    public_key, fingerprint = validate_public_key_field(body)
     return {
         "bootstrap_key": bootstrap_key,
         "catalog_service_role": role,
-        "public_key": public_key,
-        "public_key_fingerprint": fingerprint,
     }
 
 
@@ -791,22 +653,8 @@ class App:
         env = load_irods_environment(config["irods_environment_file"])
         self.irods = IRODS(config["irods_environment_file"], env)
         self.home = HomeZoneConfig(config["server_config_file"], config["server_pid_file"])
-        self.service_private_key = None  # generated in start(); tests may preset it
-        self.replay_memory = {}  # sha256 hex of accepted encrypted applications -> forget-after epoch
-
-    @property
-    def service_public_key(self):
-        return self.service_private_key.public_key()
-
-    @property
-    def service_public_key_fingerprint(self):
-        return public_key_fingerprint(self.service_public_key)
 
     def start(self):
-        if self.service_private_key is None:
-            self.service_private_key = generate_service_key()
-        log.info("service public key fingerprint %s (ephemeral, %d-bit RSA, new at every start)",
-                 self.service_public_key_fingerprint, self.service_private_key.key_size)
         self.state.load()
         # Fail fast if the home zone facts are unreadable.
         facts = self.home.facts()
@@ -829,54 +677,6 @@ class App:
     def feature_config(self, feature):
         return self.config[feature]
 
-    def open_encrypted_application(self, body):
-        """Return (plaintext application, ciphertext digest, forget-after epoch) for spec 6.3."""
-        if len(body) != 1:
-            raise HTTPError(400, "an encrypted application must contain encrypted_payload and nothing else")
-        jwe = body["encrypted_payload"]
-        plaintext = decrypt_payload(self.service_private_key, jwe)
-        if not isinstance(plaintext, dict):
-            raise HTTPError(400, "encrypted_payload must decrypt to a JSON object")
-        skew = self.config["allowed_encryption_clock_skew_in_seconds"]
-        now = int(utc_now().timestamp())
-        iat = plaintext.pop("iat", None)
-        if not is_int(iat):
-            raise HTTPError(400, "an encrypted application must carry iat, integer seconds since the epoch "
-                                 "(server time is {})".format(now))
-        if abs(now - iat) > skew:
-            raise HTTPError(400, "iat {} is more than {} seconds from server time {}".format(iat, skew, now))
-        digest = hashlib.sha256(jwe.encode("ascii")).hexdigest()
-        return plaintext, digest, iat + skew
-
-    def unwrap_application(self, body, feature):
-        """Apply the encrypted/plaintext policy of a feature. Returns (plaintext, encrypted, digest, forget_after)."""
-        if not isinstance(body, dict):
-            raise HTTPError(400, "request body must be a JSON object")
-        if "encrypted_payload" in body:
-            plaintext, digest, forget_after = self.open_encrypted_application(body)
-            return plaintext, True, digest, forget_after
-        if self.feature_config(feature)["require_encrypted_apply"]:
-            raise HTTPError(400, "this service requires encrypted {} applications: encrypt the application "
-                                 "to the service key from /info and send it as encrypted_payload".format(feature))
-        return body, False, None, None
-
-    def require_public_key(self, req, feature):
-        if self.feature_config(feature)["require_public_key"] and req["public_key"] is None:
-            raise HTTPError(400, "this service requires a public_key for {} applications so that secrets "
-                                 "are never sent in plaintext".format(feature))
-
-    def prune_replay_memory(self, now_epoch):
-        """Caller holds the state lock."""
-        for digest in [d for d, until in self.replay_memory.items() if until < now_epoch]:
-            del self.replay_memory[digest]
-
-    def check_replay(self, encrypted, digest, now):
-        """Caller holds the state lock."""
-        if encrypted:
-            self.prune_replay_memory(int(now.timestamp()))
-            if digest in self.replay_memory:
-                raise HTTPError(409, "this encrypted application was already submitted")
-
     def check_queue_room(self, applications, feature):
         """Caller holds the state lock."""
         if State.count_pending(applications) >= self.feature_config(feature)["max_pending_applications"]:
@@ -895,16 +695,6 @@ class App:
     def bookkeeping(record, *extra):
         keys = ("application_id", "status") + extra + ("submitted_at", "expires_at", "judged_at", "decision_note")
         return {k: record[k] for k in keys}
-
-    @staticmethod
-    def with_secrets(response, record, payload):
-        """Attach payload to a response, encrypted to the record's key when it has one."""
-        if record["public_key"]:
-            response["public_key_fingerprint"] = record["public_key_fingerprint"]
-            response["encrypted_payload"] = encrypt_payload(record["public_key"], payload)
-        else:
-            response.update(payload)
-        return response
 
     def lookup_for_judge(self, applications, application_id):
         """Caller holds the state lock."""
@@ -925,21 +715,13 @@ class App:
         self.state.save()
 
     def info(self):
-        response = {
-            "service": SERVICE_NAME,
-            "version": VERSION,
-            "service_public_key": public_key_pem(self.service_public_key),
-            "service_public_key_fingerprint": self.service_public_key_fingerprint,
-            "encryption": dict(JWE_PROTECTED_HEADER),
-            "allowed_encryption_clock_skew_in_seconds": self.config["allowed_encryption_clock_skew_in_seconds"],
-        }
+        response = {"service": SERVICE_NAME, "version": VERSION}
         for feature in ("federation", "bootstrap"):
             cfg = self.feature_config(feature)
-            response[feature] = {k: cfg[k] for k in (
-                "require_public_key", "require_encrypted_apply", "application_expiration_in_seconds")}
+            response[feature] = {k: cfg[k] for k in ("application_expiration_in_seconds",)}
         return 200, response
 
-    # -- federation (spec 8.1) --------------------------------------------------
+    # -- federation (spec 7.1) --------------------------------------------------
 
     def applicant_federation_entry(self, record):
         facts = self.home.facts()
@@ -974,14 +756,11 @@ class App:
         return all(entry.get(k) == v for k, v in expected.items())
 
     def federation_apply(self, body, remote_address):
-        body, encrypted, digest, forget_after = self.unwrap_application(body, "federation")
         req = validate_federation_apply(body)
         if req["zone_name"] == self.irods.zone:
             raise HTTPError(400, "zone_name must not be the home zone's name")
-        self.require_public_key(req, "federation")
         now = utc_now()
         with self.state.lock:
-            self.check_replay(encrypted, digest, now)
             self.check_queue_room(self.state.federation, "federation")
             if self.state.find_pending_federation_by_zone_name(req["zone_name"]) is not None:
                 raise HTTPError(409, "an application for zone {} is already pending".format(req["zone_name"]))
@@ -995,29 +774,22 @@ class App:
                 "negotiation_key": generate_key(),
                 "name": req["name"],
                 "email": req["email"],
-                "public_key": req["public_key"],
-                "public_key_fingerprint": req["public_key_fingerprint"],
-                "encrypted_application": encrypted,
                 "judged_at": None,
                 "judged_by": None,
                 "decision_note": None,
             })
             self.state.federation[record["application_id"]] = record
             self.state.save()
-            if encrypted:
-                self.replay_memory[digest] = forget_after
-        log.info("federation application %s submitted for zone %s from %s (%s application)%s",
-                 record["application_id"], record["zone_name"], remote_address,
-                 "encrypted" if encrypted else "plaintext",
-                 " (public key {})".format(record["public_key_fingerprint"]) if record["public_key"] else "")
-        response = {
+        log.info("federation application %s submitted for zone %s from %s",
+                 record["application_id"], record["zone_name"], remote_address)
+        return 201, {
             "application_id": record["application_id"],
             "status": record["status"],
             "expires_at": record["expires_at"],
+            "negotiation_key": record["negotiation_key"],
+            "zone_key": record["zone_key"],
             "status_url": "/federation/status?application_id={}".format(record["application_id"]),
         }
-        payload = {"negotiation_key": record["negotiation_key"], "zone_key": record["zone_key"]}
-        return 201, self.with_secrets(response, record, payload)
 
     def federation_status(self, query):
         application_id = single_query_value(query, "application_id", required=True)
@@ -1028,11 +800,8 @@ class App:
             record = dict(record)
         response = self.bookkeeping(record)
         if record["status"] == STATUS_APPROVED:
-            payload = {
-                "applicant_federation_entry": self.applicant_federation_entry(record),
-                "applicant_mkzone_command": self.applicant_mkzone_command(),
-            }
-            self.with_secrets(response, record, payload)
+            response["applicant_federation_entry"] = self.applicant_federation_entry(record)
+            response["applicant_mkzone_command"] = self.applicant_mkzone_command()
         return 200, response
 
     def federation_list(self, query, admin):
@@ -1042,8 +811,7 @@ class App:
                        if wanted == "all" or r["status"] == wanted]
         records.sort(key=lambda r: r["submitted_at"])
         log.info("%s listed %d federation application(s) with status=%s", admin, len(records), wanted)
-        return 200, {"service_public_key_fingerprint": self.service_public_key_fingerprint,
-                     "applications": records}
+        return 200, {"applications": records}
 
     def federation_judge(self, body, admin, session):
         application_id, decision, note = validate_judge(body)
@@ -1123,7 +891,7 @@ class App:
             raise HTTPError(500, "step reload failed: {}. The catalog zone and the federation entry "
                                  "are in place; fix the cause and judge again to retry the reload.".format(e))
 
-    # -- keyserver (spec 5.5, 8.2) ----------------------------------------------
+    # -- keyserver (spec 5.5, 7.2) ----------------------------------------------
 
     def reconcile_zone_key(self, now):
         """Bring the zone key state in line with server_config.json (spec 5.5). Caller holds the state lock."""
@@ -1191,16 +959,13 @@ class App:
         log.info("%s minted a bootstrap key expiring %s", admin, key["expires_at"])
         return 201, key
 
-    # -- bootstrap (spec 8.3) ---------------------------------------------------
+    # -- bootstrap (spec 7.3) ---------------------------------------------------
 
     def bootstrap_apply(self, body, remote_address):
-        body, encrypted, digest, forget_after = self.unwrap_application(body, "bootstrap")
         req = validate_bootstrap_apply(body)
-        self.require_public_key(req, "bootstrap")
         now = utc_now()
         with self.state.lock:
             self.reconcile_zone_key(now)
-            self.check_replay(encrypted, digest, now)
             self.check_queue_room(self.state.bootstrap, "bootstrap")
             key = self.state.bootstrap_keys.get(req["bootstrap_key"])
             if key is None or key["status"] == KEY_USED:
@@ -1211,9 +976,6 @@ class App:
             record.update({
                 "catalog_service_role": req["catalog_service_role"],
                 "bootstrap_key": req["bootstrap_key"],
-                "public_key": req["public_key"],
-                "public_key_fingerprint": req["public_key_fingerprint"],
-                "encrypted_application": encrypted,
                 "judged_at": None,
                 "judged_by": None,
                 "decision_note": None,
@@ -1223,21 +985,14 @@ class App:
             key["application_id"] = record["application_id"]
             self.state.bootstrap[record["application_id"]] = record
             self.state.save()
-            if encrypted:
-                self.replay_memory[digest] = forget_after
-        log.info("bootstrap application %s submitted for a %s from %s (%s application)%s; bootstrap key consumed",
-                 record["application_id"], record["catalog_service_role"], remote_address,
-                 "encrypted" if encrypted else "plaintext",
-                 " (public key {})".format(record["public_key_fingerprint"]) if record["public_key"] else "")
-        response = {
+        log.info("bootstrap application %s submitted for a %s from %s; bootstrap key consumed",
+                 record["application_id"], record["catalog_service_role"], remote_address)
+        return 201, {
             "application_id": record["application_id"],
             "status": record["status"],
             "expires_at": record["expires_at"],
             "status_url": "/bootstrap/status?application_id={}".format(record["application_id"]),
         }
-        if record["public_key"]:
-            response["public_key_fingerprint"] = record["public_key_fingerprint"]
-        return 201, response
 
     def bootstrap_status(self, query):
         application_id = single_query_value(query, "application_id", required=True)
@@ -1249,8 +1004,7 @@ class App:
             record = dict(record)
         response = self.bookkeeping(record, "catalog_service_role")
         if record["status"] == STATUS_APPROVED:
-            payload = {"zone_facts": self.home.zone_facts(record["catalog_service_role"])}
-            self.with_secrets(response, record, payload)
+            response["zone_facts"] = self.home.zone_facts(record["catalog_service_role"])
         return 200, response
 
     def bootstrap_list(self, query, admin):
@@ -1264,8 +1018,7 @@ class App:
         keys.sort(key=lambda k: k["created_at"])
         log.info("%s listed %d bootstrap application(s) with status=%s and %d bootstrap key(s)",
                  admin, len(records), wanted, len(keys))
-        return 200, {"service_public_key_fingerprint": self.service_public_key_fingerprint,
-                     "applications": records, "bootstrap_keys": keys}
+        return 200, {"applications": records, "bootstrap_keys": keys}
 
     def bootstrap_judge(self, body, admin):
         application_id, decision, note = validate_judge(body)
@@ -1484,6 +1237,7 @@ class Handler(BaseHTTPRequestHandler):
 class Server(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
+    request_queue_size = 128  # listen backlog; socketserver's default of 5 drops connections under a burst
 
     def __init__(self, address, app):
         super().__init__(address, Handler)
